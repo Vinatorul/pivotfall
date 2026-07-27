@@ -1,0 +1,121 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/debug_level_selector.gd" id="1_selector"]
+
+[node name="DebugLevelSelector" type="CanvasLayer"]
+process_mode = 4
+layer = 100
+script = ExtResource("1_selector")
+
+[node name="Menu" type="Control" parent="."]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Shade" type="ColorRect" parent="Menu"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.02, 0.027, 0.051, 0.82)
+
+[node name="Panel" type="ColorRect" parent="Menu"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -240.0
+offset_top = -190.0
+offset_right = 240.0
+offset_bottom = 190.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.075, 0.098, 0.165, 1)
+
+[node name="Accent" type="ColorRect" parent="Menu/Panel"]
+layout_mode = 0
+offset_left = 0.0
+offset_top = 0.0
+offset_right = 480.0
+offset_bottom = 5.0
+mouse_filter = 2
+color = Color(0.439, 0.827, 0.816, 1)
+
+[node name="Title" type="Label" parent="Menu/Panel"]
+layout_mode = 0
+offset_left = 26.0
+offset_top = 22.0
+offset_right = 454.0
+offset_bottom = 54.0
+theme_override_colors/font_color = Color(0.973, 0.58, 0.267, 1)
+theme_override_font_sizes/font_size = 22
+text = "DEBUG  /  ВЫБОР АРЕНЫ"
+
+[node name="Current" type="Label" parent="Menu/Panel"]
+layout_mode = 0
+offset_left = 26.0
+offset_top = 58.0
+offset_right = 454.0
+offset_bottom = 82.0
+theme_override_colors/font_color = Color(0.439, 0.502, 0.616, 1)
+theme_override_font_sizes/font_size = 13
+text = "СЕЙЧАС: ARENA 01"
+
+[node name="ArenaList" type="RichTextLabel" parent="Menu/Panel"]
+layout_mode = 0
+offset_left = 26.0
+offset_top = 98.0
+offset_right = 454.0
+offset_bottom = 282.0
+mouse_filter = 2
+theme_override_colors/default_color = Color(0.651, 0.714, 0.82, 1)
+theme_override_constants/line_separation = 10
+theme_override_font_sizes/normal_font_size = 17
+bbcode_enabled = true
+text = "[color=#6fe0d0]▶  [1]  ARENA 01  /  ИМПУЛЬС[/color]"
+fit_content = true
+scroll_active = false
+
+[node name="Divider" type="ColorRect" parent="Menu/Panel"]
+layout_mode = 0
+offset_left = 26.0
+offset_top = 296.0
+offset_right = 454.0
+offset_bottom = 298.0
+mouse_filter = 2
+color = Color(0.235, 0.302, 0.416, 1)
+
+[node name="Help" type="Label" parent="Menu/Panel"]
+layout_mode = 0
+offset_left = 26.0
+offset_top = 310.0
+offset_right = 454.0
+offset_bottom = 360.0
+theme_override_colors/font_color = Color(0.651, 0.714, 0.82, 1)
+theme_override_font_sizes/font_size = 13
+text = "1–5 — открыть сразу    ↑ ↓ — выбрать\nEnter / Space — открыть    F1 / Esc — закрыть"
+
+[node name="Hint" type="Label" parent="."]
+visible = false
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 18.0
+offset_top = -34.0
+offset_right = 250.0
+offset_bottom = -10.0
+grow_vertical = 0
+theme_override_colors/font_color = Color(0.439, 0.827, 0.816, 0.72)
+theme_override_font_sizes/font_size = 13
+text = "DEBUG: F1 — ВЫБОР АРЕНЫ"

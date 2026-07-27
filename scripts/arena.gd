@@ -71,7 +71,7 @@ func _schedule_outcome(
 	advance_after_delay = should_advance
 	pending_outcome = outcome
 	outcome_generation += 1
-	get_tree().create_timer(delay).timeout.connect(
+	get_tree().create_timer(delay, false).timeout.connect(
 		_finish_outcome.bind(outcome_generation)
 	)
 

@@ -54,7 +54,7 @@ func request_toggle() -> bool:
 
 
 func _run_launch_cycle() -> void:
-	await get_tree().create_timer(warning_time).timeout
+	await get_tree().create_timer(warning_time, false).timeout
 	if not is_inside_tree():
 		return
 
@@ -77,7 +77,7 @@ func _run_launch_cycle() -> void:
 	if not is_inside_tree():
 		return
 
-	await get_tree().create_timer(swing_hold_time).timeout
+	await get_tree().create_timer(swing_hold_time, false).timeout
 	if not is_inside_tree():
 		return
 
@@ -100,7 +100,7 @@ func _run_launch_cycle() -> void:
 			break
 
 		_apply_impulse(blocking_bodies, _directed(clearance_impulse))
-		await get_tree().create_timer(clearance_time).timeout
+		await get_tree().create_timer(clearance_time, false).timeout
 		if not is_inside_tree():
 			return
 

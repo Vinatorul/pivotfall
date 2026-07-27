@@ -33,7 +33,9 @@ func receive_impulse(_impulse: Vector2) -> void:
 	if not target_finished:
 		target.connect("toggled", _on_target_toggled, CONNECT_ONE_SHOT)
 
-	get_tree().create_timer(cooldown).timeout.connect(_on_cooldown_finished)
+	get_tree().create_timer(cooldown, false).timeout.connect(
+		_on_cooldown_finished
+	)
 
 
 func _on_cooldown_finished() -> void:

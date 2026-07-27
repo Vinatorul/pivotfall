@@ -37,7 +37,9 @@ func request_toggle() -> bool:
 	is_transitioning = true
 	pending_active = not is_active
 	_apply_warning_visual()
-	get_tree().create_timer(transition_time).timeout.connect(_finish_toggle)
+	get_tree().create_timer(transition_time, false).timeout.connect(
+		_finish_toggle
+	)
 	return true
 
 

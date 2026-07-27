@@ -14,6 +14,10 @@ config/name="Single Screen Arcade Prototype"
 run/main_scene="res://scenes/arena_01.tscn"
 config/features=PackedStringArray("4.6")
 
+[autoload]
+
+DebugLevelSelector="*res://scenes/debug_level_selector.tscn"
+
 [display]
 
 window/size/viewport_width=960
