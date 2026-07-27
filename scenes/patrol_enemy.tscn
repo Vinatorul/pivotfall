@@ -5,7 +5,7 @@
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_patrol"]
 size = Vector2(30, 36)
 
-[node name="PatrolEnemy" type="CharacterBody2D"]
+[node name="PatrolEnemy" type="CharacterBody2D" groups=["enemies"]]
 collision_layer = 4
 collision_mask = 1
 floor_snap_length = 6.0
