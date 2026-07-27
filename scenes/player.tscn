@@ -37,7 +37,7 @@ color = Color(0.941, 0.984, 0.984, 1)
 [node name="AttackArea" type="Area2D" parent="AttackPivot"]
 position = Vector2(34, 0)
 collision_layer = 0
-collision_mask = 4
+collision_mask = 12
 monitoring = false
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="AttackPivot/AttackArea"]

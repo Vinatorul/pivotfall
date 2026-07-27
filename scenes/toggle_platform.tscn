@@ -1,0 +1,30 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/toggle_platform.gd" id="1_toggle"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_toggle"]
+size = Vector2(128, 20)
+
+[node name="TogglePlatform" type="StaticBody2D"]
+collision_layer = 1
+collision_mask = 0
+script = ExtResource("1_toggle")
+
+[node name="Body" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(-64, -10, 64, -10, 64, 10, -64, 10)
+color = Color(0.278, 0.345, 0.459, 1)
+
+[node name="TopEdge" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(-64, -10, 64, -10, 64, -5, -64, -5)
+color = Color(0.392, 0.455, 0.584, 1)
+
+[node name="Outline" type="Line2D" parent="."]
+points = PackedVector2Array(-64, -10, 64, -10, 64, 10, -64, 10)
+width = 2.0
+default_color = Color(0.439, 0.827, 0.816, 0)
+closed = true
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_toggle")
+one_way_collision = true
+one_way_collision_margin = 4.0

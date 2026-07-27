@@ -12,7 +12,7 @@ extends CharacterBody2D
 var gravity: float = float(
 	ProjectSettings.get_setting("physics/2d/default_gravity", 1500.0)
 )
-var patrol_direction := -1.0
+@export_range(-1.0, 1.0, 2.0) var patrol_direction := -1.0
 var knockback_time_remaining := 0.0
 var hit_flash_time_remaining := 0.0
 

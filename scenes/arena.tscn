@@ -1,8 +1,10 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="1_player"]
 [ext_resource type="PackedScene" path="res://scenes/patrol_enemy.tscn" id="2_patrol"]
 [ext_resource type="Script" path="res://scripts/arena.gd" id="3_arena"]
+[ext_resource type="PackedScene" path="res://scenes/toggle_platform.tscn" id="4_toggle"]
+[ext_resource type="PackedScene" path="res://scenes/hinge.tscn" id="5_hinge"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_floor"]
 size = Vector2(768, 44)
@@ -12,9 +14,6 @@ size = Vector2(32, 540)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_ceiling"]
 size = Vector2(960, 32)
-
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_platform"]
-size = Vector2(190, 20)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_death_zone"]
 size = Vector2(960, 120)
@@ -88,27 +87,25 @@ color = Color(0.157, 0.2, 0.286, 1)
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Geometry/RightWall"]
 shape = SubResource("RectangleShape2D_wall")
 
-[node name="TestPlatform" type="StaticBody2D" parent="Geometry"]
-position = Vector2(590, 420)
-
-[node name="Visual" type="Polygon2D" parent="Geometry/TestPlatform"]
-polygon = PackedVector2Array(-95, -10, 95, -10, 95, 10, -95, 10)
-color = Color(0.278, 0.345, 0.459, 1)
-
-[node name="TopEdge" type="Polygon2D" parent="Geometry/TestPlatform"]
-polygon = PackedVector2Array(-95, -10, 95, -10, 95, -5, -95, -5)
-color = Color(0.392, 0.455, 0.584, 1)
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Geometry/TestPlatform"]
-shape = SubResource("RectangleShape2D_platform")
-one_way_collision = true
-one_way_collision_margin = 4.0
+[node name="MechanismCable" type="Line2D" parent="."]
+z_index = -2
+points = PackedVector2Array(700, 468, 700, 442, 782, 442, 782, 486, 800, 486)
+width = 3.0
+default_color = Color(0.392, 0.455, 0.584, 0.8)
 
 [node name="Player" parent="." instance=ExtResource("1_player")]
 position = Vector2(150, 450)
 
 [node name="PatrolEnemy" parent="." instance=ExtResource("2_patrol")]
-position = Vector2(720, 450)
+position = Vector2(850, 450)
+patrol_direction = 1.0
+
+[node name="TogglePlatform" parent="." instance=ExtResource("4_toggle")]
+position = Vector2(864, 506)
+
+[node name="Hinge" parent="." instance=ExtResource("5_hinge")]
+position = Vector2(700, 468)
+target_path = NodePath("../TogglePlatform")
 
 [node name="DeathZone" type="Area2D" parent="."]
 position = Vector2(480, 600)
@@ -136,7 +133,7 @@ offset_right = 908.0
 offset_bottom = 78.0
 theme_override_colors/font_color = Color(0.973, 0.58, 0.267, 1)
 theme_override_font_sizes/font_size = 15
-text = "ЦЕЛЬ: СТОЛКНИ В ЯМУ →"
+text = "УДАРЬ ШАРНИР, УБЕРИ МОСТ →"
 horizontal_alignment = 2
 
 [node name="Controls" type="Label" parent="UI"]
@@ -149,11 +146,11 @@ theme_override_font_sizes/font_size = 14
 text = "A D / ← → — движение    W / ↑ / Space — прыжок    X / J — удар    R — рестарт"
 
 [node name="PitMarker" type="Label" parent="UI"]
-offset_left = 824.0
-offset_top = 458.0
-offset_right = 908.0
-offset_bottom = 486.0
+offset_left = 800.0
+offset_top = 410.0
+offset_right = 920.0
+offset_bottom = 438.0
 theme_override_colors/font_color = Color(0.925, 0.365, 0.231, 1)
 theme_override_font_sizes/font_size = 14
-text = "ЯМА ↓"
+text = "МОСТ / ЯМА ↓"
 horizontal_alignment = 2

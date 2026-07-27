@@ -33,6 +33,7 @@ var struck_targets: Dictionary[int, bool] = {}
 
 func _ready() -> void:
 	attack_area.body_entered.connect(_on_attack_area_body_entered)
+	attack_area.area_entered.connect(_on_attack_area_area_entered)
 
 
 func _input(event: InputEvent) -> void:
@@ -116,15 +117,26 @@ func _update_attack_timers(delta: float) -> void:
 
 
 func _on_attack_area_body_entered(body: Node2D) -> void:
-	if is_zero_approx(attack_time_remaining) or not body.has_method("receive_impulse"):
+	_try_apply_impulse(body)
+
+
+func _on_attack_area_area_entered(area: Area2D) -> void:
+	_try_apply_impulse(area)
+
+
+func _try_apply_impulse(target: Node2D) -> void:
+	if (
+		is_zero_approx(attack_time_remaining)
+		or not target.has_method("receive_impulse")
+	):
 		return
 
-	var target_id := body.get_instance_id()
+	var target_id := target.get_instance_id()
 	if struck_targets.has(target_id):
 		return
 
 	struck_targets[target_id] = true
-	body.call(
+	target.call(
 		"receive_impulse",
 		Vector2(
 			facing_direction * attack_horizontal_impulse,
