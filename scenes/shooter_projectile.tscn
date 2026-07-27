@@ -1,0 +1,16 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/shooter_projectile.gd" id="1_projectile"]
+
+[node name="ShooterProjectile" type="Node2D"]
+z_index = 5
+script = ExtResource("1_projectile")
+
+[node name="Trail" type="Line2D" parent="."]
+points = PackedVector2Array(-24, 0, -5, 0)
+width = 5.0
+default_color = Color(0.973, 0.365, 0.31, 0.45)
+
+[node name="Bolt" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(12, 0, 1, -7, -8, -4, -8, 4, 1, 7)
+color = Color(1, 0.78, 0.278, 1)

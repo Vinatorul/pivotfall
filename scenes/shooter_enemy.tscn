@@ -1,0 +1,93 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/shooter_enemy.gd" id="1_shooter"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
+size = Vector2(34, 38)
+
+[node name="ShooterEnemy" type="CharacterBody2D" groups=["enemies"]]
+collision_layer = 4
+collision_mask = 1
+floor_snap_length = 6.0
+floor_constant_speed = true
+script = ExtResource("1_shooter")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_body")
+
+[node name="Visual" type="Node2D" parent="."]
+
+[node name="Body" type="Polygon2D" parent="Visual"]
+polygon = PackedVector2Array(-17, -19, 17, -19, 17, 19, -17, 19)
+color = Color(0.718, 0.376, 0.925, 1)
+
+[node name="FacePanel" type="Polygon2D" parent="Visual"]
+polygon = PackedVector2Array(2, -10, 17, -10, 17, 9, 2, 9)
+color = Color(0.204, 0.075, 0.333, 1)
+
+[node name="Eye" type="Polygon2D" parent="Visual"]
+polygon = PackedVector2Array(8, -6, 13, -6, 13, -2, 8, -2)
+color = Color(0.973, 0.949, 1, 1)
+
+[node name="FootLeft" type="Polygon2D" parent="Visual"]
+polygon = PackedVector2Array(-17, 14, -2, 14, -2, 22, -17, 22)
+color = Color(0.443, 0.176, 0.647, 1)
+
+[node name="FootRight" type="Polygon2D" parent="Visual"]
+polygon = PackedVector2Array(2, 14, 17, 14, 17, 22, 2, 22)
+color = Color(0.443, 0.176, 0.647, 1)
+
+[node name="GunPivot" type="Node2D" parent="."]
+position = Vector2(0, -4)
+
+[node name="Barrel" type="Polygon2D" parent="GunPivot"]
+polygon = PackedVector2Array(7, -6, 28, -4, 28, 4, 7, 6)
+color = Color(1, 0.58, 0.267, 1)
+
+[node name="Muzzle" type="Marker2D" parent="GunPivot"]
+position = Vector2(28, 0)
+
+[node name="AimRay" type="RayCast2D" parent="GunPivot/Muzzle"]
+target_position = Vector2(900, 0)
+collision_mask = 1
+enabled = true
+
+[node name="MuzzleFlash" type="Polygon2D" parent="GunPivot/Muzzle"]
+visible = false
+polygon = PackedVector2Array(0, -9, 18, 0, 0, 9)
+color = Color(1, 0.78, 0.278, 0.9)
+
+[node name="AimLine" type="Line2D" parent="."]
+visible = false
+z_index = -1
+points = PackedVector2Array(-27, -4, -900, -4)
+width = 4.0
+default_color = Color(1, 0.255, 0.31, 0.75)
+
+[node name="AimMark" type="Polygon2D" parent="."]
+visible = false
+position = Vector2(0, -37)
+polygon = PackedVector2Array(0, -11, 11, 0, 0, 11, -11, 0)
+color = Color(1, 0.78, 0.278, 1)
+
+[node name="TargetMark" type="Polygon2D" parent="."]
+visible = false
+z_index = -1
+polygon = PackedVector2Array(0, -7, 7, 0, 0, 7, -7, 0)
+color = Color(1, 0.365, 0.365, 1)
+
+[node name="CooldownBack" type="Polygon2D" parent="."]
+position = Vector2(-18, -31)
+polygon = PackedVector2Array(0, 0, 36, 0, 36, 5, 0, 5)
+color = Color(0.129, 0.157, 0.239, 1)
+
+[node name="CooldownFill" type="Polygon2D" parent="."]
+position = Vector2(-18, -31)
+polygon = PackedVector2Array(0, 0, 36, 0, 36, 5, 0, 5)
+color = Color(0.439, 0.827, 0.816, 1)
+
+[node name="EdgeProbe" type="RayCast2D" parent="."]
+position = Vector2(0, 12)
+target_position = Vector2(28, 18)
+collision_mask = 1
+enabled = true
