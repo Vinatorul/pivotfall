@@ -1,0 +1,104 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/rotating_platform.gd" id="1_rotating"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_horizontal"]
+size = Vector2(200, 20)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_vertical"]
+size = Vector2(20, 200)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_horizontal_clearance"]
+size = Vector2(230, 72)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_vertical_clearance"]
+size = Vector2(70, 230)
+
+[node name="RotatingPlatform" type="StaticBody2D"]
+collision_layer = 1
+collision_mask = 0
+script = ExtResource("1_rotating")
+
+[node name="VisualPivot" type="Node2D" parent="."]
+
+[node name="Body" type="Polygon2D" parent="VisualPivot"]
+polygon = PackedVector2Array(0, -10, 200, -10, 200, 10, 0, 10)
+color = Color(0.278, 0.345, 0.459, 1)
+
+[node name="TopEdge" type="Polygon2D" parent="VisualPivot"]
+polygon = PackedVector2Array(0, -10, 200, -10, 200, -5, 0, -5)
+color = Color(0.392, 0.455, 0.584, 1)
+
+[node name="Outline" type="Line2D" parent="VisualPivot"]
+points = PackedVector2Array(0, -10, 200, -10, 200, 10, 0, 10)
+width = 2.0
+default_color = Color(0.439, 0.827, 0.816, 0.85)
+closed = true
+
+[node name="TargetPreview" type="Node2D" parent="."]
+visible = false
+
+[node name="Body" type="Polygon2D" parent="TargetPreview"]
+polygon = PackedVector2Array(0, -10, 200, -10, 200, 10, 0, 10)
+color = Color(0.925, 0.58, 0.267, 0.18)
+
+[node name="Outline" type="Line2D" parent="TargetPreview"]
+points = PackedVector2Array(0, -10, 200, -10, 200, 10, 0, 10)
+width = 2.0
+default_color = Color(0.925, 0.58, 0.267, 0.65)
+closed = true
+
+[node name="PivotOuter" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(0, -14, 14, 0, 0, 14, -14, 0)
+color = Color(0.439, 0.827, 0.816, 1)
+
+[node name="PivotInner" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(0, -7, 7, 0, 0, 7, -7, 0)
+color = Color(0.075, 0.098, 0.165, 1)
+
+[node name="HorizontalCollision" type="CollisionShape2D" parent="."]
+position = Vector2(100, 0)
+shape = SubResource("RectangleShape2D_horizontal")
+
+[node name="VerticalCollision" type="CollisionShape2D" parent="."]
+position = Vector2(0, -100)
+shape = SubResource("RectangleShape2D_vertical")
+disabled = true
+
+[node name="HorizontalClearanceArea" type="Area2D" parent="."]
+collision_layer = 0
+collision_mask = 6
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="HorizontalClearanceArea"]
+position = Vector2(100, -18)
+shape = SubResource("RectangleShape2D_horizontal_clearance")
+
+[node name="VerticalClearanceArea" type="Area2D" parent="."]
+collision_layer = 0
+collision_mask = 6
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="VerticalClearanceArea"]
+position = Vector2(0, -100)
+shape = SubResource("RectangleShape2D_vertical_clearance")
+
+[node name="HorizontalTargetArea" type="Area2D" parent="."]
+collision_layer = 0
+collision_mask = 6
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="HorizontalTargetArea"]
+position = Vector2(100, 0)
+shape = SubResource("RectangleShape2D_horizontal")
+
+[node name="VerticalTargetArea" type="Area2D" parent="."]
+collision_layer = 0
+collision_mask = 6
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="VerticalTargetArea"]
+position = Vector2(0, -100)
+shape = SubResource("RectangleShape2D_vertical")
+
+[node name="SafeLeft" type="Marker2D" parent="."]
+position = Vector2(-40, -30)
+
+[node name="SafeRight" type="Marker2D" parent="."]
+position = Vector2(240, -30)

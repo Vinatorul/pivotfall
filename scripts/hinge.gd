@@ -1,7 +1,7 @@
 class_name Hinge
 extends Area2D
 
-@export_node_path("TogglePlatform") var target_path: NodePath
+@export_node_path var target_path: NodePath
 @export var cooldown := 0.35
 
 @onready var target: Node = get_node_or_null(target_path)
@@ -9,6 +9,8 @@ extends Area2D
 @onready var inner_visual: Polygon2D = $Inner
 
 var is_ready := true
+var cooldown_finished := true
+var target_finished := true
 
 
 func receive_impulse(_impulse: Vector2) -> void:
@@ -23,9 +25,30 @@ func receive_impulse(_impulse: Vector2) -> void:
 		return
 
 	is_ready = false
+	cooldown_finished = false
+	target_finished = not target.has_signal("toggled")
 	outer_visual.color = Color(1.0, 0.82, 0.49, 1.0)
 	inner_visual.color = Color(1.0, 0.965, 0.835, 1.0)
-	get_tree().create_timer(cooldown).timeout.connect(_unlock)
+
+	if not target_finished:
+		target.connect("toggled", _on_target_toggled, CONNECT_ONE_SHOT)
+
+	get_tree().create_timer(cooldown).timeout.connect(_on_cooldown_finished)
+
+
+func _on_cooldown_finished() -> void:
+	cooldown_finished = true
+	_try_unlock()
+
+
+func _on_target_toggled(_is_active: bool) -> void:
+	target_finished = true
+	_try_unlock()
+
+
+func _try_unlock() -> void:
+	if cooldown_finished and target_finished:
+		_unlock()
 
 
 func _unlock() -> void:
