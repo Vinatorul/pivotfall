@@ -9,25 +9,45 @@ extends CharacterBody2D
 @export var jump_velocity := -540.0
 @export var maximum_fall_speed := 900.0
 
+@export_category("Attack")
+@export var attack_horizontal_impulse := 390.0
+@export var attack_vertical_impulse := -170.0
+@export var attack_active_time := 0.12
+@export var attack_cooldown := 0.3
+
 @onready var visual: Node2D = $Visual
+@onready var attack_pivot: Node2D = $AttackPivot
+@onready var attack_area: Area2D = $AttackPivot/AttackArea
+@onready var attack_visual: Polygon2D = $AttackPivot/AttackVisual
 
 var gravity: float = float(
 	ProjectSettings.get_setting("physics/2d/default_gravity", 1500.0)
 )
 var jump_requested := false
+var attack_requested := false
+var facing_direction := 1.0
+var attack_time_remaining := 0.0
+var attack_cooldown_remaining := 0.0
+var struck_targets: Dictionary[int, bool] = {}
+
+
+func _ready() -> void:
+	attack_area.body_entered.connect(_on_attack_area_body_entered)
 
 
 func _input(event: InputEvent) -> void:
-	if (
-		event is InputEventKey
-		and event.pressed
-		and not event.echo
-		and event.physical_keycode == KEY_W
-	):
+	if not event is InputEventKey or not event.pressed or event.echo:
+		return
+
+	if event.physical_keycode == KEY_W:
 		jump_requested = true
+	elif event.physical_keycode in [KEY_X, KEY_J]:
+		attack_requested = true
 
 
 func _physics_process(delta: float) -> void:
+	_update_attack_timers(delta)
+
 	var direction := Input.get_axis("ui_left", "ui_right")
 
 	if Input.is_physical_key_pressed(KEY_A):
@@ -46,7 +66,9 @@ func _physics_process(delta: float) -> void:
 			direction * move_speed,
 			acceleration * delta
 		)
-		visual.scale.x = signf(direction)
+		facing_direction = signf(direction)
+		visual.scale.x = facing_direction
+		attack_pivot.scale.x = facing_direction
 
 	var wants_to_jump := (
 		Input.is_action_just_pressed("ui_accept")
@@ -55,6 +77,10 @@ func _physics_process(delta: float) -> void:
 	)
 	jump_requested = false
 
+	if attack_requested and is_zero_approx(attack_cooldown_remaining):
+		_start_attack()
+	attack_requested = false
+
 	if is_on_floor():
 		if wants_to_jump:
 			velocity.y = jump_velocity
@@ -62,3 +88,46 @@ func _physics_process(delta: float) -> void:
 		velocity.y = minf(velocity.y + gravity * delta, maximum_fall_speed)
 
 	move_and_slide()
+
+
+func _start_attack() -> void:
+	attack_time_remaining = attack_active_time
+	attack_cooldown_remaining = attack_cooldown
+	struck_targets.clear()
+	attack_visual.visible = true
+	attack_area.monitoring = true
+
+
+func _finish_attack() -> void:
+	attack_time_remaining = 0.0
+	attack_visual.visible = false
+	attack_area.monitoring = false
+
+
+func _update_attack_timers(delta: float) -> void:
+	attack_cooldown_remaining = maxf(attack_cooldown_remaining - delta, 0.0)
+
+	if is_zero_approx(attack_time_remaining):
+		return
+
+	attack_time_remaining = maxf(attack_time_remaining - delta, 0.0)
+	if is_zero_approx(attack_time_remaining):
+		_finish_attack()
+
+
+func _on_attack_area_body_entered(body: Node2D) -> void:
+	if is_zero_approx(attack_time_remaining) or not body.has_method("receive_impulse"):
+		return
+
+	var target_id := body.get_instance_id()
+	if struck_targets.has(target_id):
+		return
+
+	struck_targets[target_id] = true
+	body.call(
+		"receive_impulse",
+		Vector2(
+			facing_direction * attack_horizontal_impulse,
+			attack_vertical_impulse
+		)
+	)
