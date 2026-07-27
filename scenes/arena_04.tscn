@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="1_player"]
 [ext_resource type="PackedScene" path="res://scenes/patrol_enemy.tscn" id="2_patrol"]
@@ -7,16 +7,13 @@
 [ext_resource type="PackedScene" path="res://scenes/hinge.tscn" id="5_hinge"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_floor"]
-size = Vector2(348, 44)
+size = Vector2(328, 44)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_wall"]
 size = Vector2(32, 540)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_ceiling"]
 size = Vector2(960, 32)
-
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_enemy_shelf"]
-size = Vector2(280, 20)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_death_zone"]
 size = Vector2(960, 120)
@@ -37,62 +34,48 @@ color = Color(0.075, 0.098, 0.165, 1)
 
 [node name="PitDepth" type="Polygon2D" parent="."]
 z_index = -8
-polygon = PackedVector2Array(380, 496, 580, 496, 580, 540, 380, 540)
+polygon = PackedVector2Array(360, 496, 600, 496, 600, 540, 360, 540)
 color = Color(0.02, 0.024, 0.043, 1)
 
 [node name="PitLeftLip" type="Polygon2D" parent="."]
 z_index = -7
-polygon = PackedVector2Array(372, 496, 380, 496, 380, 540, 372, 540)
+polygon = PackedVector2Array(352, 496, 360, 496, 360, 540, 352, 540)
 color = Color(0.925, 0.365, 0.231, 1)
 
 [node name="PitRightLip" type="Polygon2D" parent="."]
 z_index = -7
-polygon = PackedVector2Array(580, 496, 588, 496, 588, 540, 580, 540)
+polygon = PackedVector2Array(600, 496, 608, 496, 608, 540, 600, 540)
 color = Color(0.925, 0.365, 0.231, 1)
 
 [node name="Geometry" type="Node2D" parent="."]
 
 [node name="LeftFloor" type="StaticBody2D" parent="Geometry"]
-position = Vector2(206, 518)
+position = Vector2(196, 518)
 
 [node name="Visual" type="Polygon2D" parent="Geometry/LeftFloor"]
-polygon = PackedVector2Array(-174, -22, 174, -22, 174, 22, -174, 22)
+polygon = PackedVector2Array(-164, -22, 164, -22, 164, 22, -164, 22)
 color = Color(0.235, 0.302, 0.416, 1)
 
 [node name="TopEdge" type="Polygon2D" parent="Geometry/LeftFloor"]
-polygon = PackedVector2Array(-174, -22, 174, -22, 174, -16, -174, -16)
+polygon = PackedVector2Array(-164, -22, 164, -22, 164, -16, -164, -16)
 color = Color(0.392, 0.455, 0.584, 1)
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Geometry/LeftFloor"]
 shape = SubResource("RectangleShape2D_floor")
 
 [node name="RightFloor" type="StaticBody2D" parent="Geometry"]
-position = Vector2(754, 518)
+position = Vector2(764, 518)
 
 [node name="Visual" type="Polygon2D" parent="Geometry/RightFloor"]
-polygon = PackedVector2Array(-174, -22, 174, -22, 174, 22, -174, 22)
+polygon = PackedVector2Array(-164, -22, 164, -22, 164, 22, -164, 22)
 color = Color(0.235, 0.302, 0.416, 1)
 
 [node name="TopEdge" type="Polygon2D" parent="Geometry/RightFloor"]
-polygon = PackedVector2Array(-174, -22, 174, -22, 174, -16, -174, -16)
+polygon = PackedVector2Array(-164, -22, 164, -22, 164, -16, -164, -16)
 color = Color(0.392, 0.455, 0.584, 1)
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Geometry/RightFloor"]
 shape = SubResource("RectangleShape2D_floor")
-
-[node name="EnemyShelf" type="StaticBody2D" parent="Geometry"]
-position = Vector2(760, 420)
-
-[node name="Visual" type="Polygon2D" parent="Geometry/EnemyShelf"]
-polygon = PackedVector2Array(-140, -10, 140, -10, 140, 10, -140, 10)
-color = Color(0.235, 0.302, 0.416, 1)
-
-[node name="TopEdge" type="Polygon2D" parent="Geometry/EnemyShelf"]
-polygon = PackedVector2Array(-140, -10, 140, -10, 140, -5, -140, -5)
-color = Color(0.392, 0.455, 0.584, 1)
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Geometry/EnemyShelf"]
-shape = SubResource("RectangleShape2D_enemy_shelf")
 
 [node name="Ceiling" type="StaticBody2D" parent="Geometry"]
 position = Vector2(480, 16)
@@ -126,24 +109,23 @@ shape = SubResource("RectangleShape2D_wall")
 
 [node name="MechanismCable" type="Line2D" parent="."]
 z_index = -2
-points = PackedVector2Array(350, 468, 350, 438, 370, 438, 370, 486, 380, 486)
+points = PackedVector2Array(320, 468, 320, 430, 220, 430, 220, 380, 180, 380, 180, 360)
 width = 3.0
 default_color = Color(0.392, 0.455, 0.584, 0.8)
 
 [node name="Player" parent="." instance=ExtResource("1_player")]
-position = Vector2(200, 450)
+position = Vector2(120, 450)
 
 [node name="PatrolEnemy" parent="." instance=ExtResource("2_patrol")]
-position = Vector2(760, 380)
-patrol_speed = 55.0
+position = Vector2(270, 310)
+patrol_speed = 45.0
 patrol_direction = 1.0
 
 [node name="RotatingPlatform" parent="." instance=ExtResource("4_rotating")]
-position = Vector2(380, 506)
-starts_horizontal = false
+position = Vector2(180, 360)
 
 [node name="Hinge" parent="." instance=ExtResource("5_hinge")]
-position = Vector2(350, 468)
+position = Vector2(320, 468)
 target_path = NodePath("../RotatingPlatform")
 
 [node name="DeathZone" type="Area2D" parent="."]
@@ -166,13 +148,13 @@ theme_override_font_sizes/font_size = 16
 text = "GRAYBOX  /  ARENA 04"
 
 [node name="Status" type="Label" parent="UI"]
-offset_left = 440.0
+offset_left = 430.0
 offset_top = 50.0
 offset_right = 908.0
 offset_bottom = 78.0
 theme_override_colors/font_color = Color(0.973, 0.58, 0.267, 1)
 theme_override_font_sizes/font_size = 14
-text = "ПОВЕРНИ → ПЕРЕЙДИ → УДАРЬ ШАРНИР ЕЩЁ РАЗ"
+text = "УДАРЬ ШАРНИР → ЗАПУСТИ ВРАГА В ЯМУ ↗"
 horizontal_alignment = 2
 
 [node name="Controls" type="Label" parent="UI"]
@@ -191,5 +173,15 @@ offset_right = 550.0
 offset_bottom = 438.0
 theme_override_colors/font_color = Color(0.925, 0.365, 0.231, 1)
 theme_override_font_sizes/font_size = 14
-text = "ПОВОРОТ / ЯМА ↓"
+text = "ЗОНА ПАДЕНИЯ ↓"
 horizontal_alignment = 2
+
+[node name="LaunchHint" type="Label" parent="UI"]
+offset_left = 170.0
+offset_top = 230.0
+offset_right = 370.0
+offset_bottom = 258.0
+theme_override_colors/font_color = Color(0.439, 0.827, 0.816, 0.8)
+theme_override_font_sizes/font_size = 14
+text = "КАТАПУЛЬТА ↗"
+horizontal_alignment = 1
