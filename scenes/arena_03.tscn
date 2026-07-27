@@ -1,7 +1,7 @@
 [gd_scene load_steps=8 format=3]
 
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="1_player"]
-[ext_resource type="PackedScene" path="res://scenes/patrol_enemy.tscn" id="2_patrol"]
+[ext_resource type="PackedScene" path="res://scenes/shove_enemy.tscn" id="2_shove"]
 [ext_resource type="Script" path="res://scripts/arena.gd" id="3_arena"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_floor"]
@@ -18,8 +18,7 @@ size = Vector2(960, 120)
 
 [node name="Arena" type="Node2D"]
 script = ExtResource("3_arena")
-next_arena_path = "res://scenes/arena_02.tscn"
-clear_message = "АРЕНА 1 ПРОЙДЕНА  /  ПЕРЕХОД..."
+clear_message = "АРЕНА 3 ПРОЙДЕНА  /  ПЕРЕЗАПУСК..."
 
 [node name="Background" type="Polygon2D" parent="."]
 z_index = -10
@@ -107,12 +106,12 @@ color = Color(0.157, 0.2, 0.286, 1)
 shape = SubResource("RectangleShape2D_wall")
 
 [node name="Player" parent="." instance=ExtResource("1_player")]
-position = Vector2(150, 450)
+position = Vector2(650, 450)
 
-[node name="PatrolEnemy" parent="." instance=ExtResource("2_patrol")]
-position = Vector2(360, 450)
-patrol_speed = 65.0
-patrol_direction = 1.0
+[node name="ShoveEnemy" parent="." instance=ExtResource("2_shove")]
+position = Vector2(800, 450)
+patrol_speed = 55.0
+patrol_direction = -1.0
 
 [node name="DeathZone" type="Area2D" parent="."]
 position = Vector2(480, 600)
@@ -131,7 +130,7 @@ offset_right = 420.0
 offset_bottom = 78.0
 theme_override_colors/font_color = Color(0.651, 0.714, 0.82, 1)
 theme_override_font_sizes/font_size = 16
-text = "GRAYBOX  /  ARENA 01"
+text = "GRAYBOX  /  ARENA 03"
 
 [node name="Status" type="Label" parent="UI"]
 offset_left = 580.0
@@ -140,7 +139,7 @@ offset_right = 908.0
 offset_bottom = 78.0
 theme_override_colors/font_color = Color(0.973, 0.58, 0.267, 1)
 theme_override_font_sizes/font_size = 15
-text = "СТОЛКНИ ВРАГА В ЯМУ ↓"
+text = "УКЛОНИСЬ И СТОЛКНИ В ЯМУ ←"
 horizontal_alignment = 2
 
 [node name="Controls" type="Label" parent="UI"]

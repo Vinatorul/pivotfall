@@ -1,0 +1,70 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/shove_enemy.gd" id="1_shove"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
+size = Vector2(32, 38)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_attack"]
+size = Vector2(48, 34)
+
+[node name="ShoveEnemy" type="CharacterBody2D" groups=["enemies"]]
+collision_layer = 4
+collision_mask = 1
+floor_snap_length = 6.0
+floor_constant_speed = true
+script = ExtResource("1_shove")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_body")
+
+[node name="Visual" type="Node2D" parent="."]
+
+[node name="Body" type="Polygon2D" parent="Visual"]
+polygon = PackedVector2Array(-16, -19, 16, -19, 16, 19, -16, 19)
+color = Color(0.929, 0.31, 0.337, 1)
+
+[node name="FacePanel" type="Polygon2D" parent="Visual"]
+polygon = PackedVector2Array(2, -10, 16, -10, 16, 9, 2, 9)
+color = Color(0.286, 0.071, 0.118, 1)
+
+[node name="Eye" type="Polygon2D" parent="Visual"]
+polygon = PackedVector2Array(8, -6, 12, -6, 12, -2, 8, -2)
+color = Color(1, 0.922, 0.835, 1)
+
+[node name="FootLeft" type="Polygon2D" parent="Visual"]
+polygon = PackedVector2Array(-16, 14, -2, 14, -2, 22, -16, 22)
+color = Color(0.698, 0.153, 0.227, 1)
+
+[node name="FootRight" type="Polygon2D" parent="Visual"]
+polygon = PackedVector2Array(2, 14, 16, 14, 16, 22, 2, 22)
+color = Color(0.698, 0.153, 0.227, 1)
+
+[node name="Telegraph" type="Polygon2D" parent="."]
+visible = false
+position = Vector2(0, -34)
+polygon = PackedVector2Array(0, -11, 11, 0, 0, 11, -11, 0)
+color = Color(1, 0.78, 0.278, 1)
+
+[node name="AttackPivot" type="Node2D" parent="."]
+
+[node name="AttackArea" type="Area2D" parent="AttackPivot"]
+position = Vector2(34, 0)
+collision_layer = 0
+collision_mask = 14
+monitoring = false
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="AttackPivot/AttackArea"]
+shape = SubResource("RectangleShape2D_attack")
+
+[node name="AttackVisual" type="Polygon2D" parent="AttackPivot"]
+visible = false
+z_index = -1
+polygon = PackedVector2Array(12, -17, 60, -11, 60, 11, 12, 17)
+color = Color(1, 0.322, 0.322, 0.55)
+
+[node name="EdgeProbe" type="RayCast2D" parent="."]
+position = Vector2(0, 12)
+target_position = Vector2(28, 18)
+collision_mask = 1
+enabled = true

@@ -7,7 +7,7 @@
 [ext_resource type="PackedScene" path="res://scenes/hinge.tscn" id="5_hinge"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_floor"]
-size = Vector2(768, 44)
+size = Vector2(368, 44)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_wall"]
 size = Vector2(32, 540)
@@ -20,7 +20,8 @@ size = Vector2(960, 120)
 
 [node name="Arena" type="Node2D"]
 script = ExtResource("3_arena")
-clear_message = "АРЕНА 2 ПРОЙДЕНА  /  ПЕРЕЗАПУСК..."
+next_arena_path = "res://scenes/arena_03.tscn"
+clear_message = "АРЕНА 2 ПРОЙДЕНА  /  ПЕРЕХОД..."
 
 [node name="Background" type="Polygon2D" parent="."]
 z_index = -10
@@ -34,28 +35,47 @@ color = Color(0.075, 0.098, 0.165, 1)
 
 [node name="PitDepth" type="Polygon2D" parent="."]
 z_index = -8
-polygon = PackedVector2Array(800, 496, 928, 496, 928, 540, 800, 540)
+polygon = PackedVector2Array(400, 496, 560, 496, 560, 540, 400, 540)
 color = Color(0.02, 0.024, 0.043, 1)
 
-[node name="PitLip" type="Polygon2D" parent="."]
+[node name="PitLeftLip" type="Polygon2D" parent="."]
 z_index = -7
-polygon = PackedVector2Array(792, 496, 800, 496, 800, 540, 792, 540)
+polygon = PackedVector2Array(392, 496, 400, 496, 400, 540, 392, 540)
+color = Color(0.925, 0.365, 0.231, 1)
+
+[node name="PitRightLip" type="Polygon2D" parent="."]
+z_index = -7
+polygon = PackedVector2Array(560, 496, 568, 496, 568, 540, 560, 540)
 color = Color(0.925, 0.365, 0.231, 1)
 
 [node name="Geometry" type="Node2D" parent="."]
 
-[node name="Floor" type="StaticBody2D" parent="Geometry"]
-position = Vector2(416, 518)
+[node name="LeftFloor" type="StaticBody2D" parent="Geometry"]
+position = Vector2(216, 518)
 
-[node name="Visual" type="Polygon2D" parent="Geometry/Floor"]
-polygon = PackedVector2Array(-384, -22, 384, -22, 384, 22, -384, 22)
+[node name="Visual" type="Polygon2D" parent="Geometry/LeftFloor"]
+polygon = PackedVector2Array(-184, -22, 184, -22, 184, 22, -184, 22)
 color = Color(0.235, 0.302, 0.416, 1)
 
-[node name="TopEdge" type="Polygon2D" parent="Geometry/Floor"]
-polygon = PackedVector2Array(-384, -22, 384, -22, 384, -16, -384, -16)
+[node name="TopEdge" type="Polygon2D" parent="Geometry/LeftFloor"]
+polygon = PackedVector2Array(-184, -22, 184, -22, 184, -16, -184, -16)
 color = Color(0.392, 0.455, 0.584, 1)
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Geometry/Floor"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Geometry/LeftFloor"]
+shape = SubResource("RectangleShape2D_floor")
+
+[node name="RightFloor" type="StaticBody2D" parent="Geometry"]
+position = Vector2(744, 518)
+
+[node name="Visual" type="Polygon2D" parent="Geometry/RightFloor"]
+polygon = PackedVector2Array(-184, -22, 184, -22, 184, 22, -184, 22)
+color = Color(0.235, 0.302, 0.416, 1)
+
+[node name="TopEdge" type="Polygon2D" parent="Geometry/RightFloor"]
+polygon = PackedVector2Array(-184, -22, 184, -22, 184, -16, -184, -16)
+color = Color(0.392, 0.455, 0.584, 1)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Geometry/RightFloor"]
 shape = SubResource("RectangleShape2D_floor")
 
 [node name="Ceiling" type="StaticBody2D" parent="Geometry"]
@@ -90,7 +110,7 @@ shape = SubResource("RectangleShape2D_wall")
 
 [node name="MechanismCable" type="Line2D" parent="."]
 z_index = -2
-points = PackedVector2Array(700, 468, 700, 442, 782, 442, 782, 486, 800, 486)
+points = PackedVector2Array(300, 468, 300, 442, 382, 442, 382, 486, 400, 486)
 width = 3.0
 default_color = Color(0.392, 0.455, 0.584, 0.8)
 
@@ -98,14 +118,15 @@ default_color = Color(0.392, 0.455, 0.584, 0.8)
 position = Vector2(150, 450)
 
 [node name="PatrolEnemy" parent="." instance=ExtResource("2_patrol")]
-position = Vector2(850, 450)
+position = Vector2(480, 450)
+patrol_speed = 65.0
 patrol_direction = 1.0
 
 [node name="TogglePlatform" parent="." instance=ExtResource("4_toggle")]
-position = Vector2(864, 506)
+position = Vector2(480, 506)
 
 [node name="Hinge" parent="." instance=ExtResource("5_hinge")]
-position = Vector2(700, 468)
+position = Vector2(300, 468)
 target_path = NodePath("../TogglePlatform")
 
 [node name="DeathZone" type="Area2D" parent="."]
@@ -134,7 +155,7 @@ offset_right = 908.0
 offset_bottom = 78.0
 theme_override_colors/font_color = Color(0.973, 0.58, 0.267, 1)
 theme_override_font_sizes/font_size = 15
-text = "УДАРЬ ШАРНИР, УБЕРИ МОСТ →"
+text = "УДАРЬ ШАРНИР, УБЕРИ МОСТ ↓"
 horizontal_alignment = 2
 
 [node name="Controls" type="Label" parent="UI"]
@@ -147,9 +168,9 @@ theme_override_font_sizes/font_size = 14
 text = "A D / ← → — движение    W / ↑ / Space — прыжок    X / J — удар    R — рестарт"
 
 [node name="PitMarker" type="Label" parent="UI"]
-offset_left = 800.0
+offset_left = 420.0
 offset_top = 410.0
-offset_right = 920.0
+offset_right = 540.0
 offset_bottom = 438.0
 theme_override_colors/font_color = Color(0.925, 0.365, 0.231, 1)
 theme_override_font_sizes/font_size = 14

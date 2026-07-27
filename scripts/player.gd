@@ -15,6 +15,10 @@ extends CharacterBody2D
 @export var attack_active_time := 0.12
 @export var attack_cooldown := 0.3
 
+@export_category("Knockback")
+@export var knockback_lock_time := 0.22
+@export var knockback_drag := 520.0
+
 @onready var visual: Node2D = $Visual
 @onready var attack_pivot: Node2D = $AttackPivot
 @onready var attack_area: Area2D = $AttackPivot/AttackArea
@@ -28,6 +32,7 @@ var attack_requested := false
 var facing_direction := 1.0
 var attack_time_remaining := 0.0
 var attack_cooldown_remaining := 0.0
+var knockback_time_remaining := 0.0
 var struck_targets: Dictionary[int, bool] = {}
 
 
@@ -58,18 +63,23 @@ func _physics_process(delta: float) -> void:
 
 	direction = clampf(direction, -1.0, 1.0)
 
-	var acceleration := ground_acceleration if is_on_floor() else air_acceleration
-	if is_zero_approx(direction):
-		velocity.x = move_toward(velocity.x, 0.0, ground_deceleration * delta)
+	var controls_locked := knockback_time_remaining > 0.0
+	if controls_locked:
+		knockback_time_remaining = maxf(knockback_time_remaining - delta, 0.0)
+		velocity.x = move_toward(velocity.x, 0.0, knockback_drag * delta)
 	else:
-		velocity.x = move_toward(
-			velocity.x,
-			direction * move_speed,
-			acceleration * delta
-		)
-		facing_direction = signf(direction)
-		visual.scale.x = facing_direction
-		attack_pivot.scale.x = facing_direction
+		var acceleration := ground_acceleration if is_on_floor() else air_acceleration
+		if is_zero_approx(direction):
+			velocity.x = move_toward(velocity.x, 0.0, ground_deceleration * delta)
+		else:
+			velocity.x = move_toward(
+				velocity.x,
+				direction * move_speed,
+				acceleration * delta
+			)
+			facing_direction = signf(direction)
+			visual.scale.x = facing_direction
+			attack_pivot.scale.x = facing_direction
 
 	var wants_to_jump := (
 		Input.is_action_just_pressed("ui_accept")
@@ -78,17 +88,28 @@ func _physics_process(delta: float) -> void:
 	)
 	jump_requested = false
 
-	if attack_requested and is_zero_approx(attack_cooldown_remaining):
+	if (
+		not controls_locked
+		and attack_requested
+		and is_zero_approx(attack_cooldown_remaining)
+	):
 		_start_attack()
 	attack_requested = false
 
 	if is_on_floor():
-		if wants_to_jump:
+		if wants_to_jump and not controls_locked:
 			velocity.y = jump_velocity
 	else:
 		velocity.y = minf(velocity.y + gravity * delta, maximum_fall_speed)
 
 	move_and_slide()
+
+
+func receive_impulse(impulse: Vector2) -> void:
+	velocity = impulse
+	knockback_time_remaining = knockback_lock_time
+	jump_requested = false
+	attack_requested = false
 
 
 func _start_attack() -> void:
