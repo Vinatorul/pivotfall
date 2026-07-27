@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="Single Screen Arcade Prototype"
-run/main_scene="res://scenes/arena.tscn"
+run/main_scene="res://scenes/arena_01.tscn"
 config/features=PackedStringArray("4.6")
 
 [display]
