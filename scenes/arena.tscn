@@ -1,0 +1,112 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/player.tscn" id="1_player"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_floor"]
+size = Vector2(960, 44)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_wall"]
+size = Vector2(32, 540)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_ceiling"]
+size = Vector2(960, 32)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_platform"]
+size = Vector2(190, 20)
+
+[node name="Arena" type="Node2D"]
+
+[node name="Background" type="Polygon2D" parent="."]
+z_index = -10
+polygon = PackedVector2Array(0, 0, 960, 0, 960, 540, 0, 540)
+color = Color(0.055, 0.071, 0.125, 1)
+
+[node name="BackdropPanel" type="Polygon2D" parent="."]
+z_index = -9
+polygon = PackedVector2Array(32, 32, 928, 32, 928, 496, 32, 496)
+color = Color(0.075, 0.098, 0.165, 1)
+
+[node name="Geometry" type="Node2D" parent="."]
+
+[node name="Floor" type="StaticBody2D" parent="Geometry"]
+position = Vector2(480, 518)
+
+[node name="Visual" type="Polygon2D" parent="Geometry/Floor"]
+polygon = PackedVector2Array(-480, -22, 480, -22, 480, 22, -480, 22)
+color = Color(0.235, 0.302, 0.416, 1)
+
+[node name="TopEdge" type="Polygon2D" parent="Geometry/Floor"]
+polygon = PackedVector2Array(-480, -22, 480, -22, 480, -16, -480, -16)
+color = Color(0.392, 0.455, 0.584, 1)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Geometry/Floor"]
+shape = SubResource("RectangleShape2D_floor")
+
+[node name="Ceiling" type="StaticBody2D" parent="Geometry"]
+position = Vector2(480, 16)
+
+[node name="Visual" type="Polygon2D" parent="Geometry/Ceiling"]
+polygon = PackedVector2Array(-480, -16, 480, -16, 480, 16, -480, 16)
+color = Color(0.157, 0.2, 0.286, 1)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Geometry/Ceiling"]
+shape = SubResource("RectangleShape2D_ceiling")
+
+[node name="LeftWall" type="StaticBody2D" parent="Geometry"]
+position = Vector2(16, 270)
+
+[node name="Visual" type="Polygon2D" parent="Geometry/LeftWall"]
+polygon = PackedVector2Array(-16, -270, 16, -270, 16, 270, -16, 270)
+color = Color(0.157, 0.2, 0.286, 1)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Geometry/LeftWall"]
+shape = SubResource("RectangleShape2D_wall")
+
+[node name="RightWall" type="StaticBody2D" parent="Geometry"]
+position = Vector2(944, 270)
+
+[node name="Visual" type="Polygon2D" parent="Geometry/RightWall"]
+polygon = PackedVector2Array(-16, -270, 16, -270, 16, 270, -16, 270)
+color = Color(0.157, 0.2, 0.286, 1)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Geometry/RightWall"]
+shape = SubResource("RectangleShape2D_wall")
+
+[node name="TestPlatform" type="StaticBody2D" parent="Geometry"]
+position = Vector2(590, 420)
+
+[node name="Visual" type="Polygon2D" parent="Geometry/TestPlatform"]
+polygon = PackedVector2Array(-95, -10, 95, -10, 95, 10, -95, 10)
+color = Color(0.278, 0.345, 0.459, 1)
+
+[node name="TopEdge" type="Polygon2D" parent="Geometry/TestPlatform"]
+polygon = PackedVector2Array(-95, -10, 95, -10, 95, -5, -95, -5)
+color = Color(0.392, 0.455, 0.584, 1)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Geometry/TestPlatform"]
+shape = SubResource("RectangleShape2D_platform")
+one_way_collision = true
+one_way_collision_margin = 4.0
+
+[node name="Player" parent="." instance=ExtResource("1_player")]
+position = Vector2(150, 450)
+
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="Title" type="Label" parent="UI"]
+offset_left = 52.0
+offset_top = 50.0
+offset_right = 420.0
+offset_bottom = 78.0
+theme_override_colors/font_color = Color(0.651, 0.714, 0.82, 1)
+theme_override_font_sizes/font_size = 16
+text = "GRAYBOX  /  ARENA 01"
+
+[node name="Controls" type="Label" parent="UI"]
+offset_left = 52.0
+offset_top = 78.0
+offset_right = 520.0
+offset_bottom = 105.0
+theme_override_colors/font_color = Color(0.439, 0.502, 0.616, 1)
+theme_override_font_sizes/font_size = 14
+text = "A D / ← → — движение      W / ↑ / Space — прыжок"
