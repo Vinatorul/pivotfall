@@ -6,6 +6,7 @@ const ARENA_PATHS := [
 	"res://scenes/arena_03.tscn",
 	"res://scenes/arena_04.tscn",
 	"res://scenes/arena_05.tscn",
+	"res://scenes/arena_06.tscn",
 ]
 
 const ARENA_NAMES := [
@@ -14,6 +15,7 @@ const ARENA_NAMES := [
 	"ARENA 03  /  ОТВЕТНЫЙ УДАР",
 	"ARENA 04  /  КАТАПУЛЬТА",
 	"ARENA 05  /  ЛИНИЯ ОГНЯ",
+	"ARENA 06  /  ЧУЖАЯ РУКА",
 ]
 
 @onready var menu: Control = $Menu
@@ -156,6 +158,8 @@ func _digit_to_arena_index(event: InputEventKey) -> int:
 			return 3
 		KEY_5, KEY_KP_5:
 			return 4
+		KEY_6, KEY_KP_6:
+			return 5
 
 	return -1
 
