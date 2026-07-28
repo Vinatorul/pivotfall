@@ -1,0 +1,78 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/vertical_platform.gd" id="1_vertical"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_platform"]
+size = Vector2(80, 20)
+
+[node name="VerticalPlatform" type="Node2D"]
+script = ExtResource("1_vertical")
+
+[node name="Track" type="Line2D" parent="."]
+z_index = -3
+points = PackedVector2Array(0, 0, 0, 136)
+width = 4.0
+default_color = Color(0.235, 0.302, 0.416, 0.85)
+
+[node name="UpperStop" type="Node2D" parent="."]
+z_index = -2
+
+[node name="Outer" type="Polygon2D" parent="UpperStop"]
+polygon = PackedVector2Array(0, -8, 8, 0, 0, 8, -8, 0)
+color = Color(0.439, 0.827, 0.816, 0.7)
+
+[node name="Inner" type="Polygon2D" parent="UpperStop"]
+polygon = PackedVector2Array(0, -3, 3, 0, 0, 3, -3, 0)
+color = Color(0.075, 0.098, 0.165, 1)
+
+[node name="LowerStop" type="Node2D" parent="."]
+position = Vector2(0, 136)
+z_index = -2
+
+[node name="Outer" type="Polygon2D" parent="LowerStop"]
+polygon = PackedVector2Array(0, -8, 8, 0, 0, 8, -8, 0)
+color = Color(0.439, 0.827, 0.816, 0.7)
+
+[node name="Inner" type="Polygon2D" parent="LowerStop"]
+polygon = PackedVector2Array(0, -3, 3, 0, 0, 3, -3, 0)
+color = Color(0.075, 0.098, 0.165, 1)
+
+[node name="TargetPreview" type="Node2D" parent="."]
+visible = false
+z_index = -1
+
+[node name="Body" type="Polygon2D" parent="TargetPreview"]
+polygon = PackedVector2Array(-40, -10, 40, -10, 40, 10, -40, 10)
+color = Color(0.925, 0.58, 0.267, 0.14)
+
+[node name="Outline" type="Line2D" parent="TargetPreview"]
+points = PackedVector2Array(-40, -10, 40, -10, 40, 10, -40, 10)
+width = 2.0
+default_color = Color(0.925, 0.58, 0.267, 0.65)
+closed = true
+
+[node name="Platform" type="AnimatableBody2D" parent="."]
+collision_layer = 1
+collision_mask = 0
+sync_to_physics = true
+
+[node name="Body" type="Polygon2D" parent="Platform"]
+polygon = PackedVector2Array(-40, -10, 40, -10, 40, 10, -40, 10)
+color = Color(0.278, 0.345, 0.459, 1)
+
+[node name="TopEdge" type="Polygon2D" parent="Platform"]
+polygon = PackedVector2Array(-40, -10, 40, -10, 40, -5, -40, -5)
+color = Color(0.392, 0.455, 0.584, 1)
+
+[node name="Outline" type="Line2D" parent="Platform"]
+points = PackedVector2Array(-40, -10, 40, -10, 40, 10, -40, 10)
+width = 2.0
+default_color = Color(0.439, 0.827, 0.816, 0.85)
+closed = true
+
+[node name="CablePort" type="Polygon2D" parent="Platform"]
+polygon = PackedVector2Array(0, -6, 6, 0, 0, 6, -6, 0)
+color = Color(0.439, 0.827, 0.816, 1)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Platform"]
+shape = SubResource("RectangleShape2D_platform")
