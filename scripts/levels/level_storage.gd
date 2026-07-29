@@ -12,6 +12,18 @@ const LEVEL_DATA_CODEC := preload(
 
 const BUILTIN_ARENA_01_PATH := "res://levels/arena_01.json"
 const BUILTIN_ARENA_01_ID := "arena_01_data"
+const BUILTIN_LEVELS := [
+	{
+		"id": BUILTIN_ARENA_01_ID,
+		"path": BUILTIN_ARENA_01_PATH,
+		"title": "Arena 01 / Патруль",
+	},
+	{
+		"id": "arena_03_data",
+		"path": "res://levels/arena_03.json",
+		"title": "Arena 03 / Толкач",
+	},
+]
 const USER_LEVEL_ROOT := "user://levels"
 const USER_LEVEL_DIRECTORY := "levels"
 const LEVEL_EXTENSION := ".json"
@@ -21,10 +33,21 @@ const MAX_GENERATED_ID_ATTEMPTS := 10_000
 
 
 static func load_builtin_arena_01() -> Dictionary:
-	return _load_verified_file(
-		BUILTIN_ARENA_01_PATH,
-		BUILTIN_ARENA_01_ID
-	)
+	return load_builtin_level(BUILTIN_ARENA_01_ID)
+
+
+static func list_builtin_levels() -> Array[Dictionary]:
+	var entries: Array[Dictionary] = []
+	for entry: Dictionary in BUILTIN_LEVELS:
+		entries.append(entry.duplicate(true))
+	return entries
+
+
+static func load_builtin_level(level_id: String) -> Dictionary:
+	for entry: Dictionary in BUILTIN_LEVELS:
+		if entry["id"] == level_id:
+			return _load_verified_file(entry["path"], level_id)
+	return _failure(["Built-in level '%s' does not exist." % level_id])
 
 
 static func load_user_level(level_id: String) -> Dictionary:
@@ -375,7 +398,7 @@ static func next_available_level_id(base: String = "my_arena") -> Dictionary:
 		var suffix := "" if index == 0 else "_%d" % (index + 1)
 		var maximum_base_length := MAX_LEVEL_ID_LENGTH - suffix.length()
 		var candidate := base.left(maximum_base_length) + suffix
-		if candidate == BUILTIN_ARENA_01_ID:
+		if _is_builtin_level_id(candidate):
 			continue
 		if unavailable_ids.has(candidate):
 			continue
@@ -397,6 +420,13 @@ static func next_available_level_id(base: String = "my_arena") -> Dictionary:
 			% MAX_GENERATED_ID_ATTEMPTS
 		]
 	)
+
+
+static func _is_builtin_level_id(level_id: String) -> bool:
+	for entry: Dictionary in BUILTIN_LEVELS:
+		if entry["id"] == level_id:
+			return true
+	return false
 
 
 static func make_default_level(level_id: String) -> Dictionary:

@@ -21,6 +21,7 @@ const TOOL_SELECT := "select"
 const TOOL_SOLID := "solid_rect"
 const TOOL_PLAYER := "player_spawn"
 const TOOL_PATROL := "patrol_enemy"
+const TOOL_SHOVE := "shove_enemy"
 const TOOL_TOGGLE := "toggle_platform"
 const TOOL_HINGE := "hinge"
 
@@ -41,19 +42,22 @@ const TOOL_HINGE := "hinge"
 	$EditorView/PalettePanel/SelectButton
 )
 @onready var solid_button: Button = (
-	$EditorView/PalettePanel/SolidButton
+	$EditorView/PalettePanel/ToolScroll/ToolList/SolidButton
 )
 @onready var player_button: Button = (
-	$EditorView/PalettePanel/PlayerButton
+	$EditorView/PalettePanel/ToolScroll/ToolList/PlayerButton
 )
 @onready var patrol_button: Button = (
-	$EditorView/PalettePanel/PatrolButton
+	$EditorView/PalettePanel/ToolScroll/ToolList/PatrolButton
+)
+@onready var shove_button: Button = (
+	$EditorView/PalettePanel/ToolScroll/ToolList/ShoveButton
 )
 @onready var toggle_button: Button = (
-	$EditorView/PalettePanel/ToggleButton
+	$EditorView/PalettePanel/ToolScroll/ToolList/ToggleButton
 )
 @onready var hinge_button: Button = (
-	$EditorView/PalettePanel/HingeButton
+	$EditorView/PalettePanel/ToolScroll/ToolList/HingeButton
 )
 @onready var duplicate_button: Button = (
 	$EditorView/PalettePanel/DuplicateButton
@@ -236,6 +240,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_set_tool(TOOL_TOGGLE)
 		KEY_5:
 			_set_tool(TOOL_HINGE)
+		KEY_6:
+			_set_tool(TOOL_SHOVE)
 		KEY_DELETE, KEY_BACKSPACE:
 			_delete_selected()
 		KEY_LEFT:
@@ -266,6 +272,7 @@ func _connect_ui() -> void:
 		solid_button,
 		player_button,
 		patrol_button,
+		shove_button,
 		toggle_button,
 		hinge_button,
 	]:
@@ -275,6 +282,7 @@ func _connect_ui() -> void:
 	solid_button.pressed.connect(_set_tool.bind(TOOL_SOLID))
 	player_button.pressed.connect(_set_tool.bind(TOOL_PLAYER))
 	patrol_button.pressed.connect(_set_tool.bind(TOOL_PATROL))
+	shove_button.pressed.connect(_set_tool.bind(TOOL_SHOVE))
 	toggle_button.pressed.connect(_set_tool.bind(TOOL_TOGGLE))
 	hinge_button.pressed.connect(_set_tool.bind(TOOL_HINGE))
 	duplicate_button.pressed.connect(_duplicate_selected)
@@ -426,6 +434,7 @@ func _set_tool(tool: String) -> void:
 	solid_button.set_pressed_no_signal(tool == TOOL_SOLID)
 	player_button.set_pressed_no_signal(tool == TOOL_PLAYER)
 	patrol_button.set_pressed_no_signal(tool == TOOL_PATROL)
+	shove_button.set_pressed_no_signal(tool == TOOL_SHOVE)
 	toggle_button.set_pressed_no_signal(tool == TOOL_TOGGLE)
 	hinge_button.set_pressed_no_signal(tool == TOOL_HINGE)
 
@@ -480,6 +489,17 @@ func _place_object(object_type: String, payload: Variant) -> void:
 					"position": (payload as Array).duplicate(),
 					"speed": 65.0,
 					"direction": 1,
+				}
+			)
+		TOOL_SHOVE:
+			var object_id := draft.make_unique_id("shove")
+			selected_id = object_id
+			draft.add_object(
+				{
+					"id": object_id,
+					"type": TOOL_SHOVE,
+					"position": (payload as Array).duplicate(),
+					"direction": -1,
 				}
 			)
 		TOOL_TOGGLE:
@@ -606,6 +626,13 @@ func _refresh_inspector_hint() -> void:
 		inspector_hint.modulate = Color(0.439, 0.878, 0.816)
 		return
 	var selected := draft.find_object(selected_id)
+	if selected.get("type", "") == TOOL_SHOVE:
+		inspector_hint.text = (
+			"ЦЕЛИТСЯ В ИГРОКА В ЗОНЕ ±180 × ±48\n"
+			+ "Направление задаёт старт патруля."
+		)
+		inspector_hint.modulate = Color(0.925, 0.365, 0.231)
+		return
 	if selected.get("type", "") == TOOL_HINGE:
 		var target_id := str(selected.get("target_id", ""))
 		var target := draft.find_object(target_id)
@@ -776,7 +803,7 @@ func _perform_load_selected_level(selected: int) -> void:
 	var result: Dictionary
 	var loaded_source := ""
 	if entry["kind"] == "builtin":
-		result = LEVEL_STORAGE.load_builtin_arena_01()
+		result = LEVEL_STORAGE.load_builtin_level(entry["id"])
 		loaded_source = "ПРИМЕР"
 	else:
 		result = LEVEL_STORAGE.load_user_level(entry["id"])
@@ -990,14 +1017,16 @@ func _perform_return_to_game() -> void:
 func _refresh_load_options(select_id := "") -> String:
 	load_entries.clear()
 	load_options.clear()
-	load_entries.append(
-		{
-			"kind": "builtin",
-			"id": "arena_01_data",
-			"title": "★ Пример: Arena 01",
-		}
-	)
-	load_options.add_item("★ Пример: Arena 01")
+	for builtin: Dictionary in LEVEL_STORAGE.list_builtin_levels():
+		var label := "★ Пример: %s" % builtin["title"]
+		load_entries.append(
+			{
+				"kind": "builtin",
+				"id": builtin["id"],
+				"title": label,
+			}
+		)
+		load_options.add_item(label)
 
 	var result: Dictionary = LEVEL_STORAGE.list_user_levels()
 	for entry: Dictionary in result.get("entries", []):
@@ -1181,6 +1210,11 @@ func _rebuild_inspector() -> void:
 			_add_numeric_property("X", "position:0", position[0])
 			_add_numeric_property("Y", "position:1", position[1])
 			_add_numeric_property("SPEED", "speed", object["speed"], true)
+			_add_direction_property(int(object["direction"]))
+		TOOL_SHOVE:
+			var position: Array = object["position"]
+			_add_numeric_property("X", "position:0", position[0])
+			_add_numeric_property("Y", "position:1", position[1])
 			_add_direction_property(int(object["direction"]))
 		TOOL_HINGE:
 			var position: Array = object["position"]

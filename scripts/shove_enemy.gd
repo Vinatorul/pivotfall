@@ -33,7 +33,7 @@ var struck_targets: Dictionary[int, bool] = {}
 
 func _ready() -> void:
 	super()
-	player = get_tree().get_first_node_in_group("player") as Player
+	player = _find_player_sibling()
 	attack_area.body_entered.connect(_on_attack_area_body_entered)
 	attack_area.area_entered.connect(_on_attack_area_area_entered)
 	_enter_patrol()
@@ -117,6 +117,8 @@ func _process_recovery(delta: float) -> void:
 
 
 func _can_attack_player() -> bool:
+	if not is_instance_valid(player):
+		player = _find_player_sibling()
 	if not is_instance_valid(player) or not is_on_floor():
 		return false
 
@@ -125,6 +127,16 @@ func _can_attack_player() -> bool:
 		absf(offset.x) <= detection_range
 		and absf(offset.y) <= vertical_detection_tolerance
 	)
+
+
+func _find_player_sibling() -> Player:
+	var actor_parent := get_parent()
+	if not is_instance_valid(actor_parent):
+		return null
+	for sibling: Node in actor_parent.get_children():
+		if sibling is Player:
+			return sibling as Player
+	return null
 
 
 func _begin_telegraph() -> void:

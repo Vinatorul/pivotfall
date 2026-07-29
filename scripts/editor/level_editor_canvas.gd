@@ -18,11 +18,13 @@ const FIXED_BORDER_SIZE := 32.0
 const DRAG_THRESHOLD := 4.0
 const TOP_EDGE_HEIGHT := 6.0
 const HINGE_HALF_EXTENTS := Vector2(18.0, 18.0)
+const SHOVE_DETECTION_HALF_SIZE := Vector2(180.0, 48.0)
 
 const TOOL_SELECT := "select"
 const TOOL_SOLID_RECT := "solid_rect"
 const TOOL_PLAYER_SPAWN := "player_spawn"
 const TOOL_PATROL_ENEMY := "patrol_enemy"
+const TOOL_SHOVE_ENEMY := "shove_enemy"
 const TOOL_TOGGLE_PLATFORM := "toggle_platform"
 const TOOL_HINGE := "hinge"
 const SUPPORTED_TOOLS := [
@@ -30,6 +32,7 @@ const SUPPORTED_TOOLS := [
 	TOOL_SOLID_RECT,
 	TOOL_PLAYER_SPAWN,
 	TOOL_PATROL_ENEMY,
+	TOOL_SHOVE_ENEMY,
 	TOOL_TOGGLE_PLATFORM,
 	TOOL_HINGE,
 ]
@@ -37,10 +40,38 @@ const RECT_OBJECT_TYPES := [
 	TOOL_SOLID_RECT,
 	TOOL_TOGGLE_PLATFORM,
 ]
+const ACTOR_OBJECT_TYPES := [
+	TOOL_PLAYER_SPAWN,
+	TOOL_PATROL_ENEMY,
+	TOOL_SHOVE_ENEMY,
+]
+const POINT_OBJECT_TYPES := [
+	TOOL_PLAYER_SPAWN,
+	TOOL_PATROL_ENEMY,
+	TOOL_SHOVE_ENEMY,
+	TOOL_HINGE,
+]
+const DRAW_ORDER := [
+	TOOL_SOLID_RECT,
+	TOOL_TOGGLE_PLATFORM,
+	TOOL_PLAYER_SPAWN,
+	TOOL_PATROL_ENEMY,
+	TOOL_SHOVE_ENEMY,
+	TOOL_HINGE,
+]
+const HIT_ORDER := [
+	TOOL_HINGE,
+	TOOL_SHOVE_ENEMY,
+	TOOL_PATROL_ENEMY,
+	TOOL_PLAYER_SPAWN,
+	TOOL_TOGGLE_PLATFORM,
+	TOOL_SOLID_RECT,
+]
 
 const ACTOR_HALF_EXTENTS := {
 	TOOL_PLAYER_SPAWN: Vector2(14.0, 20.0),
 	TOOL_PATROL_ENEMY: Vector2(15.0, 18.0),
+	TOOL_SHOVE_ENEMY: Vector2(16.0, 19.0),
 }
 
 const COLOR_OUTSIDE := Color(0.035, 0.047, 0.082, 1.0)
@@ -56,6 +87,10 @@ const COLOR_PLAYER := Color(0.251, 0.878, 0.816, 1.0)
 const COLOR_PLAYER_FACE := Color(0.071, 0.204, 0.251, 1.0)
 const COLOR_PATROL := Color(0.973, 0.58, 0.267, 1.0)
 const COLOR_PATROL_FACE := Color(0.302, 0.125, 0.098, 1.0)
+const COLOR_SHOVE := Color(0.929, 0.31, 0.337, 1.0)
+const COLOR_SHOVE_FACE := Color(0.286, 0.071, 0.118, 1.0)
+const COLOR_SHOVE_RANGE := Color(0.929, 0.31, 0.337, 0.1)
+const COLOR_SHOVE_RANGE_EDGE := Color(0.929, 0.31, 0.337, 0.52)
 const COLOR_TOGGLE_ACTIVE := Color(0.278, 0.345, 0.459, 1.0)
 const COLOR_TOGGLE_INACTIVE := Color(0.278, 0.345, 0.459, 0.2)
 const COLOR_TOGGLE_EDGE := Color(0.439, 0.827, 0.816, 0.9)
@@ -171,13 +206,7 @@ func _draw() -> void:
 	_draw_fixed_geometry(view_rect)
 	_draw_links(view_rect)
 
-	for object_type: String in [
-		TOOL_SOLID_RECT,
-		TOOL_TOGGLE_PLATFORM,
-		TOOL_PLAYER_SPAWN,
-		TOOL_PATROL_ENEMY,
-		TOOL_HINGE,
-	]:
+	for object_type: String in DRAW_ORDER:
 		for object: Variant in _objects():
 			if (
 				typeof(object) == TYPE_DICTIONARY
@@ -301,7 +330,7 @@ func _begin_primary_action(local_position: Vector2) -> void:
 			)
 			queue_redraw()
 
-		TOOL_PLAYER_SPAWN, TOOL_PATROL_ENEMY, TOOL_HINGE:
+		TOOL_PLAYER_SPAWN, TOOL_PATROL_ENEMY, TOOL_SHOVE_ENEMY, TOOL_HINGE:
 			var snapped_position := _snap_logical_point(
 				logical_position,
 				false
@@ -671,16 +700,30 @@ func _draw_object(
 				alpha
 			)
 
-		TOOL_PLAYER_SPAWN, TOOL_PATROL_ENEMY:
+		TOOL_PLAYER_SPAWN, TOOL_PATROL_ENEMY, TOOL_SHOVE_ENEMY:
 			var position_values: Variant = object.get("position")
 			if not _is_number_array(position_values, 2):
 				return
+			if (
+				object_type == TOOL_SHOVE_ENEMY
+				and str(object.get("id", "")) == _selected_id
+			):
+				_draw_shove_detection(
+					position_values,
+					view_rect,
+					alpha
+				)
 			_draw_actor(
 				object_type,
 				position_values,
 				view_rect,
 				alpha,
-				int(object.get("direction", 1))
+				int(
+					object.get(
+						"direction",
+						-1 if object_type == TOOL_SHOVE_ENEMY else 1
+					)
+				)
 			)
 
 		TOOL_HINGE:
@@ -792,6 +835,8 @@ func _draw_actor(
 	alpha: float,
 	direction: int = 1
 ) -> void:
+	if not ACTOR_OBJECT_TYPES.has(object_type):
+		return
 	var half_extents: Vector2 = ACTOR_HALF_EXTENTS[object_type]
 	var position := Vector2(
 		float(position_values[0]),
@@ -802,21 +847,20 @@ func _draw_actor(
 		half_extents * 2.0
 	)
 	var local_rect := _logical_rect_to_local(logical_rect, view_rect)
-	var body_color := (
-		COLOR_PLAYER
-		if object_type == TOOL_PLAYER_SPAWN
-		else COLOR_PATROL
-	)
-	var face_color := (
-		COLOR_PLAYER_FACE
-		if object_type == TOOL_PLAYER_SPAWN
-		else COLOR_PATROL_FACE
-	)
+	var body_color := COLOR_PATROL
+	var face_color := COLOR_PATROL_FACE
+	match object_type:
+		TOOL_PLAYER_SPAWN:
+			body_color = COLOR_PLAYER
+			face_color = COLOR_PLAYER_FACE
+		TOOL_SHOVE_ENEMY:
+			body_color = COLOR_SHOVE
+			face_color = COLOR_SHOVE_FACE
 	draw_rect(local_rect, _with_alpha(body_color, alpha))
 
 	var face_offset := (
 		0.0
-		if object_type == TOOL_PATROL_ENEMY and direction < 0
+		if object_type != TOOL_PLAYER_SPAWN and direction < 0
 		else 0.58
 	)
 	var face_rect := Rect2(
@@ -830,6 +874,56 @@ func _draw_actor(
 		)
 	)
 	draw_rect(face_rect, _with_alpha(face_color, alpha))
+	if object_type != TOOL_PLAYER_SPAWN:
+		var facing := -1.0 if direction < 0 else 1.0
+		var logical_tip := position + Vector2(
+			facing * (half_extents.x + 9.0),
+			0.0
+		)
+		var local_tip := _logical_point_to_local(logical_tip, view_rect)
+		var chevron_size := 4.0
+		draw_colored_polygon(
+			PackedVector2Array(
+				[
+					local_tip + Vector2(facing * chevron_size, 0.0),
+					local_tip + Vector2(-facing * chevron_size, -chevron_size),
+					local_tip + Vector2(-facing * chevron_size, chevron_size),
+				]
+			),
+			_with_alpha(body_color, alpha)
+		)
+
+
+func _draw_shove_detection(
+	position_values: Array,
+	view_rect: Rect2,
+	alpha: float
+) -> void:
+	var position := Vector2(
+		float(position_values[0]),
+		float(position_values[1])
+	)
+	var local_rect := _logical_rect_to_local(
+		shove_detection_rect(position),
+		view_rect
+	)
+	draw_rect(
+		local_rect,
+		_with_alpha(COLOR_SHOVE_RANGE, alpha)
+	)
+	draw_rect(
+		local_rect,
+		_with_alpha(COLOR_SHOVE_RANGE_EDGE, alpha),
+		false,
+		1.5
+	)
+
+
+static func shove_detection_rect(position: Vector2) -> Rect2:
+	return Rect2(
+		position - SHOVE_DETECTION_HALF_SIZE,
+		SHOVE_DETECTION_HALF_SIZE * 2.0
+	)
 
 
 func _draw_selection(view_rect: Rect2) -> void:
@@ -913,6 +1007,12 @@ func _draw_drag_preview(view_rect: Rect2) -> void:
 				COLOR_GHOST.a
 			)
 		else:
+			if _drag_object_type == TOOL_SHOVE_ENEMY:
+				_draw_shove_detection(
+					position_values,
+					view_rect,
+					COLOR_GHOST.a
+				)
 			_draw_actor(
 				_drag_object_type,
 				position_values,
@@ -961,13 +1061,7 @@ func _draw_drag_preview(view_rect: Rect2) -> void:
 
 func _hit_test(logical_position: Vector2) -> Dictionary:
 	var objects := _objects()
-	for object_type: String in [
-		TOOL_HINGE,
-		TOOL_PATROL_ENEMY,
-		TOOL_PLAYER_SPAWN,
-		TOOL_TOGGLE_PLATFORM,
-		TOOL_SOLID_RECT,
-	]:
+	for object_type: String in HIT_ORDER:
 		for index in range(objects.size() - 1, -1, -1):
 			var object: Variant = objects[index]
 			if (
@@ -1054,15 +1148,16 @@ func _find_object(object_id: String) -> Dictionary:
 
 
 func _payload_for_object(object: Dictionary) -> Variant:
-	match str(object.get("type", "")):
+	var object_type := str(object.get("type", ""))
+	match object_type:
 		TOOL_SOLID_RECT, TOOL_TOGGLE_PLATFORM:
 			var rect_values: Variant = object.get("rect")
 			if _is_number_array(rect_values, 4):
 				return _duplicate_payload(rect_values)
-		TOOL_PLAYER_SPAWN, TOOL_PATROL_ENEMY, TOOL_HINGE:
-			var position_values: Variant = object.get("position")
-			if _is_number_array(position_values, 2):
-				return _duplicate_payload(position_values)
+	if POINT_OBJECT_TYPES.has(object_type):
+		var position_values: Variant = object.get("position")
+		if _is_number_array(position_values, 2):
+			return _duplicate_payload(position_values)
 	return null
 
 

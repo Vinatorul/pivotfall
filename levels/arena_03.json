@@ -1,0 +1,35 @@
+{
+	"schema_version": 1,
+	"level_id": "arena_03_data",
+	"title": "GRAYBOX  /  DATA ARENA 03",
+	"objective": "УКЛОНИСЬ И СТОЛКНИ В ЯМУ ←",
+	"clear_message": "DATA ARENA 03 ПРОЙДЕНА  /  ПЕРЕЗАПУСК...",
+	"canvas": {
+		"width": 960,
+		"height": 540,
+		"grid_size": 20
+	},
+	"objects": [
+		{
+			"id": "left_floor",
+			"type": "solid_rect",
+			"rect": [32, 496, 368, 44]
+		},
+		{
+			"id": "right_floor",
+			"type": "solid_rect",
+			"rect": [560, 496, 368, 44]
+		},
+		{
+			"id": "shove_1",
+			"type": "shove_enemy",
+			"position": [800, 450],
+			"direction": -1
+		},
+		{
+			"id": "player_start",
+			"type": "player_spawn",
+			"position": [650, 450]
+		}
+	]
+}

@@ -34,12 +34,14 @@ const MAX_OBJECTS := 512
 const MAX_PATROL_SPEED := 1000.0
 const MAX_SAFE_FLOAT_INTEGER := 9_007_199_254_740_991.0
 const MAX_SUPPORT_WARNING_GAP := 64.0
+const MIN_SHOVE_RUNWAY := 48.0
 const TOGGLE_PLATFORM_HEIGHT := 20
 const MIN_TOGGLE_PLATFORM_WIDTH := 20
 const HINGE_RADIUS := 18
 const ACTOR_HALF_EXTENTS := {
 	"player_spawn": Vector2i(14, 20),
 	"patrol_enemy": Vector2i(15, 18),
+	"shove_enemy": Vector2i(16, 19),
 }
 
 const ROOT_KEYS := [
@@ -61,6 +63,7 @@ const PATROL_ENEMY_KEYS := [
 	"direction",
 	"speed",
 ]
+const SHOVE_ENEMY_KEYS := ["id", "type", "position", "direction"]
 const TOGGLE_PLATFORM_KEYS := [
 	"id",
 	"type",
@@ -72,9 +75,11 @@ const SUPPORTED_TYPES := [
 	"solid_rect",
 	"player_spawn",
 	"patrol_enemy",
+	"shove_enemy",
 	"toggle_platform",
 	"hinge",
 ]
+const ENEMY_TYPES := ["patrol_enemy", "shove_enemy"]
 
 
 ## Parses JSON text, then applies the same validation as dictionary input.
@@ -218,11 +223,10 @@ static func validate_and_normalize(raw: Variant) -> Dictionary:
 
 				var normalized_object: Dictionary = object_result["data"]
 				normalized_objects.append(normalized_object)
-				match normalized_object["type"]:
-					"player_spawn":
-						player_count += 1
-					"patrol_enemy":
-						enemy_count += 1
+				if normalized_object["type"] == "player_spawn":
+					player_count += 1
+				if ENEMY_TYPES.has(normalized_object["type"]):
+					enemy_count += 1
 
 	if player_count != 1:
 		errors.append(
@@ -231,7 +235,7 @@ static func validate_and_normalize(raw: Variant) -> Dictionary:
 		)
 	if enemy_count < 1:
 		errors.append(
-			"root.objects must contain at least one patrol_enemy."
+			"root.objects must contain at least one enemy."
 		)
 
 	_validate_links(
@@ -469,6 +473,48 @@ static func _validate_object(
 					"position": position,
 					"direction": direction,
 					"speed": speed,
+				},
+			}
+
+		"shove_enemy":
+			_reject_unknown_keys(object, SHOVE_ENEMY_KEYS, path, errors)
+			var position: Variant = null
+			var direction: Variant = DEFAULT_PATROL_DIRECTION
+			if _require_key(object, "position", path, errors):
+				position = _read_int_array(
+					object["position"],
+					"%s.position" % path,
+					2,
+					errors
+				)
+				if position != null:
+					_validate_point_bounds(
+						position,
+						canvas_size,
+						"%s.position" % path,
+						errors
+					)
+
+			if object.has("direction"):
+				direction = _read_integer(
+					object["direction"],
+					"%s.direction" % path,
+					errors
+				)
+				if direction != null and direction != -1 and direction != 1:
+					errors.append(
+						"%s.direction must be -1 or 1." % path
+					)
+
+			if errors.size() != error_count_before:
+				return {"ok": false, "data": {}}
+			return {
+				"ok": true,
+				"data": {
+					"id": object_id,
+					"type": object_type,
+					"position": position,
+					"direction": direction,
 				},
 			}
 
@@ -824,6 +870,7 @@ static func _collect_warnings(
 		var actor_right := origin.x + half_extents.x
 		var actor_bottom := origin.y + half_extents.y
 		var has_nearby_support := false
+		var shove_runway := 0.0
 		for solid: Rect2 in solids:
 			if (
 				solid.position.y >= actor_bottom
@@ -833,12 +880,30 @@ static func _collect_warnings(
 				and solid.end.x > actor_left
 			):
 				has_nearby_support = true
-				break
+				if object_type == "shove_enemy":
+					var direction := float(object["direction"])
+					var available := (
+						solid.end.x - actor_right
+						if direction > 0.0
+						else actor_left - solid.position.x
+					)
+					shove_runway = maxf(shove_runway, available)
 
 		if not has_nearby_support:
 			warnings.append(
 				"Object '%s' has no solid support near its spawn."
 				% object["id"]
+			)
+		elif (
+			object_type == "shove_enemy"
+			and shove_runway < MIN_SHOVE_RUNWAY
+		):
+			warnings.append(
+				(
+					"Shove enemy '%s' has less than %d px of floor "
+					+ "in its initial direction."
+				)
+				% [object["id"], int(MIN_SHOVE_RUNWAY)]
 			)
 
 		if (

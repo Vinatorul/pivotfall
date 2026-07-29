@@ -8,6 +8,9 @@ const PLAYER_SCENE := preload("res://scenes/player.tscn")
 const PATROL_ENEMY_SCENE := preload(
 	"res://scenes/patrol_enemy.tscn"
 )
+const SHOVE_ENEMY_SCENE := preload(
+	"res://scenes/shove_enemy.tscn"
+)
 const TOGGLE_PLATFORM_SCENE := preload(
 	"res://scenes/toggle_platform.tscn"
 )
@@ -134,6 +137,19 @@ static func _create_object(definition: Dictionary) -> Dictionary:
 
 			enemy.position = _vector_from(definition["position"])
 			enemy.patrol_speed = float(definition["speed"])
+			enemy.patrol_direction = float(definition["direction"])
+			return _object_success(enemy, "actors")
+
+		"shove_enemy":
+			var enemy := (
+				SHOVE_ENEMY_SCENE.instantiate() as ShoveEnemy
+			)
+			if not is_instance_valid(enemy):
+				return _object_failure(
+					"Could not instantiate shove_enemy."
+				)
+
+			enemy.position = _vector_from(definition["position"])
 			enemy.patrol_direction = float(definition["direction"])
 			return _object_success(enemy, "actors")
 

@@ -121,57 +121,86 @@ toggle_mode = true
 button_pressed = true
 text = "Q  ВЫБОР"
 
-[node name="SolidButton" type="Button" parent="EditorView/PalettePanel"]
+[node name="ToolScroll" type="ScrollContainer" parent="EditorView/PalettePanel"]
 layout_mode = 0
 offset_left = 8.0
 offset_top = 76.0
 offset_right = 136.0
-offset_bottom = 108.0
+offset_bottom = 270.0
+horizontal_scroll_mode = 0
+
+[node name="ToolList" type="VBoxContainer" parent="EditorView/PalettePanel/ToolScroll"]
+custom_minimum_size = Vector2(116, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="GeometryLabel" type="Label" parent="EditorView/PalettePanel/ToolScroll/ToolList"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.439, 0.502, 0.616, 1)
+theme_override_font_sizes/font_size = 10
+text = "ГЕОМЕТРИЯ"
+
+[node name="SolidButton" type="Button" parent="EditorView/PalettePanel/ToolScroll/ToolList"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
 toggle_mode = true
 text = "1  ПОЛ"
 
-[node name="PlayerButton" type="Button" parent="EditorView/PalettePanel"]
-layout_mode = 0
-offset_left = 8.0
-offset_top = 112.0
-offset_right = 136.0
-offset_bottom = 144.0
+[node name="SpawnLabel" type="Label" parent="EditorView/PalettePanel/ToolScroll/ToolList"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.439, 0.502, 0.616, 1)
+theme_override_font_sizes/font_size = 10
+text = "СТАРТ"
+
+[node name="PlayerButton" type="Button" parent="EditorView/PalettePanel/ToolScroll/ToolList"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
 toggle_mode = true
 text = "2  ИГРОК"
 
-[node name="PatrolButton" type="Button" parent="EditorView/PalettePanel"]
-layout_mode = 0
-offset_left = 8.0
-offset_top = 148.0
-offset_right = 136.0
-offset_bottom = 180.0
+[node name="EnemiesLabel" type="Label" parent="EditorView/PalettePanel/ToolScroll/ToolList"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.439, 0.502, 0.616, 1)
+theme_override_font_sizes/font_size = 10
+text = "ВРАГИ"
+
+[node name="PatrolButton" type="Button" parent="EditorView/PalettePanel/ToolScroll/ToolList"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
 toggle_mode = true
 text = "3  ПАТРУЛЬ"
 
-[node name="ToggleButton" type="Button" parent="EditorView/PalettePanel"]
-layout_mode = 0
-offset_left = 8.0
-offset_top = 184.0
-offset_right = 136.0
-offset_bottom = 216.0
+[node name="ShoveButton" type="Button" parent="EditorView/PalettePanel/ToolScroll/ToolList"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+toggle_mode = true
+text = "6  ТОЛКАЧ"
+
+[node name="MechanismsLabel" type="Label" parent="EditorView/PalettePanel/ToolScroll/ToolList"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.439, 0.502, 0.616, 1)
+theme_override_font_sizes/font_size = 10
+text = "МЕХАНИЗМЫ"
+
+[node name="ToggleButton" type="Button" parent="EditorView/PalettePanel/ToolScroll/ToolList"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
 toggle_mode = true
 text = "4  ПЛАТФОРМА"
 
-[node name="HingeButton" type="Button" parent="EditorView/PalettePanel"]
-layout_mode = 0
-offset_left = 8.0
-offset_top = 220.0
-offset_right = 136.0
-offset_bottom = 252.0
+[node name="HingeButton" type="Button" parent="EditorView/PalettePanel/ToolScroll/ToolList"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
 toggle_mode = true
 text = "5  ШАРНИР"
 
 [node name="EditTitle" type="Label" parent="EditorView/PalettePanel"]
 layout_mode = 0
 offset_left = 10.0
-offset_top = 270.0
+offset_top = 280.0
 offset_right = 134.0
-offset_bottom = 290.0
+offset_bottom = 300.0
 theme_override_colors/font_color = Color(0.439, 0.502, 0.616, 1)
 theme_override_font_sizes/font_size = 12
 text = "ВЫДЕЛЕННОЕ"
@@ -179,24 +208,24 @@ text = "ВЫДЕЛЕННОЕ"
 [node name="DuplicateButton" type="Button" parent="EditorView/PalettePanel"]
 layout_mode = 0
 offset_left = 8.0
-offset_top = 296.0
+offset_top = 304.0
 offset_right = 136.0
-offset_bottom = 328.0
+offset_bottom = 336.0
 text = "DUPLICATE"
 
 [node name="DeleteButton" type="Button" parent="EditorView/PalettePanel"]
 layout_mode = 0
 offset_left = 8.0
-offset_top = 334.0
+offset_top = 342.0
 offset_right = 136.0
-offset_bottom = 366.0
+offset_bottom = 374.0
 theme_override_colors/font_color = Color(0.925, 0.365, 0.231, 1)
 text = "DELETE"
 
 [node name="Help" type="Label" parent="EditorView/PalettePanel"]
 layout_mode = 0
 offset_left = 10.0
-offset_top = 382.0
+offset_top = 390.0
 offset_right = 134.0
 offset_bottom = 472.0
 theme_override_colors/font_color = Color(0.439, 0.502, 0.616, 1)
