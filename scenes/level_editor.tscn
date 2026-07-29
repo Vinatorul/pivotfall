@@ -116,7 +116,7 @@ layout_mode = 0
 offset_left = 8.0
 offset_top = 40.0
 offset_right = 136.0
-offset_bottom = 74.0
+offset_bottom = 72.0
 toggle_mode = true
 button_pressed = true
 text = "Q  ВЫБОР"
@@ -124,36 +124,54 @@ text = "Q  ВЫБОР"
 [node name="SolidButton" type="Button" parent="EditorView/PalettePanel"]
 layout_mode = 0
 offset_left = 8.0
-offset_top = 80.0
+offset_top = 76.0
 offset_right = 136.0
-offset_bottom = 114.0
+offset_bottom = 108.0
 toggle_mode = true
 text = "1  ПОЛ"
 
 [node name="PlayerButton" type="Button" parent="EditorView/PalettePanel"]
 layout_mode = 0
 offset_left = 8.0
-offset_top = 120.0
+offset_top = 112.0
 offset_right = 136.0
-offset_bottom = 154.0
+offset_bottom = 144.0
 toggle_mode = true
 text = "2  ИГРОК"
 
 [node name="PatrolButton" type="Button" parent="EditorView/PalettePanel"]
 layout_mode = 0
 offset_left = 8.0
-offset_top = 160.0
+offset_top = 148.0
 offset_right = 136.0
-offset_bottom = 194.0
+offset_bottom = 180.0
 toggle_mode = true
 text = "3  ПАТРУЛЬ"
+
+[node name="ToggleButton" type="Button" parent="EditorView/PalettePanel"]
+layout_mode = 0
+offset_left = 8.0
+offset_top = 184.0
+offset_right = 136.0
+offset_bottom = 216.0
+toggle_mode = true
+text = "4  ПЛАТФОРМА"
+
+[node name="HingeButton" type="Button" parent="EditorView/PalettePanel"]
+layout_mode = 0
+offset_left = 8.0
+offset_top = 220.0
+offset_right = 136.0
+offset_bottom = 252.0
+toggle_mode = true
+text = "5  ШАРНИР"
 
 [node name="EditTitle" type="Label" parent="EditorView/PalettePanel"]
 layout_mode = 0
 offset_left = 10.0
-offset_top = 218.0
+offset_top = 270.0
 offset_right = 134.0
-offset_bottom = 242.0
+offset_bottom = 290.0
 theme_override_colors/font_color = Color(0.439, 0.502, 0.616, 1)
 theme_override_font_sizes/font_size = 12
 text = "ВЫДЕЛЕННОЕ"
@@ -161,29 +179,29 @@ text = "ВЫДЕЛЕННОЕ"
 [node name="DuplicateButton" type="Button" parent="EditorView/PalettePanel"]
 layout_mode = 0
 offset_left = 8.0
-offset_top = 248.0
+offset_top = 296.0
 offset_right = 136.0
-offset_bottom = 282.0
+offset_bottom = 328.0
 text = "DUPLICATE"
 
 [node name="DeleteButton" type="Button" parent="EditorView/PalettePanel"]
 layout_mode = 0
 offset_left = 8.0
-offset_top = 288.0
+offset_top = 334.0
 offset_right = 136.0
-offset_bottom = 322.0
+offset_bottom = 366.0
 theme_override_colors/font_color = Color(0.925, 0.365, 0.231, 1)
 text = "DELETE"
 
 [node name="Help" type="Label" parent="EditorView/PalettePanel"]
 layout_mode = 0
 offset_left = 10.0
-offset_top = 350.0
+offset_top = 382.0
 offset_right = 134.0
 offset_bottom = 472.0
 theme_override_colors/font_color = Color(0.439, 0.502, 0.616, 1)
 theme_override_font_sizes/font_size = 11
-text = "ЛКМ — поставить\nDrag — размер / сдвиг\nDel — удалить\nCmd/Ctrl+D — копия\nCmd/Ctrl+Z — undo\nEsc — выбор / назад"
+text = "ЛКМ — поставить\nDrag — размер / сдвиг\nDel — удалить\nCmd/Ctrl+D — копия\nEsc — связь / назад"
 autowrap_mode = 2
 
 [node name="EditorCanvas" type="Control" parent="EditorView"]

@@ -34,6 +34,9 @@ const MAX_OBJECTS := 512
 const MAX_PATROL_SPEED := 1000.0
 const MAX_SAFE_FLOAT_INTEGER := 9_007_199_254_740_991.0
 const MAX_SUPPORT_WARNING_GAP := 64.0
+const TOGGLE_PLATFORM_HEIGHT := 20
+const MIN_TOGGLE_PLATFORM_WIDTH := 20
+const HINGE_RADIUS := 18
 const ACTOR_HALF_EXTENTS := {
 	"player_spawn": Vector2i(14, 20),
 	"patrol_enemy": Vector2i(15, 18),
@@ -58,10 +61,19 @@ const PATROL_ENEMY_KEYS := [
 	"direction",
 	"speed",
 ]
+const TOGGLE_PLATFORM_KEYS := [
+	"id",
+	"type",
+	"rect",
+	"starts_active",
+]
+const HINGE_KEYS := ["id", "type", "position", "target_id"]
 const SUPPORTED_TYPES := [
 	"solid_rect",
 	"player_spawn",
 	"patrol_enemy",
+	"toggle_platform",
+	"hinge",
 ]
 
 
@@ -177,6 +189,7 @@ static func validate_and_normalize(raw: Variant) -> Dictionary:
 	var normalized_objects: Array[Dictionary] = []
 	var player_count := 0
 	var enemy_count := 0
+	var declared_object_ids := {}
 	if _require_key(root, "objects", "root", errors):
 		if typeof(root["objects"]) != TYPE_ARRAY:
 			errors.append("root.objects must be an array.")
@@ -188,7 +201,6 @@ static func validate_and_normalize(raw: Variant) -> Dictionary:
 					% MAX_OBJECTS
 				)
 
-			var known_ids := {}
 			var object_count_to_validate := mini(
 				objects.size(),
 				MAX_OBJECTS
@@ -198,7 +210,7 @@ static func validate_and_normalize(raw: Variant) -> Dictionary:
 					objects[index],
 					index,
 					canvas_size,
-					known_ids,
+					declared_object_ids,
 					errors
 				)
 				if not object_result["ok"]:
@@ -222,6 +234,11 @@ static func validate_and_normalize(raw: Variant) -> Dictionary:
 			"root.objects must contain at least one patrol_enemy."
 		)
 
+	_validate_links(
+		normalized_objects,
+		declared_object_ids,
+		errors
+	)
 	_validate_actor_placements(normalized_objects, errors)
 	normalized["objects"] = normalized_objects
 	if not errors.is_empty():
@@ -455,6 +472,105 @@ static func _validate_object(
 				},
 			}
 
+		"toggle_platform":
+			_reject_unknown_keys(
+				object,
+				TOGGLE_PLATFORM_KEYS,
+				path,
+				errors
+			)
+			var rect: Variant = null
+			var starts_active := true
+			if _require_key(object, "rect", path, errors):
+				rect = _read_int_array(
+					object["rect"],
+					"%s.rect" % path,
+					4,
+					errors
+				)
+				if rect != null:
+					_validate_rect_bounds(rect, canvas_size, path, errors)
+					_validate_toggle_platform_playfield_bounds(
+						rect,
+						object_id,
+						errors
+					)
+					if rect[2] < MIN_TOGGLE_PLATFORM_WIDTH:
+						errors.append(
+							"%s.rect width must be at least %d."
+							% [path, MIN_TOGGLE_PLATFORM_WIDTH]
+						)
+					if rect[3] != TOGGLE_PLATFORM_HEIGHT:
+						errors.append(
+							"%s.rect height must be exactly %d."
+							% [path, TOGGLE_PLATFORM_HEIGHT]
+						)
+
+			if object.has("starts_active"):
+				var active_result: Variant = _read_boolean(
+					object["starts_active"],
+					"%s.starts_active" % path,
+					errors
+				)
+				if active_result != null:
+					starts_active = active_result
+
+			if errors.size() != error_count_before:
+				return {"ok": false, "data": {}}
+			return {
+				"ok": true,
+				"data": {
+					"id": object_id,
+					"type": object_type,
+					"rect": rect,
+					"starts_active": starts_active,
+				},
+			}
+
+		"hinge":
+			_reject_unknown_keys(object, HINGE_KEYS, path, errors)
+			var position: Variant = null
+			var target_id := ""
+			if _require_key(object, "position", path, errors):
+				position = _read_int_array(
+					object["position"],
+					"%s.position" % path,
+					2,
+					errors
+				)
+				if position != null:
+					_validate_point_bounds(
+						position,
+						canvas_size,
+						"%s.position" % path,
+						errors
+					)
+					_validate_hinge_playfield_bounds(
+						position,
+						object_id,
+						errors
+					)
+
+			if _require_key(object, "target_id", path, errors):
+				target_id = _read_stable_id(
+					object["target_id"],
+					"%s.target_id" % path,
+					MAX_OBJECT_ID_LENGTH,
+					errors
+				)
+
+			if errors.size() != error_count_before:
+				return {"ok": false, "data": {}}
+			return {
+				"ok": true,
+				"data": {
+					"id": object_id,
+					"type": object_type,
+					"position": position,
+					"target_id": target_id,
+				},
+			}
+
 	return {"ok": false, "data": {}}
 
 
@@ -510,13 +626,104 @@ static func _validate_point_bounds(
 		)
 
 
+static func _validate_hinge_playfield_bounds(
+	point: Array,
+	object_id: String,
+	errors: Array[String]
+) -> void:
+	var x: int = point[0]
+	var y: int = point[1]
+	if (
+		x - HINGE_RADIUS < PLAYFIELD_LEFT
+		or y - HINGE_RADIUS < PLAYFIELD_TOP
+		or x + HINGE_RADIUS > PLAYFIELD_RIGHT
+		or y + HINGE_RADIUS > PLAYFIELD_BOTTOM
+	):
+		errors.append(
+			(
+				"Object '%s' collision bounds must fit inside "
+				+ "the runtime playfield."
+			)
+			% object_id
+		)
+
+
+static func _validate_toggle_platform_playfield_bounds(
+	rect: Array,
+	object_id: String,
+	errors: Array[String]
+) -> void:
+	var x: int = rect[0]
+	var y: int = rect[1]
+	var width: int = rect[2]
+	var height: int = rect[3]
+	if (
+		x < PLAYFIELD_LEFT
+		or y < PLAYFIELD_TOP
+		or x + width > PLAYFIELD_RIGHT
+		or y + height > PLAYFIELD_BOTTOM
+	):
+		errors.append(
+			(
+				"Object '%s' bounds must fit inside "
+				+ "the runtime playfield."
+			)
+			% object_id
+		)
+
+
+static func _validate_links(
+	objects: Array[Dictionary],
+	declared_object_ids: Dictionary,
+	errors: Array[String]
+) -> void:
+	var objects_by_id := {}
+	for object: Dictionary in objects:
+		objects_by_id[object["id"]] = object
+
+	for object: Dictionary in objects:
+		if object["type"] != "hinge":
+			continue
+
+		var object_id: String = object["id"]
+		var target_id: String = object["target_id"]
+		if target_id == object_id:
+			errors.append(
+				"Hinge '%s' must not target itself." % object_id
+			)
+			continue
+		if not objects_by_id.has(target_id):
+			if not declared_object_ids.has(target_id):
+				errors.append(
+					"Hinge '%s' targets missing object '%s'."
+					% [object_id, target_id]
+				)
+			continue
+
+		var target: Dictionary = objects_by_id[target_id]
+		if target["type"] != "toggle_platform":
+			errors.append(
+				(
+					"Hinge '%s' target '%s' must be a "
+					+ "toggle_platform; got '%s'."
+				)
+				% [object_id, target_id, target["type"]]
+			)
+
+
 static func _validate_actor_placements(
 	objects: Array[Dictionary],
 	errors: Array[String]
 ) -> void:
 	var solids: Array[Dictionary] = []
 	for object: Dictionary in objects:
-		if object["type"] == "solid_rect":
+		if (
+			object["type"] == "solid_rect"
+			or (
+				object["type"] == "toggle_platform"
+				and bool(object["starts_active"])
+			)
+		):
 			solids.append(object)
 
 	for object: Dictionary in objects:
@@ -560,8 +767,11 @@ static func _validate_actor_placements(
 			)
 			if _rects_overlap_strictly(actor_rect, rect):
 				errors.append(
-					"Object '%s' collision bounds overlap solid_rect '%s'."
-					% [object["id"], solid["id"]]
+					(
+						"Object '%s' collision bounds overlap "
+						+ "%s '%s'."
+					)
+					% [object["id"], solid["type"], solid["id"]]
 				)
 
 
@@ -579,8 +789,18 @@ static func _collect_warnings(
 ) -> Array[String]:
 	var warnings: Array[String] = []
 	var solids: Array[Rect2] = []
+	var targeted_platforms := {}
 	for object: Dictionary in objects:
-		if object["type"] != "solid_rect":
+		if object["type"] == "hinge":
+			targeted_platforms[object["target_id"]] = true
+			continue
+		if (
+			object["type"] != "solid_rect"
+			and not (
+				object["type"] == "toggle_platform"
+				and bool(object["starts_active"])
+			)
+		):
 			continue
 		var values: Array = object["rect"]
 		solids.append(
@@ -629,7 +849,28 @@ static func _collect_warnings(
 				"Patrol '%s' has zero speed." % object["id"]
 			)
 
+	for object: Dictionary in objects:
+		if (
+			object["type"] == "toggle_platform"
+			and not targeted_platforms.has(object["id"])
+		):
+			warnings.append(
+				"Toggle platform '%s' has no controlling hinge."
+				% object["id"]
+			)
+
 	return warnings
+
+
+static func _read_boolean(
+	raw: Variant,
+	path: String,
+	errors: Array[String]
+) -> Variant:
+	if typeof(raw) != TYPE_BOOL:
+		errors.append("%s must be a boolean." % path)
+		return null
+	return bool(raw)
 
 
 static func _read_int_array(

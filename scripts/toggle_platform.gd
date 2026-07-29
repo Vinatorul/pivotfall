@@ -9,6 +9,8 @@ const INACTIVE_BODY_COLOR := Color(0.278, 0.345, 0.459, 0.12)
 const INACTIVE_EDGE_COLOR := Color(0.392, 0.455, 0.584, 0.28)
 const OUTLINE_COLOR := Color(0.439, 0.827, 0.816, 0.85)
 const WARNING_COLOR := Color(0.925, 0.58, 0.267, 0.8)
+const DEFAULT_SIZE := Vector2(160.0, 20.0)
+const TOP_EDGE_HEIGHT := 5.0
 
 @export var starts_active := true
 @export var transition_time := 0.18
@@ -21,13 +23,27 @@ const WARNING_COLOR := Color(0.925, 0.58, 0.267, 0.8)
 var is_active := true
 var is_transitioning := false
 var pending_active := true
+var platform_size := DEFAULT_SIZE
 
 
 func _ready() -> void:
+	_apply_geometry()
 	is_active = starts_active
 	pending_active = is_active
 	collision_shape.disabled = not is_active
 	_apply_state_visual()
+
+
+func configure(rect: Rect2, active: bool) -> void:
+	if is_inside_tree():
+		push_error(
+			"TogglePlatform must be configured before entering the tree."
+		)
+		return
+
+	position = rect.get_center()
+	platform_size = rect.size
+	starts_active = active
 
 
 func request_toggle() -> bool:
@@ -61,3 +77,38 @@ func _apply_warning_visual() -> void:
 	body_visual.color = WARNING_COLOR
 	edge_visual.color = WARNING_COLOR
 	outline.default_color = WARNING_COLOR
+
+
+func _apply_geometry() -> void:
+	var half_size := platform_size * 0.5
+	body_visual.polygon = PackedVector2Array(
+		[
+			Vector2(-half_size.x, -half_size.y),
+			Vector2(half_size.x, -half_size.y),
+			Vector2(half_size.x, half_size.y),
+			Vector2(-half_size.x, half_size.y),
+		]
+	)
+	var edge_bottom := minf(
+		-half_size.y + TOP_EDGE_HEIGHT,
+		half_size.y
+	)
+	edge_visual.polygon = PackedVector2Array(
+		[
+			Vector2(-half_size.x, -half_size.y),
+			Vector2(half_size.x, -half_size.y),
+			Vector2(half_size.x, edge_bottom),
+			Vector2(-half_size.x, edge_bottom),
+		]
+	)
+	outline.points = PackedVector2Array(
+		[
+			Vector2(-half_size.x, -half_size.y),
+			Vector2(half_size.x, -half_size.y),
+			Vector2(half_size.x, half_size.y),
+			Vector2(-half_size.x, half_size.y),
+		]
+	)
+	var shape := RectangleShape2D.new()
+	shape.size = platform_size
+	collision_shape.shape = shape

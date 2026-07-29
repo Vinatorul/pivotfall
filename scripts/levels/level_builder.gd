@@ -8,6 +8,13 @@ const PLAYER_SCENE := preload("res://scenes/player.tscn")
 const PATROL_ENEMY_SCENE := preload(
 	"res://scenes/patrol_enemy.tscn"
 )
+const TOGGLE_PLATFORM_SCENE := preload(
+	"res://scenes/toggle_platform.tscn"
+)
+const HINGE_SCENE := preload("res://scenes/hinge.tscn")
+
+const LINK_COLOR := Color(0.439, 0.827, 0.816, 0.48)
+const LINK_WIDTH := 3.0
 
 
 static func build_into(arena: Node, data: Dictionary) -> Dictionary:
@@ -44,6 +51,13 @@ static func build_into(arena: Node, data: Dictionary) -> Dictionary:
 
 		var node := build_result["node"] as Node
 		var object_id: String = definition["id"]
+		if objects_by_id.has(object_id):
+			errors.append(
+				"Builder received duplicate object ID '%s'." % object_id
+			)
+			node.free()
+			_discard_placements(placements)
+			return _failure(errors)
 		var parent := (
 			geometry_parent
 			if build_result["parent"] == "geometry"
@@ -53,6 +67,16 @@ static func build_into(arena: Node, data: Dictionary) -> Dictionary:
 		node.set_meta("level_object_id", object_id)
 		placements.append({"parent": parent, "node": node})
 		objects_by_id[object_id] = node
+
+	var link_result := _resolve_links(
+		data["objects"],
+		objects_by_id,
+		placements,
+		geometry_parent
+	)
+	if not bool(link_result["ok"]):
+		_discard_placements(placements)
+		return _failure(link_result["errors"])
 
 	for placement: Dictionary in placements:
 		var parent := placement["parent"] as Node
@@ -113,9 +137,104 @@ static func _create_object(definition: Dictionary) -> Dictionary:
 			enemy.patrol_direction = float(definition["direction"])
 			return _object_success(enemy, "actors")
 
+		"toggle_platform":
+			var platform := (
+				TOGGLE_PLATFORM_SCENE.instantiate()
+				as TogglePlatform
+			)
+			if not is_instance_valid(platform):
+				return _object_failure(
+					"Could not instantiate toggle_platform."
+				)
+
+			var values: Array = definition["rect"]
+			platform.configure(
+				Rect2(
+					float(values[0]),
+					float(values[1]),
+					float(values[2]),
+					float(values[3])
+				),
+				bool(definition["starts_active"])
+			)
+			return _object_success(platform, "geometry")
+
+		"hinge":
+			var hinge := HINGE_SCENE.instantiate() as Hinge
+			if not is_instance_valid(hinge):
+				return _object_failure(
+					"Could not instantiate hinge."
+				)
+
+			hinge.position = _vector_from(definition["position"])
+			return _object_success(hinge, "geometry")
+
 	return _object_failure(
 		"Builder does not support object type '%s'." % object_type
 	)
+
+
+static func _resolve_links(
+	definitions: Array,
+	objects_by_id: Dictionary,
+	placements: Array[Dictionary],
+	geometry_parent: Node
+) -> Dictionary:
+	var errors: Array[String] = []
+	for definition: Dictionary in definitions:
+		if definition["type"] != "hinge":
+			continue
+
+		var source_id: String = definition["id"]
+		var target_id: String = definition["target_id"]
+		var source := objects_by_id.get(source_id) as Node
+		var target := objects_by_id.get(target_id) as Node
+		if not source is Hinge:
+			errors.append(
+				"Object '%s' is not a hinge during link resolution."
+				% source_id
+			)
+			continue
+		if not target is TogglePlatform:
+			errors.append(
+				(
+					"Hinge '%s' target '%s' is missing or is not "
+					+ "a toggle_platform."
+				)
+				% [source_id, target_id]
+			)
+			continue
+
+		(source as Hinge).configure_target(target)
+		var cable := _create_link_line(
+			source as Node2D,
+			target as Node2D,
+			source_id
+		)
+		placements.append(
+			{"parent": geometry_parent, "node": cable}
+		)
+
+	if not errors.is_empty():
+		return {"ok": false, "errors": errors}
+	return {"ok": true, "errors": [] as Array[String]}
+
+
+static func _create_link_line(
+	source: Node2D,
+	target: Node2D,
+	source_id: String
+) -> Line2D:
+	var cable := Line2D.new()
+	cable.name = StringName("Link_%s" % source_id)
+	cable.z_index = -2
+	cable.width = LINK_WIDTH
+	cable.default_color = LINK_COLOR
+	cable.points = PackedVector2Array(
+		[source.position, target.position]
+	)
+	cable.set_meta("level_link_source_id", source_id)
+	return cable
 
 
 static func _vector_from(values: Array) -> Vector2:

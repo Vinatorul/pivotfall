@@ -352,6 +352,28 @@ func _test_editor_workflow() -> void:
 		editor.canvas.size.is_equal_approx(Vector2(576, 324)),
 		"Editor canvas is not the intended 0.6-scale overview."
 	)
+	var alternate_grid_document := editor.draft.to_dictionary()
+	alternate_grid_document["canvas"]["grid_size"] = 40
+	editor.canvas.set_document(alternate_grid_document)
+	_expect(
+		editor.canvas.call(
+			"_default_rect",
+			Vector2(400, 300),
+			"toggle_platform"
+		) == [400, 300, 160, 20],
+		"A 40px editor grid changed the schema-fixed toggle height."
+	)
+	alternate_grid_document["canvas"]["grid_size"] = 10
+	editor.canvas.set_document(alternate_grid_document)
+	_expect(
+		editor.canvas.call(
+			"_toggle_rect_from_drag",
+			Vector2(400, 300),
+			Vector2(410, 300)
+		) == [400, 300, 20, 20],
+		"A fine editor grid created an undersized toggle platform."
+	)
+	editor.canvas.set_document(editor.draft.to_dictionary())
 	_expect(
 		editor.draft.to_dictionary()["objects"].size() == 4,
 		"Editor example does not contain four initial objects."
@@ -543,6 +565,224 @@ func _test_editor_workflow() -> void:
 		"Palette regression fixture did not undo cleanly."
 	)
 
+	editor.call("_set_tool", "hinge")
+	editor.canvas.call(
+		"_begin_primary_action",
+		Vector2(320, 320) * 0.6
+	)
+	await process_frame
+	var unassigned_hinge_id: String = editor.selected_id
+	_expect(
+		editor.linking_hinge_id.is_empty()
+		and editor.draft.find_object(
+			unassigned_hinge_id
+		).get("target_id", "missing").is_empty()
+		and "TARGET НЕ НАЗНАЧЕН" in editor.inspector_hint.text,
+		"A hinge without any platform did not show actionable feedback."
+	)
+	editor.call("_undo")
+
+	editor.call("_set_tool", "toggle_platform")
+	editor.canvas.call(
+		"_begin_primary_action",
+		Vector2(400, 300) * 0.6
+	)
+	editor.canvas.call(
+		"_finish_primary_action",
+		Vector2(400, 300) * 0.6
+	)
+	await process_frame
+	var toggle_id: String = editor.selected_id
+	var toggle := editor.draft.find_object(toggle_id)
+	_expect(
+		toggle.get("type", "") == "toggle_platform"
+		and toggle.get("rect", []) == [400, 300, 160, 20]
+		and toggle.get("starts_active") == true,
+		"Toggle-platform tool did not create its safe default."
+	)
+
+	editor.call("_set_tool", "hinge")
+	editor.canvas.call(
+		"_begin_primary_action",
+		Vector2(320, 320) * 0.6
+	)
+	await process_frame
+	var hinge_id: String = editor.selected_id
+	_expect(
+		editor.draft.find_object(hinge_id).get("type", "") == "hinge"
+		and editor.linking_hinge_id == hinge_id
+		and editor.canvas.get_link_source_id() == hinge_id,
+		"Placing a hinge did not enter explicit target-selection mode."
+	)
+
+	var target_click := InputEventMouseButton.new()
+	target_click.button_index = MOUSE_BUTTON_LEFT
+	target_click.position = Vector2(480, 310) * 0.6
+	target_click.pressed = true
+	editor.canvas.call("_gui_input", target_click)
+	await process_frame
+	_expect(
+		editor.linking_hinge_id.is_empty()
+		and editor.canvas.get_link_source_id().is_empty()
+		and editor.draft.find_object(hinge_id).get(
+			"target_id",
+			""
+		) == toggle_id
+		and bool(editor.validation_result.get("ok", false)),
+		"Canvas target selection did not create a valid hinge link."
+	)
+
+	editor.call("_select_object", toggle_id)
+	await process_frame
+	var start_options := _find_property_editor(
+		editor,
+		"START"
+	) as OptionButton
+	_expect(
+		is_instance_valid(start_options),
+		"Toggle inspector did not expose its start state."
+	)
+	if is_instance_valid(start_options):
+		start_options.select(1)
+		start_options.item_selected.emit(1)
+		await process_frame
+		_expect(
+			editor.draft.find_object(toggle_id).get(
+				"starts_active",
+				true
+			) == false,
+			"Toggle inspector did not apply the OFF start state."
+		)
+
+	editor.call("_select_object", hinge_id)
+	await process_frame
+	var target_options := _find_property_editor(
+		editor,
+		"TARGET"
+	) as OptionButton
+	_expect(
+		is_instance_valid(target_options)
+		and target_options.get_item_text(
+			target_options.selected
+		) == toggle_id,
+		"Hinge inspector did not expose the selected target."
+	)
+
+	editor.call("_begin_linking", hinge_id)
+	editor.canvas.grab_focus()
+	await process_frame
+	await _press_physical_key(KEY_ESCAPE)
+	_expect(
+		editor.linking_hinge_id.is_empty()
+		and editor.draft.find_object(hinge_id).get(
+			"target_id",
+			""
+		) == toggle_id,
+		"Esc did not cancel retargeting without changing the old link."
+	)
+
+	editor.call("_select_object", hinge_id)
+	editor.call("_begin_linking", hinge_id)
+	editor.call("_duplicate_selected")
+	var duplicate_hinge_id: String = editor.selected_id
+	_expect(
+		editor.linking_hinge_id.is_empty()
+		and duplicate_hinge_id != hinge_id
+		and editor.draft.find_object(duplicate_hinge_id).get(
+			"target_id",
+			""
+		) == toggle_id,
+		"Duplicate during link mode kept editing the hidden original."
+	)
+	editor.call("_undo")
+	editor.call("_select_object", toggle_id)
+	editor.call("_duplicate_selected")
+	var duplicate_toggle_id: String = editor.selected_id
+	_expect(
+		duplicate_toggle_id != toggle_id
+		and editor.draft.find_object(hinge_id).get(
+			"target_id",
+			""
+		) == toggle_id,
+		"Duplicating a platform silently redirected an existing link."
+	)
+
+	editor.call("_select_object", hinge_id)
+	await process_frame
+	target_options = _find_property_editor(
+		editor,
+		"TARGET"
+	) as OptionButton
+	var duplicate_target_index := -1
+	if is_instance_valid(target_options):
+		for index in target_options.item_count:
+			if (
+				str(target_options.get_item_metadata(index))
+				== duplicate_toggle_id
+			):
+				duplicate_target_index = index
+				break
+	_expect(
+		duplicate_target_index >= 0,
+		"Hinge target dropdown omitted a second platform."
+	)
+	if duplicate_target_index >= 0:
+		target_options.select(duplicate_target_index)
+		target_options.item_selected.emit(duplicate_target_index)
+		await process_frame
+		_expect(
+			editor.draft.find_object(hinge_id).get(
+				"target_id",
+				""
+			) == duplicate_toggle_id,
+			"Target dropdown did not retarget the hinge."
+		)
+		editor.call("_undo")
+		_expect(
+			editor.draft.find_object(hinge_id).get(
+				"target_id",
+				""
+			) == toggle_id,
+			"Undo did not restore the previous hinge target."
+		)
+		editor.call("_redo")
+		_expect(
+			editor.draft.find_object(hinge_id).get(
+				"target_id",
+				""
+			) == duplicate_toggle_id,
+			"Redo did not restore the retargeted hinge."
+		)
+		editor.call("_undo")
+	editor.call("_undo")
+	_expect(
+		editor.draft.find_object(duplicate_toggle_id).is_empty()
+		and editor.draft.find_object(hinge_id).get(
+			"target_id",
+			""
+		) == toggle_id,
+		"Target-dropdown regression fixture did not undo cleanly."
+	)
+
+	editor.call("_select_object", toggle_id)
+	editor.call("_delete_selected")
+	_expect(
+		not bool(editor.validation_result.get("ok", false))
+		and editor.test_button.disabled
+		and editor.save_button.disabled
+		and not editor.draft.find_object(hinge_id).is_empty(),
+		"Deleting a linked target did not leave a blocking dangling link."
+	)
+	editor.call("_undo")
+	_expect(
+		bool(editor.validation_result.get("ok", false))
+		and editor.draft.find_object(hinge_id).get(
+			"target_id",
+			""
+		) == toggle_id,
+		"Undo did not restore the deleted link target."
+	)
+
 	temporary_editor_level_id = (
 		"editor_ui_smoke_%d" % Time.get_ticks_usec()
 	)
@@ -714,6 +954,35 @@ func _test_editor_workflow() -> void:
 		and editor.playtest_runtime.embedded_mode,
 		"Embedded runtime did not load the immutable snapshot."
 	)
+	var initial_runtime_toggle := (
+		editor.playtest_runtime.get_level_object(toggle_id)
+		as TogglePlatform
+	)
+	var initial_runtime_hinge := (
+		editor.playtest_runtime.get_level_object(hinge_id) as Hinge
+	)
+	_expect(
+		is_instance_valid(initial_runtime_toggle)
+		and not initial_runtime_toggle.is_active
+		and initial_runtime_toggle.collision_shape.disabled,
+		"Embedded playtest ignored the platform's OFF start state."
+	)
+	if (
+		is_instance_valid(initial_runtime_toggle)
+		and is_instance_valid(initial_runtime_hinge)
+	):
+		initial_runtime_hinge.receive_impulse(Vector2.ZERO)
+		for _frame in 30:
+			await physics_frame
+			if (
+				initial_runtime_toggle.is_active
+				and not initial_runtime_toggle.is_transitioning
+			):
+				break
+		_expect(
+			initial_runtime_toggle.is_active,
+			"Playtest hinge did not switch its platform on."
+		)
 
 	var first_runtime_id := editor.playtest_runtime.get_instance_id()
 	await _press_physical_key(KEY_R)
@@ -730,6 +999,15 @@ func _test_editor_workflow() -> void:
 		is_instance_valid(editor.playtest_runtime)
 		and editor.playtest_runtime.get_instance_id() != first_runtime_id,
 		"R did not recreate the embedded runtime."
+	)
+	var restarted_runtime_toggle := (
+		editor.playtest_runtime.get_level_object(toggle_id)
+		as TogglePlatform
+	)
+	_expect(
+		is_instance_valid(restarted_runtime_toggle)
+		and not restarted_runtime_toggle.is_active,
+		"Embedded restart did not restore the OFF snapshot state."
 	)
 
 	var fall_runtime_id := editor.playtest_runtime.get_instance_id()

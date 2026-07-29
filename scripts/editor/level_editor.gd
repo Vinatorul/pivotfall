@@ -21,6 +21,8 @@ const TOOL_SELECT := "select"
 const TOOL_SOLID := "solid_rect"
 const TOOL_PLAYER := "player_spawn"
 const TOOL_PATROL := "patrol_enemy"
+const TOOL_TOGGLE := "toggle_platform"
+const TOOL_HINGE := "hinge"
 
 @onready var editor_view: Control = $EditorView
 @onready var discard_dialog: ConfirmationDialog = $DiscardDialog
@@ -46,6 +48,12 @@ const TOOL_PATROL := "patrol_enemy"
 )
 @onready var patrol_button: Button = (
 	$EditorView/PalettePanel/PatrolButton
+)
+@onready var toggle_button: Button = (
+	$EditorView/PalettePanel/ToggleButton
+)
+@onready var hinge_button: Button = (
+	$EditorView/PalettePanel/HingeButton
 )
 @onready var duplicate_button: Button = (
 	$EditorView/PalettePanel/DuplicateButton
@@ -82,6 +90,9 @@ const TOOL_PATROL := "patrol_enemy"
 @onready var properties: VBoxContainer = (
 	$EditorView/InspectorPanel/PropertiesScroll/Properties
 )
+@onready var inspector_hint: Label = (
+	$EditorView/InspectorPanel/InspectorHint
+)
 
 var draft: LevelDraft = LEVEL_DRAFT.new()
 var selected_id := ""
@@ -100,6 +111,7 @@ var pending_destructive_action := ""
 var pending_load_index := -1
 var pending_save_level_id := ""
 var loaded_user_level_id := ""
+var linking_hinge_id := ""
 
 
 func _ready() -> void:
@@ -182,6 +194,11 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 
+	if key == KEY_ESCAPE and not linking_hinge_id.is_empty():
+		_cancel_linking()
+		get_viewport().set_input_as_handled()
+		return
+
 	if _text_field_has_focus():
 		return
 
@@ -215,6 +232,10 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_set_tool(TOOL_PLAYER)
 		KEY_3:
 			_set_tool(TOOL_PATROL)
+		KEY_4:
+			_set_tool(TOOL_TOGGLE)
+		KEY_5:
+			_set_tool(TOOL_HINGE)
 		KEY_DELETE, KEY_BACKSPACE:
 			_delete_selected()
 		KEY_LEFT:
@@ -245,6 +266,8 @@ func _connect_ui() -> void:
 		solid_button,
 		player_button,
 		patrol_button,
+		toggle_button,
+		hinge_button,
 	]:
 		button.button_group = tool_group
 
@@ -252,6 +275,8 @@ func _connect_ui() -> void:
 	solid_button.pressed.connect(_set_tool.bind(TOOL_SOLID))
 	player_button.pressed.connect(_set_tool.bind(TOOL_PLAYER))
 	patrol_button.pressed.connect(_set_tool.bind(TOOL_PATROL))
+	toggle_button.pressed.connect(_set_tool.bind(TOOL_TOGGLE))
+	hinge_button.pressed.connect(_set_tool.bind(TOOL_HINGE))
 	duplicate_button.pressed.connect(_duplicate_selected)
 	delete_button.pressed.connect(_delete_selected)
 
@@ -271,6 +296,8 @@ func _connect_ui() -> void:
 	canvas.placement_requested.connect(_place_object)
 	canvas.move_requested.connect(_move_object)
 	canvas.nudge_requested.connect(_nudge_selected)
+	canvas.link_target_requested.connect(_on_link_target_requested)
+	canvas.link_cancel_requested.connect(_cancel_linking)
 
 	_connect_metadata_field(level_id_edit, "level_id")
 	_connect_metadata_field(title_edit, "title")
@@ -294,6 +321,12 @@ func _on_draft_changed() -> void:
 		and draft.find_object(selected_id).is_empty()
 	):
 		selected_id = ""
+	if (
+		not linking_hinge_id.is_empty()
+		and draft.find_object(linking_hinge_id).is_empty()
+	):
+		linking_hinge_id = ""
+		canvas.set_link_source("")
 
 	var document := draft.to_dictionary()
 	canvas.set_document(document)
@@ -303,6 +336,7 @@ func _on_draft_changed() -> void:
 	)
 	_sync_metadata_fields(document)
 	_rebuild_inspector()
+	_refresh_inspector_hint()
 	_refresh_validation()
 	_refresh_buttons()
 
@@ -384,18 +418,23 @@ func _refresh_buttons() -> void:
 
 
 func _set_tool(tool: String) -> void:
+	if not linking_hinge_id.is_empty():
+		_cancel_linking(false)
 	active_tool = tool
 	canvas.set_tool(tool)
 	select_button.set_pressed_no_signal(tool == TOOL_SELECT)
 	solid_button.set_pressed_no_signal(tool == TOOL_SOLID)
 	player_button.set_pressed_no_signal(tool == TOOL_PLAYER)
 	patrol_button.set_pressed_no_signal(tool == TOOL_PATROL)
+	toggle_button.set_pressed_no_signal(tool == TOOL_TOGGLE)
+	hinge_button.set_pressed_no_signal(tool == TOOL_HINGE)
 
 
 func _select_object(object_id: String) -> void:
 	selected_id = object_id
 	canvas.set_selected_id(selected_id)
 	_rebuild_inspector()
+	_refresh_inspector_hint()
 	_refresh_buttons()
 
 
@@ -443,6 +482,29 @@ func _place_object(object_type: String, payload: Variant) -> void:
 					"direction": 1,
 				}
 			)
+		TOOL_TOGGLE:
+			var object_id := draft.make_unique_id("bridge")
+			selected_id = object_id
+			draft.add_object(
+				{
+					"id": object_id,
+					"type": TOOL_TOGGLE,
+					"rect": (payload as Array).duplicate(),
+					"starts_active": true,
+				}
+			)
+		TOOL_HINGE:
+			var object_id := draft.make_unique_id("hinge")
+			selected_id = object_id
+			draft.add_object(
+				{
+					"id": object_id,
+					"type": TOOL_HINGE,
+					"position": (payload as Array).duplicate(),
+					"target_id": "",
+				}
+			)
+			_begin_linking(object_id)
 
 
 func _move_object(object_id: String, payload: Variant) -> void:
@@ -453,7 +515,7 @@ func _move_object(object_id: String, payload: Variant) -> void:
 	selected_id = object_id
 	var key := (
 		"rect"
-		if object.get("type", "") == TOOL_SOLID
+		if object.get("type", "") in [TOOL_SOLID, TOOL_TOGGLE]
 		else "position"
 	)
 	draft.update_object(
@@ -462,16 +524,123 @@ func _move_object(object_id: String, payload: Variant) -> void:
 	)
 
 
+func _begin_linking(hinge_id: String) -> void:
+	var hinge := draft.find_object(hinge_id)
+	if hinge.is_empty() or hinge.get("type", "") != TOOL_HINGE:
+		return
+
+	_set_tool(TOOL_SELECT)
+	selected_id = hinge_id
+	canvas.set_selected_id(selected_id)
+	var has_target := not _toggle_platforms().is_empty()
+	if not has_target:
+		_cancel_linking(false)
+		_rebuild_inspector()
+		_refresh_inspector_hint()
+		_set_notice(
+			"Сначала поставьте включаемую платформу, затем назначьте target.",
+			true
+		)
+		return
+
+	linking_hinge_id = hinge_id
+	canvas.set_link_source(hinge_id)
+	_refresh_inspector_hint()
+	_set_notice(
+		"Выберите включаемую платформу для шарнира '%s'."
+		% hinge_id
+	)
+
+
+func _on_link_target_requested(target_id: String) -> void:
+	if linking_hinge_id.is_empty():
+		return
+	if target_id.is_empty():
+		_set_notice(
+			"Нужна включаемая платформа: выберите её на поле.",
+			true
+		)
+		return
+
+	var target := draft.find_object(target_id)
+	if target.is_empty() or target.get("type", "") != TOOL_TOGGLE:
+		_set_notice(
+			"Цель шарнира должна быть включаемой платформой.",
+			true
+		)
+		return
+
+	var hinge_id := linking_hinge_id
+	_cancel_linking(false)
+	draft.update_object(hinge_id, {"target_id": target_id})
+	_set_notice(
+		"Связь '%s' → '%s' назначена." % [hinge_id, target_id]
+	)
+
+
+func _cancel_linking(show_notice := true) -> void:
+	if linking_hinge_id.is_empty():
+		return
+	linking_hinge_id = ""
+	canvas.set_link_source("")
+	_refresh_inspector_hint()
+	if show_notice:
+		_set_notice("Выбор цели отменён.")
+
+
+func _toggle_platforms() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for object: Dictionary in draft.to_dictionary().get("objects", []):
+		if object.get("type", "") == TOOL_TOGGLE:
+			result.append(object)
+	return result
+
+
+func _refresh_inspector_hint() -> void:
+	if not is_instance_valid(inspector_hint):
+		return
+	if not linking_hinge_id.is_empty():
+		inspector_hint.text = (
+			"ВЫБЕРИТЕ ПЛАТФОРМУ НА ПОЛЕ\nEsc — отменить связь"
+		)
+		inspector_hint.modulate = Color(0.439, 0.878, 0.816)
+		return
+	var selected := draft.find_object(selected_id)
+	if selected.get("type", "") == TOOL_HINGE:
+		var target_id := str(selected.get("target_id", ""))
+		var target := draft.find_object(target_id)
+		if (
+			target_id.is_empty()
+			or target.is_empty()
+			or target.get("type", "") != TOOL_TOGGLE
+		):
+			inspector_hint.text = (
+				"TARGET НЕ НАЗНАЧЕН\n"
+				+ "Выберите платформу в свойствах."
+			)
+			inspector_hint.modulate = Color(0.973, 0.58, 0.267)
+			return
+	inspector_hint.text = (
+		"Выберите объект на поле.\n"
+		+ "Значения применяются по Enter."
+	)
+	inspector_hint.modulate = Color(0.439, 0.502, 0.616)
+
+
 func _delete_selected() -> void:
 	if selected_id.is_empty():
 		return
 	var deleted_id := selected_id
+	if deleted_id == linking_hinge_id:
+		_cancel_linking(false)
 	selected_id = ""
 	if draft.remove_object(deleted_id):
 		_set_notice("Объект '%s' удалён." % deleted_id)
 
 
 func _duplicate_selected() -> void:
+	if not linking_hinge_id.is_empty():
+		_cancel_linking(false)
 	var object := draft.find_object(selected_id)
 	if object.is_empty():
 		return
@@ -482,7 +651,7 @@ func _duplicate_selected() -> void:
 	var duplicate := object.duplicate(true)
 	var new_id := draft.make_unique_id("%s_copy" % object["id"])
 	duplicate["id"] = new_id
-	if duplicate["type"] == TOOL_SOLID:
+	if duplicate["type"] in [TOOL_SOLID, TOOL_TOGGLE]:
 		var rect: Array = duplicate["rect"]
 		rect[0] = clampi(rect[0] + 20, 0, 960 - rect[2])
 		rect[1] = clampi(rect[1] + 20, 0, 540 - rect[3])
@@ -508,7 +677,7 @@ func _nudge_selected(direction: Vector2i, fine: bool) -> void:
 	).get("grid_size", 20)
 	var amount := 1 if fine else grid_size
 	var delta := direction * amount
-	if object["type"] == TOOL_SOLID:
+	if object["type"] in [TOOL_SOLID, TOOL_TOGGLE]:
 		var rect: Array = object["rect"]
 		rect[0] = clampi(rect[0] + delta.x, 0, 960 - rect[2])
 		rect[1] = clampi(rect[1] + delta.y, 0, 540 - rect[3])
@@ -884,6 +1053,8 @@ func _refresh_load_options(select_id := "") -> String:
 func _start_playtest() -> void:
 	if is_instance_valid(playtest_runtime) or playtest_transitioning:
 		return
+	if not linking_hinge_id.is_empty():
+		_cancel_linking(false)
 	_commit_all_metadata()
 
 	var encoded: Dictionary = LEVEL_DATA_CODEC.encode(
@@ -989,12 +1160,18 @@ func _rebuild_inspector() -> void:
 	_add_readonly_property("TYPE", str(object["type"]))
 	_add_readonly_property("ID", str(object["id"]))
 	match object["type"]:
-		TOOL_SOLID:
+		TOOL_SOLID, TOOL_TOGGLE:
 			var rect: Array = object["rect"]
 			_add_numeric_property("X", "rect:0", rect[0])
 			_add_numeric_property("Y", "rect:1", rect[1])
 			_add_numeric_property("WIDTH", "rect:2", rect[2])
-			_add_numeric_property("HEIGHT", "rect:3", rect[3])
+			if object["type"] == TOOL_TOGGLE:
+				_add_readonly_property("HEIGHT", "20")
+				_add_start_state_property(
+					bool(object.get("starts_active", true))
+				)
+			else:
+				_add_numeric_property("HEIGHT", "rect:3", rect[3])
 		TOOL_PLAYER:
 			var position: Array = object["position"]
 			_add_numeric_property("X", "position:0", position[0])
@@ -1005,6 +1182,13 @@ func _rebuild_inspector() -> void:
 			_add_numeric_property("Y", "position:1", position[1])
 			_add_numeric_property("SPEED", "speed", object["speed"], true)
 			_add_direction_property(int(object["direction"]))
+		TOOL_HINGE:
+			var position: Array = object["position"]
+			_add_numeric_property("X", "position:0", position[0])
+			_add_numeric_property("Y", "position:1", position[1])
+			_add_hinge_target_property(
+				str(object.get("target_id", ""))
+			)
 	syncing_ui = false
 
 
@@ -1085,6 +1269,89 @@ func _add_direction_property(current: int) -> void:
 			)
 	)
 	row.add_child(options)
+
+
+func _add_start_state_property(current: bool) -> void:
+	var target_id := selected_id
+	var row := _make_property_row("START")
+	var options := OptionButton.new()
+	options.add_item("ON")
+	options.set_item_metadata(0, true)
+	options.add_item("OFF")
+	options.set_item_metadata(1, false)
+	options.select(0 if current else 1)
+	options.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	options.item_selected.connect(
+		func(index: int) -> void:
+			if syncing_ui:
+				return
+			draft.update_object(
+				target_id,
+				{
+					"starts_active": bool(
+						options.get_item_metadata(index)
+					)
+				}
+			)
+	)
+	row.add_child(options)
+
+
+func _add_hinge_target_property(current_target_id: String) -> void:
+	var hinge_id := selected_id
+	var row := _make_property_row("TARGET")
+	var options := OptionButton.new()
+	options.fit_to_longest_item = false
+	options.add_item("— НЕ НАЗНАЧЕНА —")
+	options.set_item_metadata(0, "")
+	options.set_item_tooltip(0, "Цель не назначена")
+	var selected_index := 0
+	var found_current_target := current_target_id.is_empty()
+	for platform: Dictionary in _toggle_platforms():
+		var index := options.item_count
+		var platform_id := str(platform["id"])
+		options.add_item(platform_id)
+		options.set_item_metadata(index, platform_id)
+		options.set_item_tooltip(index, platform_id)
+		if platform_id == current_target_id:
+			selected_index = index
+			found_current_target = true
+	if not found_current_target:
+		selected_index = options.item_count
+		options.add_item("⚠ %s" % current_target_id)
+		options.set_item_metadata(selected_index, current_target_id)
+		options.set_item_tooltip(selected_index, current_target_id)
+		options.set_item_disabled(selected_index, true)
+	options.select(selected_index)
+	options.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	options.item_selected.connect(
+		func(index: int) -> void:
+			if syncing_ui:
+				return
+			var target_id := str(options.get_item_metadata(index))
+			_cancel_linking(false)
+			draft.update_object(
+				hinge_id,
+				{"target_id": target_id}
+			)
+			if target_id.is_empty():
+				_set_notice(
+					"Target шарнира снят; назначьте платформу.",
+					true
+				)
+			else:
+				_set_notice(
+					"Связь '%s' → '%s' назначена."
+					% [hinge_id, target_id]
+				)
+	)
+	row.add_child(options)
+
+	var choose_button := Button.new()
+	choose_button.text = "ВЫБРАТЬ НА ПОЛЕ"
+	choose_button.custom_minimum_size = Vector2(184, 30)
+	choose_button.pressed.connect(_begin_linking.bind(hinge_id))
+	properties.add_child(choose_button)
 
 
 func _make_property_row(label_text: String) -> HBoxContainer:

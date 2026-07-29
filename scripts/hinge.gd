@@ -4,13 +4,27 @@ extends Area2D
 @export_node_path var target_path: NodePath
 @export var cooldown := 0.35
 
-@onready var target: Node = get_node_or_null(target_path)
 @onready var outer_visual: Polygon2D = $Outer
 @onready var inner_visual: Polygon2D = $Inner
 
+var target: Node
 var is_ready := true
 var cooldown_finished := true
 var target_finished := true
+
+
+func _ready() -> void:
+	if not is_instance_valid(target) and not target_path.is_empty():
+		target = get_node_or_null(target_path)
+
+
+func configure_target(target_node: Node) -> void:
+	if is_inside_tree():
+		push_error(
+			"Hinge target must be configured before entering the tree."
+		)
+		return
+	target = target_node
 
 
 func receive_impulse(_impulse: Vector2) -> void:

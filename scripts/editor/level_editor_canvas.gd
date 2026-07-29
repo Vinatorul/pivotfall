@@ -5,24 +5,37 @@ signal selection_requested(object_id: String)
 signal placement_requested(object_type: String, payload: Variant)
 signal move_requested(object_id: String, payload: Variant)
 signal nudge_requested(direction: Vector2i, fine: bool)
+signal link_target_requested(target_id: String)
+signal link_cancel_requested
 
 const LOGICAL_SIZE := Vector2(960.0, 540.0)
 const DEFAULT_GRID_SIZE := 20
 const DEFAULT_SOLID_SIZE := Vector2i(120, 20)
+const DEFAULT_TOGGLE_SIZE := Vector2i(160, 20)
+const MIN_TOGGLE_WIDTH := 20
 const PIT_TOP := 496.0
 const FIXED_BORDER_SIZE := 32.0
 const DRAG_THRESHOLD := 4.0
 const TOP_EDGE_HEIGHT := 6.0
+const HINGE_HALF_EXTENTS := Vector2(18.0, 18.0)
 
 const TOOL_SELECT := "select"
 const TOOL_SOLID_RECT := "solid_rect"
 const TOOL_PLAYER_SPAWN := "player_spawn"
 const TOOL_PATROL_ENEMY := "patrol_enemy"
+const TOOL_TOGGLE_PLATFORM := "toggle_platform"
+const TOOL_HINGE := "hinge"
 const SUPPORTED_TOOLS := [
 	TOOL_SELECT,
 	TOOL_SOLID_RECT,
 	TOOL_PLAYER_SPAWN,
 	TOOL_PATROL_ENEMY,
+	TOOL_TOGGLE_PLATFORM,
+	TOOL_HINGE,
+]
+const RECT_OBJECT_TYPES := [
+	TOOL_SOLID_RECT,
+	TOOL_TOGGLE_PLATFORM,
 ]
 
 const ACTOR_HALF_EXTENTS := {
@@ -43,6 +56,14 @@ const COLOR_PLAYER := Color(0.251, 0.878, 0.816, 1.0)
 const COLOR_PLAYER_FACE := Color(0.071, 0.204, 0.251, 1.0)
 const COLOR_PATROL := Color(0.973, 0.58, 0.267, 1.0)
 const COLOR_PATROL_FACE := Color(0.302, 0.125, 0.098, 1.0)
+const COLOR_TOGGLE_ACTIVE := Color(0.278, 0.345, 0.459, 1.0)
+const COLOR_TOGGLE_INACTIVE := Color(0.278, 0.345, 0.459, 0.2)
+const COLOR_TOGGLE_EDGE := Color(0.439, 0.827, 0.816, 0.9)
+const COLOR_HINGE_OUTER := Color(0.925, 0.58, 0.267, 1.0)
+const COLOR_HINGE_INNER := Color(0.302, 0.125, 0.098, 1.0)
+const COLOR_LINK := Color(0.439, 0.827, 0.816, 0.38)
+const COLOR_LINK_SELECTED := Color(0.439, 0.878, 0.816, 0.95)
+const COLOR_LINK_BROKEN := Color(0.925, 0.365, 0.231, 0.95)
 const COLOR_SELECTION := Color(0.439, 0.827, 0.816, 1.0)
 const COLOR_GHOST := Color(1.0, 0.82, 0.36, 0.44)
 const COLOR_GHOST_OUTLINE := Color(1.0, 0.82, 0.36, 1.0)
@@ -51,6 +72,9 @@ const COLOR_CANVAS_BORDER := Color(0.439, 0.502, 0.616, 0.9)
 var _document: Dictionary = {}
 var _selected_id := ""
 var _tool := TOOL_SELECT
+var _link_source_id := ""
+var _link_cursor_logical := Vector2.ZERO
+var _link_hover_id := ""
 
 var _drag_active := false
 var _drag_moved := false
@@ -68,6 +92,7 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	focus_mode = Control.FOCUS_ALL
 	mouse_default_cursor_shape = Control.CURSOR_ARROW
+	mouse_exited.connect(_on_mouse_exited)
 	queue_redraw()
 
 
@@ -103,6 +128,36 @@ func set_tool(tool: String) -> void:
 	queue_redraw()
 
 
+func set_link_source(object_id: String) -> void:
+	_link_source_id = object_id
+	_link_hover_id = ""
+	var source := _find_object(object_id)
+	if not source.is_empty():
+		_link_cursor_logical = _object_anchor(source)
+	_cancel_drag()
+	mouse_default_cursor_shape = (
+		Control.CURSOR_POINTING_HAND
+		if not _link_source_id.is_empty()
+		else (
+			Control.CURSOR_ARROW
+			if _tool == TOOL_SELECT
+			else Control.CURSOR_CROSS
+		)
+	)
+	queue_redraw()
+
+
+func get_link_source_id() -> String:
+	return _link_source_id
+
+
+func _on_mouse_exited() -> void:
+	if _link_hover_id.is_empty():
+		return
+	_link_hover_id = ""
+	queue_redraw()
+
+
 func _draw() -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), COLOR_OUTSIDE)
 
@@ -114,11 +169,14 @@ func _draw() -> void:
 	_draw_backdrop(view_rect)
 	_draw_grid(view_rect)
 	_draw_fixed_geometry(view_rect)
+	_draw_links(view_rect)
 
 	for object_type: String in [
 		TOOL_SOLID_RECT,
+		TOOL_TOGGLE_PLATFORM,
 		TOOL_PLAYER_SPAWN,
 		TOOL_PATROL_ENEMY,
+		TOOL_HINGE,
 	]:
 		for object: Variant in _objects():
 			if (
@@ -128,6 +186,7 @@ func _draw() -> void:
 				_draw_object(object, view_rect, 1.0)
 
 	_draw_selection(view_rect)
+	_draw_link_target_hover(view_rect)
 	_draw_drag_preview(view_rect)
 	draw_rect(view_rect, COLOR_CANVAS_BORDER, false, 2.0)
 
@@ -136,6 +195,13 @@ func _gui_input(event: InputEvent) -> void:
 	if event is InputEventKey:
 		var key_event := event as InputEventKey
 		if not key_event.pressed or key_event.echo:
+			return
+		if (
+			_event_key(key_event) == KEY_ESCAPE
+			and not _link_source_id.is_empty()
+		):
+			link_cancel_requested.emit()
+			accept_event()
 			return
 		var direction := Vector2i.ZERO
 		match _event_key(key_event):
@@ -162,6 +228,20 @@ func _gui_input(event: InputEvent) -> void:
 				return
 			if is_inside_tree():
 				grab_focus()
+			if not _link_source_id.is_empty():
+				var logical_position := _local_to_logical(
+					button_event.position,
+					true
+				)
+				var target := _hit_test_type(
+					logical_position,
+					TOOL_TOGGLE_PLATFORM
+				)
+				link_target_requested.emit(
+					str(target.get("id", ""))
+				)
+				accept_event()
+				return
 			_begin_primary_action(button_event.position)
 			accept_event()
 			return
@@ -169,6 +249,21 @@ func _gui_input(event: InputEvent) -> void:
 		if _drag_active:
 			_finish_primary_action(button_event.position)
 			accept_event()
+		return
+
+	if event is InputEventMouseMotion and not _link_source_id.is_empty():
+		var link_motion := event as InputEventMouseMotion
+		_link_cursor_logical = _local_to_logical(
+			link_motion.position,
+			true
+		)
+		var target := _hit_test_type(
+			_link_cursor_logical,
+			TOOL_TOGGLE_PLATFORM
+		)
+		_link_hover_id = str(target.get("id", ""))
+		queue_redraw()
+		accept_event()
 		return
 
 	if event is InputEventMouseMotion and _drag_active:
@@ -191,21 +286,22 @@ func _begin_primary_action(local_position: Vector2) -> void:
 			selection_requested.emit(object_id)
 			_begin_move_drag(hit_object, local_position, logical_position)
 
-		TOOL_SOLID_RECT:
+		TOOL_SOLID_RECT, TOOL_TOGGLE_PLATFORM:
 			_drag_active = true
-			_drag_kind = TOOL_SOLID_RECT
+			_drag_kind = _tool
 			_drag_press_local = local_position
 			_drag_start_logical = _snap_logical_point(
 				logical_position,
 				false
 			)
 			_drag_current_logical = _drag_start_logical
-			_drag_preview_payload = _default_solid_rect(
-				_drag_start_logical
+			_drag_preview_payload = _default_rect(
+				_drag_start_logical,
+				_tool
 			)
 			queue_redraw()
 
-		TOOL_PLAYER_SPAWN, TOOL_PATROL_ENEMY:
+		TOOL_PLAYER_SPAWN, TOOL_PATROL_ENEMY, TOOL_HINGE:
 			var snapped_position := _snap_logical_point(
 				logical_position,
 				false
@@ -260,6 +356,15 @@ func _update_drag(local_position: Vector2) -> void:
 			_drag_start_logical,
 			snapped_current
 		)
+	elif _drag_kind == TOOL_TOGGLE_PLATFORM:
+		var snapped_current := _snap_logical_point(
+			_drag_current_logical,
+			true
+		)
+		_drag_preview_payload = _toggle_rect_from_drag(
+			_drag_start_logical,
+			snapped_current
+		)
 	elif _drag_kind == TOOL_SELECT and _drag_moved:
 		_drag_preview_payload = _moved_payload()
 
@@ -269,11 +374,14 @@ func _update_drag(local_position: Vector2) -> void:
 func _finish_primary_action(local_position: Vector2) -> void:
 	_update_drag(local_position)
 
-	if _drag_kind == TOOL_SOLID_RECT:
+	if RECT_OBJECT_TYPES.has(_drag_kind):
 		var payload: Variant = _drag_preview_payload
 		if not _drag_moved:
-			payload = _default_solid_rect(_drag_start_logical)
-		placement_requested.emit(TOOL_SOLID_RECT, payload)
+			payload = _default_rect(
+				_drag_start_logical,
+				_drag_kind
+			)
+		placement_requested.emit(_drag_kind, payload)
 	elif (
 		_drag_kind == TOOL_SELECT
 		and _drag_moved
@@ -300,9 +408,13 @@ func _cancel_drag() -> void:
 	_drag_original_payload = null
 	_drag_preview_payload = null
 	mouse_default_cursor_shape = (
-		Control.CURSOR_ARROW
-		if _tool == TOOL_SELECT
-		else Control.CURSOR_CROSS
+		Control.CURSOR_POINTING_HAND
+		if not _link_source_id.is_empty()
+		else (
+			Control.CURSOR_ARROW
+			if _tool == TOOL_SELECT
+			else Control.CURSOR_CROSS
+		)
 	)
 
 
@@ -310,7 +422,7 @@ func _moved_payload() -> Variant:
 	var raw_delta := _drag_current_logical - _drag_start_logical
 	var snapped_delta := _snap_delta(raw_delta)
 
-	if _drag_object_type == TOOL_SOLID_RECT:
+	if RECT_OBJECT_TYPES.has(_drag_object_type):
 		if not _is_number_array(_drag_original_payload, 4):
 			return null
 
@@ -330,7 +442,10 @@ func _moved_payload() -> Variant:
 			_round_to_int(height),
 		]
 
-	if ACTOR_HALF_EXTENTS.has(_drag_object_type):
+	if (
+		ACTOR_HALF_EXTENTS.has(_drag_object_type)
+		or _drag_object_type == TOOL_HINGE
+	):
 		if not _is_number_array(_drag_original_payload, 2):
 			return null
 
@@ -431,6 +546,107 @@ func _draw_fixed_geometry(view_rect: Rect2) -> void:
 		)
 
 
+func _draw_links(view_rect: Rect2) -> void:
+	for object: Variant in _objects():
+		if (
+			typeof(object) != TYPE_DICTIONARY
+			or object.get("type", "") != TOOL_HINGE
+		):
+			continue
+
+		var source := object as Dictionary
+		var source_position := _object_anchor(source)
+		var target := _find_object(str(source.get("target_id", "")))
+		var selected := str(source.get("id", "")) == _selected_id
+		if (
+			not target.is_empty()
+			and target.get("type", "") == TOOL_TOGGLE_PLATFORM
+		):
+			var target_position := _object_anchor(target)
+			var color := (
+				COLOR_LINK_SELECTED if selected else COLOR_LINK
+			)
+			_draw_logical_link(
+				source_position,
+				target_position,
+				color,
+				3.0 if selected else 2.0,
+				view_rect
+			)
+			continue
+
+		var stub_direction := (
+			Vector2.LEFT
+			if source_position.x > LOGICAL_SIZE.x - 64.0
+			else Vector2.RIGHT
+		)
+		var stub_end := source_position + stub_direction * 36.0
+		_draw_logical_link(
+			source_position,
+			stub_end,
+			COLOR_LINK_BROKEN,
+			2.0,
+			view_rect
+		)
+		var local_end := _logical_point_to_local(stub_end, view_rect)
+		var cross_size := 5.0
+		draw_line(
+			local_end - Vector2(cross_size, cross_size),
+			local_end + Vector2(cross_size, cross_size),
+			COLOR_LINK_BROKEN,
+			2.0
+		)
+		draw_line(
+			local_end + Vector2(-cross_size, cross_size),
+			local_end + Vector2(cross_size, -cross_size),
+			COLOR_LINK_BROKEN,
+			2.0
+		)
+
+	if _link_source_id.is_empty():
+		return
+	var link_source := _find_object(_link_source_id)
+	if link_source.is_empty():
+		return
+	_draw_logical_link(
+		_object_anchor(link_source),
+		_link_cursor_logical,
+		COLOR_LINK_SELECTED,
+		3.0,
+		view_rect
+	)
+
+
+func _draw_logical_link(
+	from: Vector2,
+	to: Vector2,
+	color: Color,
+	width: float,
+	view_rect: Rect2
+) -> void:
+	var local_from := _logical_point_to_local(from, view_rect)
+	var local_to := _logical_point_to_local(to, view_rect)
+	draw_line(local_from, local_to, color, width, true)
+	draw_circle(local_to, 4.0, color)
+
+
+func _draw_link_target_hover(view_rect: Rect2) -> void:
+	if _link_hover_id.is_empty():
+		return
+	var target := _find_object(_link_hover_id)
+	if target.is_empty():
+		return
+	var bounds := _bounds_for_object(target)
+	if bounds.size == Vector2.ZERO:
+		return
+	draw_rect(
+		_logical_rect_to_local(bounds, view_rect).grow(3.0),
+		COLOR_LINK_SELECTED,
+		false,
+		3.0
+	)
+
+
 func _draw_object(
 	object: Dictionary,
 	view_rect: Rect2,
@@ -444,6 +660,17 @@ func _draw_object(
 				return
 			_draw_solid(rect_values, view_rect, alpha)
 
+		TOOL_TOGGLE_PLATFORM:
+			var rect_values: Variant = object.get("rect")
+			if not _is_number_array(rect_values, 4):
+				return
+			_draw_toggle_platform(
+				rect_values,
+				bool(object.get("starts_active", true)),
+				view_rect,
+				alpha
+			)
+
 		TOOL_PLAYER_SPAWN, TOOL_PATROL_ENEMY:
 			var position_values: Variant = object.get("position")
 			if not _is_number_array(position_values, 2):
@@ -455,6 +682,12 @@ func _draw_object(
 				alpha,
 				int(object.get("direction", 1))
 			)
+
+		TOOL_HINGE:
+			var position_values: Variant = object.get("position")
+			if not _is_number_array(position_values, 2):
+				return
+			_draw_hinge(position_values, view_rect, alpha)
 
 
 func _draw_solid(
@@ -474,6 +707,81 @@ func _draw_solid(
 	draw_rect(
 		_logical_rect_to_local(logical_edge, view_rect),
 		_with_alpha(COLOR_SOLID_EDGE, alpha)
+	)
+
+
+func _draw_toggle_platform(
+	rect_values: Array,
+	starts_active: bool,
+	view_rect: Rect2,
+	alpha: float
+) -> void:
+	var logical_rect := _rect_from_payload(rect_values)
+	var local_rect := _logical_rect_to_local(logical_rect, view_rect)
+	var body_color := (
+		COLOR_TOGGLE_ACTIVE
+		if starts_active
+		else COLOR_TOGGLE_INACTIVE
+	)
+	draw_rect(local_rect, _with_alpha(body_color, alpha))
+	draw_rect(
+		local_rect,
+		_with_alpha(COLOR_TOGGLE_EDGE, alpha),
+		false,
+		2.0
+	)
+	var local_center := local_rect.get_center()
+	var notch_half := minf(7.0, local_rect.size.y * 0.3)
+	draw_line(
+		local_center - Vector2(notch_half, 0.0),
+		local_center + Vector2(notch_half, 0.0),
+		_with_alpha(COLOR_TOGGLE_EDGE, alpha),
+		2.0
+	)
+	if not starts_active:
+		draw_line(
+			local_center - Vector2(0.0, notch_half),
+			local_center + Vector2(0.0, notch_half),
+			_with_alpha(COLOR_TOGGLE_EDGE, alpha),
+			2.0
+		)
+
+
+func _draw_hinge(
+	position_values: Array,
+	view_rect: Rect2,
+	alpha: float
+) -> void:
+	var position := Vector2(
+		float(position_values[0]),
+		float(position_values[1])
+	)
+	var local_center := _logical_point_to_local(position, view_rect)
+	var radius := HINGE_HALF_EXTENTS.x * _canvas_scale()
+	var outer_points := PackedVector2Array(
+		[
+			local_center + Vector2(0.0, -radius),
+			local_center + Vector2(radius, 0.0),
+			local_center + Vector2(0.0, radius),
+			local_center + Vector2(-radius, 0.0),
+		]
+	)
+	draw_colored_polygon(
+		outer_points,
+		_with_alpha(COLOR_HINGE_OUTER, alpha)
+	)
+	var inner_radius := radius * 0.5
+	var inner_points := PackedVector2Array(
+		[
+			local_center + Vector2(0.0, -inner_radius),
+			local_center + Vector2(inner_radius, 0.0),
+			local_center + Vector2(0.0, inner_radius),
+			local_center + Vector2(-inner_radius, 0.0),
+		]
+	)
+	draw_colored_polygon(
+		inner_points,
+		_with_alpha(COLOR_HINGE_INNER, alpha)
 	)
 
 
@@ -558,56 +866,89 @@ func _draw_drag_preview(view_rect: Rect2) -> void:
 
 	var logical_rect := Rect2()
 	if (
-		_drag_kind == TOOL_SOLID_RECT
+		RECT_OBJECT_TYPES.has(_drag_kind)
 		and _is_number_array(_drag_preview_payload, 4)
 	):
 		logical_rect = _rect_from_payload(_drag_preview_payload)
-		_draw_solid(
-			_drag_preview_payload,
-			view_rect,
-			COLOR_GHOST.a
-		)
+		if _drag_kind == TOOL_TOGGLE_PLATFORM:
+			_draw_toggle_platform(
+				_drag_preview_payload,
+				true,
+				view_rect,
+				COLOR_GHOST.a
+			)
+		else:
+			_draw_solid(
+				_drag_preview_payload,
+				view_rect,
+				COLOR_GHOST.a
+			)
 	elif (
 		_drag_kind == TOOL_SELECT
 		and _drag_moved
 		and _is_number_array(_drag_preview_payload, 2)
-		and ACTOR_HALF_EXTENTS.has(_drag_object_type)
+		and (
+			ACTOR_HALF_EXTENTS.has(_drag_object_type)
+			or _drag_object_type == TOOL_HINGE
+		)
 	):
 		var position_values: Array = _drag_preview_payload
 		var position := Vector2(
 			float(position_values[0]),
 			float(position_values[1])
 		)
-		var half_extents: Vector2 = ACTOR_HALF_EXTENTS[
-			_drag_object_type
-		]
+		var half_extents := (
+			HINGE_HALF_EXTENTS
+			if _drag_object_type == TOOL_HINGE
+			else Vector2(ACTOR_HALF_EXTENTS[_drag_object_type])
+		)
 		logical_rect = Rect2(
 			position - half_extents,
 			half_extents * 2.0
 		)
-		_draw_actor(
-			_drag_object_type,
-			position_values,
-			view_rect,
-			COLOR_GHOST.a,
-			int(
-				_find_object(_drag_object_id).get(
-					"direction",
-					1
+		if _drag_object_type == TOOL_HINGE:
+			_draw_hinge(
+				position_values,
+				view_rect,
+				COLOR_GHOST.a
+			)
+		else:
+			_draw_actor(
+				_drag_object_type,
+				position_values,
+				view_rect,
+				COLOR_GHOST.a,
+				int(
+					_find_object(_drag_object_id).get(
+						"direction",
+						1
+					)
 				)
 			)
-		)
 	elif (
 		_drag_kind == TOOL_SELECT
 		and _drag_moved
 		and _is_number_array(_drag_preview_payload, 4)
 	):
 		logical_rect = _rect_from_payload(_drag_preview_payload)
-		_draw_solid(
-			_drag_preview_payload,
-			view_rect,
-			COLOR_GHOST.a
-		)
+		if _drag_object_type == TOOL_TOGGLE_PLATFORM:
+			_draw_toggle_platform(
+				_drag_preview_payload,
+				bool(
+					_find_object(_drag_object_id).get(
+						"starts_active",
+						true
+					)
+				),
+				view_rect,
+				COLOR_GHOST.a
+			)
+		else:
+			_draw_solid(
+				_drag_preview_payload,
+				view_rect,
+				COLOR_GHOST.a
+			)
 
 	if logical_rect.size != Vector2.ZERO:
 		draw_rect(
@@ -621,8 +962,10 @@ func _draw_drag_preview(view_rect: Rect2) -> void:
 func _hit_test(logical_position: Vector2) -> Dictionary:
 	var objects := _objects()
 	for object_type: String in [
+		TOOL_HINGE,
 		TOOL_PATROL_ENEMY,
 		TOOL_PLAYER_SPAWN,
+		TOOL_TOGGLE_PLATFORM,
 		TOOL_SOLID_RECT,
 	]:
 		for index in range(objects.size() - 1, -1, -1):
@@ -643,9 +986,30 @@ func _hit_test(logical_position: Vector2) -> Dictionary:
 	return {}
 
 
+func _hit_test_type(
+	logical_position: Vector2,
+	object_type: String
+) -> Dictionary:
+	var objects := _objects()
+	for index in range(objects.size() - 1, -1, -1):
+		var object: Variant = objects[index]
+		if (
+			typeof(object) != TYPE_DICTIONARY
+			or object.get("type", "") != object_type
+		):
+			continue
+		var bounds := _bounds_for_object(object)
+		if (
+			bounds.size != Vector2.ZERO
+			and bounds.grow(4.0).has_point(logical_position)
+		):
+			return object
+	return {}
+
+
 func _bounds_for_object(object: Dictionary) -> Rect2:
 	var object_type := str(object.get("type", ""))
-	if object_type == TOOL_SOLID_RECT:
+	if RECT_OBJECT_TYPES.has(object_type):
 		var rect_values: Variant = object.get("rect")
 		if _is_number_array(rect_values, 4):
 			return _rect_from_payload(rect_values)
@@ -663,6 +1027,19 @@ func _bounds_for_object(object: Dictionary) -> Rect2:
 		var half_extents: Vector2 = ACTOR_HALF_EXTENTS[object_type]
 		return Rect2(position - half_extents, half_extents * 2.0)
 
+	if object_type == TOOL_HINGE:
+		var position_values: Variant = object.get("position")
+		if not _is_number_array(position_values, 2):
+			return Rect2()
+		var position := Vector2(
+			float(position_values[0]),
+			float(position_values[1])
+		)
+		return Rect2(
+			position - HINGE_HALF_EXTENTS,
+			HINGE_HALF_EXTENTS * 2.0
+		)
+
 	return Rect2()
 
 
@@ -678,11 +1055,11 @@ func _find_object(object_id: String) -> Dictionary:
 
 func _payload_for_object(object: Dictionary) -> Variant:
 	match str(object.get("type", "")):
-		TOOL_SOLID_RECT:
+		TOOL_SOLID_RECT, TOOL_TOGGLE_PLATFORM:
 			var rect_values: Variant = object.get("rect")
 			if _is_number_array(rect_values, 4):
 				return _duplicate_payload(rect_values)
-		TOOL_PLAYER_SPAWN, TOOL_PATROL_ENEMY:
+		TOOL_PLAYER_SPAWN, TOOL_PATROL_ENEMY, TOOL_HINGE:
 			var position_values: Variant = object.get("position")
 			if _is_number_array(position_values, 2):
 				return _duplicate_payload(position_values)
@@ -727,8 +1104,64 @@ func _solid_rect_from_drag(
 	]
 
 
-func _default_solid_rect(start: Vector2) -> Array:
+func _toggle_rect_from_drag(
+	start: Vector2,
+	current: Vector2
+) -> Array:
+	var grid_size := float(_grid_size())
+	var minimum_width := maxf(
+		grid_size,
+		float(MIN_TOGGLE_WIDTH)
+	)
+	var end_x := current.x
+	if is_equal_approx(end_x, start.x):
+		end_x += grid_size
+	end_x = clampf(end_x, 0.0, LOGICAL_SIZE.x)
+
+	var left := minf(start.x, end_x)
+	var right := maxf(start.x, end_x)
+	if right - left < minimum_width:
+		if left + minimum_width <= LOGICAL_SIZE.x:
+			right = left + minimum_width
+		else:
+			left = maxf(0.0, right - minimum_width)
+
+	var top := clampf(
+		start.y,
+		0.0,
+		LOGICAL_SIZE.y - float(DEFAULT_TOGGLE_SIZE.y)
+	)
+	return [
+		_round_to_int(left),
+		_round_to_int(top),
+		_round_to_int(right - left),
+		DEFAULT_TOGGLE_SIZE.y,
+	]
+
+
+func _default_rect(start: Vector2, object_type: String) -> Array:
 	var grid_size := _grid_size()
+	if object_type == TOOL_TOGGLE_PLATFORM:
+		var toggle_width := mini(
+			DEFAULT_TOGGLE_SIZE.x,
+			int(LOGICAL_SIZE.x)
+		)
+		var toggle_height := DEFAULT_TOGGLE_SIZE.y
+		var toggle_left := mini(
+			_round_to_int(start.x),
+			int(LOGICAL_SIZE.x) - toggle_width
+		)
+		var toggle_top := mini(
+			_round_to_int(start.y),
+			int(LOGICAL_SIZE.y) - toggle_height
+		)
+		return [
+			maxi(toggle_left, 0),
+			maxi(toggle_top, 0),
+			toggle_width,
+			toggle_height,
+		]
+
 	var width := mini(
 		maxi(DEFAULT_SOLID_SIZE.x, grid_size),
 		int(LOGICAL_SIZE.x)
@@ -740,6 +1173,23 @@ func _default_solid_rect(start: Vector2) -> Array:
 	var left := mini(_round_to_int(start.x), int(LOGICAL_SIZE.x) - width)
 	var top := mini(_round_to_int(start.y), int(LOGICAL_SIZE.y) - height)
 	return [maxi(left, 0), maxi(top, 0), width, height]
+
+
+func _object_anchor(object: Dictionary) -> Vector2:
+	var object_type := str(object.get("type", ""))
+	if RECT_OBJECT_TYPES.has(object_type):
+		var rect_values: Variant = object.get("rect")
+		if _is_number_array(rect_values, 4):
+			return _rect_from_payload(rect_values).get_center()
+		return Vector2.ZERO
+
+	var position_values: Variant = object.get("position")
+	if _is_number_array(position_values, 2):
+		return Vector2(
+			float(position_values[0]),
+			float(position_values[1])
+		)
+	return Vector2.ZERO
 
 
 func _snap_logical_point(
@@ -833,6 +1283,16 @@ func _logical_rect_to_local(
 	return Rect2(
 		view_rect.position + logical_rect.position * canvas_scale,
 		logical_rect.size * canvas_scale
+	)
+
+
+func _logical_point_to_local(
+	logical_point: Vector2,
+	view_rect: Rect2
+) -> Vector2:
+	return (
+		view_rect.position
+		+ logical_point * _canvas_scale()
 	)
 
 
