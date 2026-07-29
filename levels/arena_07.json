@@ -1,0 +1,45 @@
+{
+	"schema_version": 1,
+	"level_id": "arena_07_data",
+	"title": "GRAYBOX  /  DATA ARENA 07",
+	"objective": "ОПУСТИ СТРЕЛКА → ДОБЕРИСЬ ДО ЛИФТА",
+	"clear_message": "DATA ARENA 07 ПРОЙДЕНА  /  ПЕРЕЗАПУСК...",
+	"canvas": {
+		"width": 960,
+		"height": 540,
+		"grid_size": 20
+	},
+	"objects": [
+		{
+			"id": "floor",
+			"type": "solid_rect",
+			"rect": [32, 496, 328, 44]
+		},
+		{
+			"id": "cover",
+			"type": "solid_rect",
+			"rect": [324, 430, 36, 66]
+		},
+		{
+			"id": "player_start",
+			"type": "player_spawn",
+			"position": [120, 450]
+		},
+		{
+			"id": "shooter_1",
+			"type": "shooter_enemy",
+			"position": [439, 270]
+		},
+		{
+			"id": "lift_1",
+			"type": "vertical_platform",
+			"position": [460, 330]
+		},
+		{
+			"id": "lift_hinge",
+			"type": "hinge",
+			"position": [250, 468],
+			"target_id": "lift_1"
+		}
+	]
+}

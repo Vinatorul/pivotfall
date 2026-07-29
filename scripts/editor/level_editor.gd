@@ -24,6 +24,7 @@ const TOOL_PATROL := "patrol_enemy"
 const TOOL_SHOVE := "shove_enemy"
 const TOOL_SHOOTER := "shooter_enemy"
 const TOOL_CATAPULT := "catapult_platform"
+const TOOL_LIFT := "vertical_platform"
 const TOOL_TOGGLE := "toggle_platform"
 const TOOL_HINGE := "hinge"
 
@@ -66,6 +67,9 @@ const TOOL_HINGE := "hinge"
 )
 @onready var catapult_button: Button = (
 	$EditorView/PalettePanel/ToolScroll/ToolList/CatapultButton
+)
+@onready var lift_button: Button = (
+	$EditorView/PalettePanel/ToolScroll/ToolList/LiftButton
 )
 @onready var hinge_button: Button = (
 	$EditorView/PalettePanel/ToolScroll/ToolList/HingeButton
@@ -257,6 +261,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_set_tool(TOOL_SHOOTER)
 		KEY_8:
 			_set_tool(TOOL_CATAPULT)
+		KEY_9:
+			_set_tool(TOOL_LIFT)
 		KEY_DELETE, KEY_BACKSPACE:
 			_delete_selected()
 		KEY_LEFT:
@@ -291,6 +297,7 @@ func _connect_ui() -> void:
 		shooter_button,
 		toggle_button,
 		catapult_button,
+		lift_button,
 		hinge_button,
 	]:
 		button.button_group = tool_group
@@ -303,6 +310,7 @@ func _connect_ui() -> void:
 	shooter_button.pressed.connect(_set_tool.bind(TOOL_SHOOTER))
 	toggle_button.pressed.connect(_set_tool.bind(TOOL_TOGGLE))
 	catapult_button.pressed.connect(_set_tool.bind(TOOL_CATAPULT))
+	lift_button.pressed.connect(_set_tool.bind(TOOL_LIFT))
 	hinge_button.pressed.connect(_set_tool.bind(TOOL_HINGE))
 	duplicate_button.pressed.connect(_duplicate_selected)
 	delete_button.pressed.connect(_delete_selected)
@@ -457,6 +465,7 @@ func _set_tool(tool: String) -> void:
 	shooter_button.set_pressed_no_signal(tool == TOOL_SHOOTER)
 	toggle_button.set_pressed_no_signal(tool == TOOL_TOGGLE)
 	catapult_button.set_pressed_no_signal(tool == TOOL_CATAPULT)
+	lift_button.set_pressed_no_signal(tool == TOOL_LIFT)
 	hinge_button.set_pressed_no_signal(tool == TOOL_HINGE)
 	var active_button := _palette_button_for_tool(tool)
 	if is_instance_valid(active_button):
@@ -482,6 +491,8 @@ func _palette_button_for_tool(tool: String) -> Button:
 			return toggle_button
 		TOOL_CATAPULT:
 			return catapult_button
+		TOOL_LIFT:
+			return lift_button
 		TOOL_HINGE:
 			return hinge_button
 	return null
@@ -578,6 +589,16 @@ func _place_object(object_type: String, payload: Variant) -> void:
 				{
 					"id": object_id,
 					"type": TOOL_CATAPULT,
+					"position": (payload as Array).duplicate(),
+				}
+			)
+		TOOL_LIFT:
+			var object_id := draft.make_unique_id("lift")
+			selected_id = object_id
+			draft.add_object(
+				{
+					"id": object_id,
+					"type": TOOL_LIFT,
 					"position": (payload as Array).duplicate(),
 				}
 			)
@@ -693,7 +714,7 @@ func _hinge_targets() -> Array[Dictionary]:
 
 
 func _is_hinge_target_type(object_type: String) -> bool:
-	return object_type in [TOOL_TOGGLE, TOOL_CATAPULT]
+	return object_type in [TOOL_TOGGLE, TOOL_CATAPULT, TOOL_LIFT]
 
 
 func _refresh_inspector_hint() -> void:
@@ -730,6 +751,13 @@ func _refresh_inspector_hint() -> void:
 		inspector_hint.text = (
 			"ФИКСИРОВАННЫЙ ЗАПУСК ВПРАВО\n"
 			+ "Выделение показывает зону и начальную дугу."
+		)
+		inspector_hint.modulate = Color(0.439, 0.827, 0.816)
+		return
+	if selected.get("type", "") == TOOL_LIFT:
+		inspector_hint.text = (
+			"СТАРТУЕТ СВЕРХУ / ХОД ВНИЗ 136 PX\n"
+			+ "Выделение показывает коридор и нижнюю остановку."
 		)
 		inspector_hint.modulate = Color(0.439, 0.827, 0.816)
 		return
@@ -792,6 +820,20 @@ func _duplicate_selected() -> void:
 				Vector2(position[0] + 20, position[1] + 20)
 			)
 			position = [roundi(clamped.x), roundi(clamped.y)]
+		elif duplicate["type"] == TOOL_LIFT:
+			var lift_position: Variant = (
+				_find_valid_lift_duplicate_position(duplicate)
+			)
+			if lift_position == null:
+				_set_notice(
+					(
+						"Не удалось найти свободное валидное "
+						+ "место для копии лифта."
+					),
+					true
+				)
+				return
+			position = lift_position
 		else:
 			position[0] = clampi(position[0] + 20, 0, 959)
 			position[1] = clampi(position[1] + 20, 0, 539)
@@ -799,6 +841,159 @@ func _duplicate_selected() -> void:
 
 	selected_id = new_id
 	draft.add_object(duplicate)
+
+
+func _find_valid_lift_duplicate_position(
+	duplicate: Dictionary
+) -> Variant:
+	if not bool(validation_result.get("ok", false)):
+		return null
+
+	var values: Array = duplicate.get("position", [])
+	if values.size() != 2:
+		return null
+
+	var origin := Vector2(float(values[0]), float(values[1]))
+	var minimum := LevelEditorCanvas.VERTICAL_PLATFORM_MIN_POSITION
+	var maximum := LevelEditorCanvas.VERTICAL_PLATFORM_MAX_POSITION
+	var grid_size := maxi(
+		1,
+		int(
+			draft.to_dictionary().get(
+				"canvas",
+				{}
+			).get("grid_size", 20)
+		)
+	)
+	var candidates: Array[Vector2] = []
+	var seen := {}
+
+	for offset: Vector2 in [
+		Vector2(80.0, 0.0),
+		Vector2(-80.0, 0.0),
+	]:
+		_append_lift_duplicate_candidate(
+			candidates,
+			seen,
+			origin + offset,
+			origin,
+			minimum,
+			maximum
+		)
+
+	var clearance_height := (
+		LevelEditorCanvas.vertical_platform_passenger_clearance_rect(
+			origin
+		).size.y
+	)
+	var safe_vertical_offset := (
+		ceilf(clearance_height / float(grid_size))
+		* float(grid_size)
+	)
+	for offset: Vector2 in [
+		Vector2(0.0, safe_vertical_offset),
+		Vector2(0.0, -safe_vertical_offset),
+	]:
+		_append_lift_duplicate_candidate(
+			candidates,
+			seen,
+			origin + offset,
+			origin,
+			minimum,
+			maximum
+		)
+
+	var grid_candidates: Array[Vector2] = []
+	var minimum_x_step := ceili(
+		(minimum.x - origin.x) / float(grid_size)
+	)
+	var maximum_x_step := floori(
+		(maximum.x - origin.x) / float(grid_size)
+	)
+	var minimum_y_step := ceili(
+		(minimum.y - origin.y) / float(grid_size)
+	)
+	var maximum_y_step := floori(
+		(maximum.y - origin.y) / float(grid_size)
+	)
+	for y_step in range(minimum_y_step, maximum_y_step + 1):
+		for x_step in range(minimum_x_step, maximum_x_step + 1):
+			if x_step == 0 and y_step == 0:
+				continue
+			grid_candidates.append(
+				origin
+				+ Vector2(
+					float(x_step * grid_size),
+					float(y_step * grid_size)
+				)
+			)
+	grid_candidates.sort_custom(
+		func(first: Vector2, second: Vector2) -> bool:
+			var first_distance := first.distance_squared_to(origin)
+			var second_distance := second.distance_squared_to(origin)
+			if not is_equal_approx(
+				first_distance,
+				second_distance
+			):
+				return first_distance < second_distance
+			if not is_equal_approx(first.y, second.y):
+				return first.y < second.y
+			return first.x < second.x
+	)
+	for candidate: Vector2 in grid_candidates:
+		_append_lift_duplicate_candidate(
+			candidates,
+			seen,
+			candidate,
+			origin,
+			minimum,
+			maximum
+		)
+
+	for candidate: Vector2 in candidates:
+		var candidate_object := duplicate.duplicate(true)
+		candidate_object["position"] = [
+			roundi(candidate.x),
+			roundi(candidate.y),
+		]
+		var hypothetical := draft.to_dictionary()
+		var objects: Array = hypothetical.get("objects", [])
+		objects.append(candidate_object)
+		hypothetical["objects"] = objects
+		var validation: Dictionary = (
+			LEVEL_DATA_VALIDATOR.validate_and_normalize(
+				hypothetical
+			)
+		)
+		if bool(validation.get("ok", false)):
+			return candidate_object["position"]
+	return null
+
+
+func _append_lift_duplicate_candidate(
+	candidates: Array[Vector2],
+	seen: Dictionary,
+	candidate: Vector2,
+	origin: Vector2,
+	minimum: Vector2,
+	maximum: Vector2
+) -> void:
+	if (
+		not candidate.is_equal_approx(
+			candidate.clamp(minimum, maximum)
+		)
+		or candidate.is_equal_approx(origin)
+	):
+		return
+	var rounded := Vector2(
+		roundi(candidate.x),
+		roundi(candidate.y)
+	)
+	var key := "%d:%d" % [roundi(rounded.x), roundi(rounded.y)]
+	if seen.has(key):
+		return
+	seen[key] = true
+	candidates.append(rounded)
 
 
 func _nudge_selected(direction: Vector2i, fine: bool) -> void:
@@ -827,6 +1022,19 @@ func _nudge_selected(direction: Vector2i, fine: bool) -> void:
 				)
 			)
 			position = [roundi(clamped.x), roundi(clamped.y)]
+		elif object["type"] == TOOL_LIFT:
+			var lift_clamped := (
+				LevelEditorCanvas.clamp_vertical_platform_position(
+					Vector2(
+						position[0] + delta.x,
+						position[1] + delta.y
+					)
+				)
+			)
+			position = [
+				roundi(lift_clamped.x),
+				roundi(lift_clamped.y),
+			]
 		else:
 			position[0] = clampi(position[0] + delta.x, 0, 959)
 			position[1] = clampi(position[1] + delta.y, 0, 539)
@@ -1341,6 +1549,12 @@ func _rebuild_inspector() -> void:
 			var position: Array = object["position"]
 			_add_numeric_property("X", "position:0", position[0])
 			_add_numeric_property("Y", "position:1", position[1])
+		TOOL_LIFT:
+			var position: Array = object["position"]
+			_add_numeric_property("X", "position:0", position[0])
+			_add_numeric_property("Y", "position:1", position[1])
+			_add_readonly_property("SIZE", "80 × 20")
+			_add_readonly_property("TRAVEL", "↓ 136")
 		TOOL_HINGE:
 			var position: Array = object["position"]
 			_add_numeric_property("X", "position:0", position[0])

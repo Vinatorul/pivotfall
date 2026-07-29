@@ -39,6 +39,9 @@ const TOGGLE_PLATFORM_HEIGHT := 20
 const MIN_TOGGLE_PLATFORM_WIDTH := 20
 const CATAPULT_SIZE := Vector2i(180, 20)
 const CATAPULT_MINIMUM_Y := 94
+const VERTICAL_PLATFORM_SIZE := Vector2i(80, 20)
+const VERTICAL_PLATFORM_TRAVEL := 136
+const VERTICAL_PLATFORM_MINIMUM_Y := 82
 const HINGE_RADIUS := 18
 const ACTOR_HALF_EXTENTS := {
 	"player_spawn": Vector2i(14, 20),
@@ -69,6 +72,7 @@ const PATROL_ENEMY_KEYS := [
 const SHOVE_ENEMY_KEYS := ["id", "type", "position", "direction"]
 const SHOOTER_ENEMY_KEYS := ["id", "type", "position"]
 const CATAPULT_PLATFORM_KEYS := ["id", "type", "position"]
+const VERTICAL_PLATFORM_KEYS := ["id", "type", "position"]
 const TOGGLE_PLATFORM_KEYS := [
 	"id",
 	"type",
@@ -83,6 +87,7 @@ const SUPPORTED_TYPES := [
 	"shove_enemy",
 	"shooter_enemy",
 	"catapult_platform",
+	"vertical_platform",
 	"toggle_platform",
 	"hinge",
 ]
@@ -94,6 +99,7 @@ const ENEMY_TYPES := [
 const HINGE_TARGET_TYPES := [
 	"toggle_platform",
 	"catapult_platform",
+	"vertical_platform",
 ]
 
 
@@ -258,6 +264,7 @@ static func validate_and_normalize(raw: Variant) -> Dictionary:
 		declared_object_ids,
 		errors
 	)
+	_validate_vertical_platform_corridors(normalized_objects, errors)
 	_validate_actor_placements(normalized_objects, errors)
 	normalized["objects"] = normalized_objects
 	if not errors.is_empty():
@@ -601,6 +608,45 @@ static func _validate_object(
 				},
 			}
 
+		"vertical_platform":
+			_reject_unknown_keys(
+				object,
+				VERTICAL_PLATFORM_KEYS,
+				path,
+				errors
+			)
+			var position: Variant = null
+			if _require_key(object, "position", path, errors):
+				position = _read_int_array(
+					object["position"],
+					"%s.position" % path,
+					2,
+					errors
+				)
+				if position != null:
+					_validate_point_bounds(
+						position,
+						canvas_size,
+						"%s.position" % path,
+						errors
+					)
+					_validate_vertical_platform_playfield_bounds(
+						position,
+						object_id,
+						errors
+					)
+
+			if errors.size() != error_count_before:
+				return {"ok": false, "data": {}}
+			return {
+				"ok": true,
+				"data": {
+					"id": object_id,
+					"type": object_type,
+					"position": position,
+				},
+			}
+
 		"toggle_platform":
 			_reject_unknown_keys(
 				object,
@@ -824,6 +870,71 @@ static func _validate_catapult_playfield_bounds(
 		)
 
 
+static func _validate_vertical_platform_playfield_bounds(
+	point: Array,
+	object_id: String,
+	errors: Array[String]
+) -> void:
+	var corridor := _vertical_platform_corridor_rect(point)
+	if (
+		corridor.position.x < PLAYFIELD_LEFT
+		or point[1] < VERTICAL_PLATFORM_MINIMUM_Y
+		or corridor.end.x > PLAYFIELD_RIGHT
+		or corridor.end.y > PLAYFIELD_BOTTOM
+	):
+		errors.append(
+			(
+				"Object '%s' travel and passenger clearance must fit inside "
+				+ "the runtime playfield."
+			)
+			% object_id
+		)
+
+
+static func _validate_vertical_platform_corridors(
+	objects: Array[Dictionary],
+	errors: Array[String]
+) -> void:
+	for lift_index in objects.size():
+		var lift: Dictionary = objects[lift_index]
+		if lift["type"] != "vertical_platform":
+			continue
+		var passenger_clearance := (
+			_vertical_platform_passenger_clearance_rect(
+				lift["position"]
+			)
+		)
+		for other_index in objects.size():
+			if other_index == lift_index:
+				continue
+			var other: Dictionary = objects[other_index]
+			if (
+				other["type"] == "vertical_platform"
+				and other_index < lift_index
+			):
+				continue
+			var other_rect := _mechanism_collision_rect(other)
+			if (
+				other_rect.size == Vector2.ZERO
+				or not _rects_overlap_strictly(
+					passenger_clearance,
+					other_rect
+				)
+			):
+				continue
+			errors.append(
+				(
+					"Vertical platform '%s' clearance corridor "
+					+ "overlaps %s '%s'."
+				)
+				% [
+					lift["id"],
+					other["type"],
+					other["id"],
+				]
+			)
+
+
 static func _validate_links(
 	objects: Array[Dictionary],
 	declared_object_ids: Dictionary,
@@ -868,10 +979,20 @@ static func _validate_actor_placements(
 	errors: Array[String]
 ) -> void:
 	var solids: Array[Dictionary] = []
+	var lift_sweeps: Array[Dictionary] = []
 	for object: Dictionary in objects:
 		var support := _support_definition(object)
 		if not support.is_empty():
 			solids.append(support)
+		if object["type"] == "vertical_platform":
+			lift_sweeps.append(
+				{
+					"id": object["id"],
+					"rect": _vertical_platform_future_sweep_rect(
+						object["position"]
+					),
+				}
+			)
 
 	for object: Dictionary in objects:
 		var object_type: String = object["type"]
@@ -919,6 +1040,17 @@ static func _validate_actor_placements(
 						+ "%s '%s'."
 					)
 					% [object["id"], solid["type"], solid["id"]]
+				)
+
+		for sweep: Dictionary in lift_sweeps:
+			var sweep_rect: Rect2 = sweep["rect"]
+			if _rects_overlap_strictly(actor_rect, sweep_rect):
+				errors.append(
+					(
+						"Object '%s' collision bounds overlap "
+						+ "vertical platform '%s' future sweep."
+					)
+					% [object["id"], sweep["id"]]
 				)
 
 
@@ -1015,17 +1147,95 @@ static func _collect_warnings(
 			HINGE_TARGET_TYPES.has(object["type"])
 			and not targeted_platforms.has(object["id"])
 		):
-			var label := (
-				"Toggle platform"
-				if object["type"] == "toggle_platform"
-				else "Catapult platform"
-			)
+			var label := "Vertical platform"
+			if object["type"] == "toggle_platform":
+				label = "Toggle platform"
+			elif object["type"] == "catapult_platform":
+				label = "Catapult platform"
 			warnings.append(
 				"%s '%s' has no controlling hinge."
 				% [label, object["id"]]
 			)
 
 	return warnings
+
+
+static func _vertical_platform_corridor_rect(point: Array) -> Rect2:
+	return Rect2(
+		Vector2(
+			float(point[0]) - VERTICAL_PLATFORM_SIZE.x * 0.5,
+			float(point[1]) - VERTICAL_PLATFORM_SIZE.y * 0.5
+		),
+		Vector2(
+			VERTICAL_PLATFORM_SIZE.x,
+			VERTICAL_PLATFORM_SIZE.y + VERTICAL_PLATFORM_TRAVEL
+		)
+	)
+
+
+static func _vertical_platform_future_sweep_rect(point: Array) -> Rect2:
+	return Rect2(
+		Vector2(
+			float(point[0]) - VERTICAL_PLATFORM_SIZE.x * 0.5,
+			float(point[1]) + VERTICAL_PLATFORM_SIZE.y * 0.5
+		),
+		Vector2(
+			VERTICAL_PLATFORM_SIZE.x,
+			VERTICAL_PLATFORM_TRAVEL
+		)
+	)
+
+
+static func _vertical_platform_passenger_clearance_rect(
+	point: Array
+) -> Rect2:
+	var player_height := (
+		int(ACTOR_HALF_EXTENTS["player_spawn"].y) * 2
+	)
+	return Rect2(
+		Vector2(
+			float(point[0]) - VERTICAL_PLATFORM_SIZE.x * 0.5,
+			(
+				float(point[1])
+				- VERTICAL_PLATFORM_SIZE.y * 0.5
+				- player_height
+			)
+		),
+		Vector2(
+			VERTICAL_PLATFORM_SIZE.x,
+			(
+				VERTICAL_PLATFORM_SIZE.y
+				+ VERTICAL_PLATFORM_TRAVEL
+				+ player_height
+			)
+		)
+	)
+
+
+static func _mechanism_collision_rect(object: Dictionary) -> Rect2:
+	var object_type: String = object["type"]
+	if object_type == "solid_rect" or object_type == "toggle_platform":
+		var values: Array = object["rect"]
+		return Rect2(
+			float(values[0]),
+			float(values[1]),
+			float(values[2]),
+			float(values[3])
+		)
+	if object_type == "catapult_platform":
+		var support := _support_definition(object)
+		var values: Array = support["rect"]
+		return Rect2(
+			float(values[0]),
+			float(values[1]),
+			float(values[2]),
+			float(values[3])
+		)
+	if object_type == "vertical_platform":
+		return _vertical_platform_passenger_clearance_rect(
+			object["position"]
+		)
+	return Rect2()
 
 
 static func _support_definition(object: Dictionary) -> Dictionary:
@@ -1047,6 +1257,18 @@ static func _support_definition(object: Dictionary) -> Dictionary:
 				position[1] - CATAPULT_SIZE.y / 2,
 				CATAPULT_SIZE.x,
 				CATAPULT_SIZE.y,
+			],
+		}
+	if object_type == "vertical_platform":
+		var position: Array = object["position"]
+		return {
+			"id": object["id"],
+			"type": object_type,
+			"rect": [
+				position[0] - VERTICAL_PLATFORM_SIZE.x / 2,
+				position[1] - VERTICAL_PLATFORM_SIZE.y / 2,
+				VERTICAL_PLATFORM_SIZE.x,
+				VERTICAL_PLATFORM_SIZE.y,
 			],
 		}
 	return {}

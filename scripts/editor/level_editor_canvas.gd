@@ -37,6 +37,14 @@ const CATAPULT_PREVIEW_SEGMENTS := 12
 const CATAPULT_PIVOT_RADIUS := 14.0
 const CATAPULT_MIN_POSITION := Vector2(32.0, 94.0)
 const CATAPULT_MAX_POSITION := Vector2(748.0, 530.0)
+const VERTICAL_PLATFORM_SIZE := Vector2(80.0, 20.0)
+const VERTICAL_PLATFORM_TRAVEL_OFFSET := Vector2(0.0, 136.0)
+const VERTICAL_PLATFORM_STOP_RADIUS := 8.0
+const VERTICAL_PLATFORM_TRACK_WIDTH := 4.0
+const VERTICAL_PLATFORM_MIN_POSITION := Vector2(72.0, 82.0)
+const VERTICAL_PLATFORM_MAX_POSITION := Vector2(888.0, 394.0)
+const VERTICAL_PLATFORM_PASSENGER_MAX_GAP := 64.0
+const VERTICAL_PLATFORM_PASSENGER_ALPHA := 0.42
 
 const TOOL_SELECT := "select"
 const TOOL_SOLID_RECT := "solid_rect"
@@ -45,6 +53,7 @@ const TOOL_PATROL_ENEMY := "patrol_enemy"
 const TOOL_SHOVE_ENEMY := "shove_enemy"
 const TOOL_SHOOTER_ENEMY := "shooter_enemy"
 const TOOL_CATAPULT_PLATFORM := "catapult_platform"
+const TOOL_VERTICAL_PLATFORM := "vertical_platform"
 const TOOL_TOGGLE_PLATFORM := "toggle_platform"
 const TOOL_HINGE := "hinge"
 const SUPPORTED_TOOLS := [
@@ -55,6 +64,7 @@ const SUPPORTED_TOOLS := [
 	TOOL_SHOVE_ENEMY,
 	TOOL_SHOOTER_ENEMY,
 	TOOL_CATAPULT_PLATFORM,
+	TOOL_VERTICAL_PLATFORM,
 	TOOL_TOGGLE_PLATFORM,
 	TOOL_HINGE,
 ]
@@ -74,11 +84,13 @@ const POINT_OBJECT_TYPES := [
 	TOOL_SHOVE_ENEMY,
 	TOOL_SHOOTER_ENEMY,
 	TOOL_CATAPULT_PLATFORM,
+	TOOL_VERTICAL_PLATFORM,
 	TOOL_HINGE,
 ]
 const DRAW_ORDER := [
 	TOOL_SOLID_RECT,
 	TOOL_TOGGLE_PLATFORM,
+	TOOL_VERTICAL_PLATFORM,
 	TOOL_CATAPULT_PLATFORM,
 	TOOL_PLAYER_SPAWN,
 	TOOL_PATROL_ENEMY,
@@ -94,11 +106,13 @@ const HIT_ORDER := [
 	TOOL_PLAYER_SPAWN,
 	TOOL_CATAPULT_PLATFORM,
 	TOOL_TOGGLE_PLATFORM,
+	TOOL_VERTICAL_PLATFORM,
 	TOOL_SOLID_RECT,
 ]
 const HINGE_TARGET_TYPES := [
 	TOOL_TOGGLE_PLATFORM,
 	TOOL_CATAPULT_PLATFORM,
+	TOOL_VERTICAL_PLATFORM,
 ]
 
 const ACTOR_HALF_EXTENTS := {
@@ -137,6 +151,13 @@ const COLOR_CATAPULT_ACCENT := Color(0.439, 0.827, 0.816, 0.85)
 const COLOR_CATAPULT_WARNING := Color(0.925, 0.58, 0.267, 0.65)
 const COLOR_CATAPULT_ZONE := Color(0.925, 0.58, 0.267, 0.1)
 const COLOR_CATAPULT_TARGET := Color(1.0, 0.82, 0.36, 0.85)
+const COLOR_VERTICAL_PLATFORM := Color(0.278, 0.345, 0.459, 1.0)
+const COLOR_VERTICAL_EDGE := Color(0.392, 0.455, 0.584, 1.0)
+const COLOR_VERTICAL_ACCENT := Color(0.439, 0.827, 0.816, 0.85)
+const COLOR_VERTICAL_TRACK := Color(0.235, 0.302, 0.416, 0.85)
+const COLOR_VERTICAL_ZONE := Color(0.439, 0.827, 0.816, 0.08)
+const COLOR_VERTICAL_TARGET_FILL := Color(0.925, 0.58, 0.267, 0.14)
+const COLOR_VERTICAL_TARGET := Color(0.925, 0.58, 0.267, 0.65)
 const COLOR_TOGGLE_ACTIVE := Color(0.278, 0.345, 0.459, 1.0)
 const COLOR_TOGGLE_INACTIVE := Color(0.278, 0.345, 0.459, 0.2)
 const COLOR_TOGGLE_EDGE := Color(0.439, 0.827, 0.816, 0.9)
@@ -379,6 +400,7 @@ func _begin_primary_action(local_position: Vector2) -> void:
 		TOOL_SHOVE_ENEMY, \
 		TOOL_SHOOTER_ENEMY, \
 		TOOL_CATAPULT_PLATFORM, \
+		TOOL_VERTICAL_PLATFORM, \
 		TOOL_HINGE:
 			var snapped_position := _snap_logical_point(
 				logical_position,
@@ -386,6 +408,10 @@ func _begin_primary_action(local_position: Vector2) -> void:
 			)
 			if _tool == TOOL_CATAPULT_PLATFORM:
 				snapped_position = clamp_catapult_position(
+					snapped_position
+				)
+			elif _tool == TOOL_VERTICAL_PLATFORM:
+				snapped_position = clamp_vertical_platform_position(
 					snapped_position
 				)
 			placement_requested.emit(
@@ -527,6 +553,7 @@ func _moved_payload() -> Variant:
 	if (
 		ACTOR_HALF_EXTENTS.has(_drag_object_type)
 		or _drag_object_type == TOOL_CATAPULT_PLATFORM
+		or _drag_object_type == TOOL_VERTICAL_PLATFORM
 		or _drag_object_type == TOOL_HINGE
 	):
 		if not _is_number_array(_drag_original_payload, 2):
@@ -539,6 +566,8 @@ func _moved_payload() -> Variant:
 		) + snapped_delta
 		if _drag_object_type == TOOL_CATAPULT_PLATFORM:
 			position = clamp_catapult_position(position)
+		elif _drag_object_type == TOOL_VERTICAL_PLATFORM:
+			position = clamp_vertical_platform_position(position)
 		else:
 			position.x = clampf(
 				position.x,
@@ -767,6 +796,25 @@ func _draw_object(
 				alpha
 			)
 
+		TOOL_VERTICAL_PLATFORM:
+			var position_values: Variant = object.get("position")
+			if not _is_number_array(position_values, 2):
+				return
+			var object_id := str(object.get("id", ""))
+			var moving_this_platform := (
+				_drag_kind == TOOL_SELECT
+				and _drag_moved
+				and _drag_object_id == object_id
+			)
+			_draw_vertical_platform(
+				position_values,
+				view_rect,
+				alpha,
+				object_id == _selected_id
+				and not moving_this_platform,
+				object_id
+			)
+
 		TOOL_CATAPULT_PLATFORM:
 			var position_values: Variant = object.get("position")
 			if not _is_number_array(position_values, 2):
@@ -906,6 +954,489 @@ func _draw_toggle_platform(
 			_with_alpha(COLOR_TOGGLE_EDGE, alpha),
 			2.0
 		)
+
+
+func _draw_vertical_platform(
+	position_values: Array,
+	view_rect: Rect2,
+	alpha: float,
+	show_preview: bool,
+	object_id: String = ""
+) -> void:
+	var position := _point_from_payload(position_values)
+	var upper_rect := vertical_platform_upper_rect(position)
+	var lower_rect := vertical_platform_lower_rect(position)
+	var lower_position := position + VERTICAL_PLATFORM_TRAVEL_OFFSET
+
+	if show_preview:
+		var corridor := vertical_platform_corridor_rect(position)
+		var local_corridor := _logical_rect_to_local(
+			corridor,
+			view_rect
+		)
+		draw_rect(
+			local_corridor,
+			_with_alpha(COLOR_VERTICAL_ZONE, alpha)
+		)
+		draw_rect(
+			local_corridor,
+			_with_alpha(COLOR_VERTICAL_TARGET, alpha),
+			false,
+			1.5
+		)
+
+	var local_position := _logical_point_to_local(position, view_rect)
+	var local_lower_position := _logical_point_to_local(
+		lower_position,
+		view_rect
+	)
+	draw_line(
+		local_position,
+		local_lower_position,
+		_with_alpha(COLOR_VERTICAL_TRACK, alpha),
+		VERTICAL_PLATFORM_TRACK_WIDTH * _canvas_scale(),
+		true
+	)
+
+	_draw_vertical_stop(position, view_rect, alpha)
+	_draw_vertical_stop(lower_position, view_rect, alpha)
+
+	if show_preview:
+		_draw_vertical_platform_body(
+			lower_rect,
+			view_rect,
+			alpha,
+			true
+		)
+		_draw_vertical_direction_arrow(
+			position,
+			lower_position,
+			view_rect,
+			alpha
+		)
+
+	_draw_vertical_platform_body(
+		upper_rect,
+		view_rect,
+		alpha,
+		false
+	)
+	if show_preview:
+		_draw_vertical_passenger_preview(
+			position,
+			object_id,
+			view_rect,
+			alpha
+		)
+
+
+func _draw_vertical_platform_body(
+	logical_rect: Rect2,
+	view_rect: Rect2,
+	alpha: float,
+	is_target: bool
+) -> void:
+	var local_rect := _logical_rect_to_local(logical_rect, view_rect)
+	var body_color := (
+		COLOR_VERTICAL_TARGET_FILL
+		if is_target
+		else COLOR_VERTICAL_PLATFORM
+	)
+	var edge_color := (
+		COLOR_VERTICAL_TARGET
+		if is_target
+		else COLOR_VERTICAL_EDGE
+	)
+	draw_rect(local_rect, _with_alpha(body_color, alpha))
+	var edge_rect := Rect2(
+		logical_rect.position,
+		Vector2(logical_rect.size.x, 5.0)
+	)
+	draw_rect(
+		_logical_rect_to_local(edge_rect, view_rect),
+		_with_alpha(edge_color, alpha)
+	)
+	draw_rect(
+		local_rect,
+		_with_alpha(
+			COLOR_VERTICAL_TARGET
+			if is_target
+			else COLOR_VERTICAL_ACCENT,
+			alpha
+		),
+		false,
+		2.0
+	)
+
+	if is_target:
+		return
+	var center := logical_rect.get_center()
+	var port_radius := 6.0 * _canvas_scale()
+	var local_center := _logical_point_to_local(center, view_rect)
+	draw_colored_polygon(
+		PackedVector2Array(
+			[
+				local_center + Vector2(0.0, -port_radius),
+				local_center + Vector2(port_radius, 0.0),
+				local_center + Vector2(0.0, port_radius),
+				local_center + Vector2(-port_radius, 0.0),
+			]
+		),
+		_with_alpha(COLOR_VERTICAL_ACCENT, alpha)
+	)
+
+
+func _draw_vertical_stop(
+	position: Vector2,
+	view_rect: Rect2,
+	alpha: float
+) -> void:
+	var local_center := _logical_point_to_local(position, view_rect)
+	var radius := VERTICAL_PLATFORM_STOP_RADIUS * _canvas_scale()
+	var points := PackedVector2Array(
+		[
+			local_center + Vector2(0.0, -radius),
+			local_center + Vector2(radius, 0.0),
+			local_center + Vector2(0.0, radius),
+			local_center + Vector2(-radius, 0.0),
+		]
+	)
+	draw_colored_polygon(
+		points,
+		_with_alpha(COLOR_VERTICAL_ACCENT, alpha)
+	)
+	var inner_radius := radius * 0.375
+	var inner_points := PackedVector2Array(
+		[
+			local_center + Vector2(0.0, -inner_radius),
+			local_center + Vector2(inner_radius, 0.0),
+			local_center + Vector2(0.0, inner_radius),
+			local_center + Vector2(-inner_radius, 0.0),
+		]
+	)
+	draw_colored_polygon(
+		inner_points,
+		_with_alpha(COLOR_BACKDROP, alpha)
+	)
+
+
+func _draw_vertical_direction_arrow(
+	upper_position: Vector2,
+	lower_position: Vector2,
+	view_rect: Rect2,
+	alpha: float
+) -> void:
+	var arrow_center := upper_position.lerp(lower_position, 0.5)
+	var arrow_tip := arrow_center + Vector2(0.0, 13.0)
+	var arrow_left := arrow_center + Vector2(-6.0, 5.0)
+	var arrow_right := arrow_center + Vector2(6.0, 5.0)
+	draw_colored_polygon(
+		_logical_points_to_local(
+			PackedVector2Array(
+				[arrow_tip, arrow_left, arrow_right]
+			),
+			view_rect
+		),
+		_with_alpha(COLOR_VERTICAL_TARGET, alpha)
+	)
+
+
+func _draw_vertical_passenger_preview(
+	position: Vector2,
+	platform_id: String,
+	view_rect: Rect2,
+	alpha: float
+) -> void:
+	var passengers := _vertical_platform_passengers(
+		position,
+		platform_id
+	)
+	if passengers.is_empty():
+		return
+
+	var destination_blockers := (
+		_vertical_platform_destination_blockers(
+			position,
+			platform_id
+		)
+	)
+	var destination_player: Variant = _resting_actor_position(
+		TOOL_PLAYER_SPAWN,
+		_player_spawn_position(),
+		destination_blockers
+	)
+	for passenger: Dictionary in passengers:
+		if passenger.get("type", "") != TOOL_PLAYER_SPAWN:
+			continue
+		destination_player = _vertical_platform_passenger_destination(
+			passenger,
+			position
+		)
+		break
+
+	var preview_alpha := alpha * VERTICAL_PLATFORM_PASSENGER_ALPHA
+	for passenger: Dictionary in passengers:
+		var source_bounds := _bounds_for_object(passenger)
+		draw_rect(
+			_logical_rect_to_local(
+				source_bounds,
+				view_rect
+			).grow(2.0),
+			_with_alpha(COLOR_VERTICAL_TARGET, alpha),
+			false,
+			2.0
+		)
+
+		var object_type := str(passenger.get("type", ""))
+		var destination := _vertical_platform_passenger_destination(
+			passenger,
+			position
+		)
+		var destination_values := [
+			destination.x,
+			destination.y,
+		]
+		var direction := int(
+			passenger.get(
+				"direction",
+				-1 if object_type == TOOL_SHOVE_ENEMY else 1
+			)
+		)
+		var shooter_direction := Vector2.LEFT
+		if (
+			object_type == TOOL_SHOOTER_ENEMY
+			and typeof(destination_player) == TYPE_VECTOR2
+		):
+			var shooter_preview := shooter_aim_preview(
+				destination,
+				destination_player,
+				destination_blockers
+			)
+			shooter_direction = shooter_preview.get(
+				"direction",
+				Vector2.LEFT
+			)
+			direction = (
+				-1 if shooter_direction.x < 0.0 else 1
+			)
+			_draw_shooter_aim(
+				shooter_preview,
+				view_rect,
+				preview_alpha
+			)
+
+		_draw_actor(
+			object_type,
+			destination_values,
+			view_rect,
+			preview_alpha,
+			direction
+		)
+		if object_type == TOOL_SHOOTER_ENEMY:
+			_draw_shooter_barrel(
+				destination_values,
+				shooter_direction,
+				view_rect,
+				preview_alpha
+			)
+
+
+func _vertical_platform_passengers(
+	position: Vector2,
+	platform_id: String
+) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	var upper_rect := vertical_platform_upper_rect(position)
+	var other_supports := _initial_collision_rects()
+	for object: Variant in _objects():
+		if (
+			typeof(object) != TYPE_DICTIONARY
+			or not ACTOR_OBJECT_TYPES.has(
+				str(object.get("type", ""))
+			)
+		):
+			continue
+
+		var actor: Dictionary = object
+		var actor_bounds := _bounds_for_object(actor)
+		if not _rects_overlap_horizontally(
+			actor_bounds,
+			upper_rect
+		):
+			continue
+		var gap := upper_rect.position.y - actor_bounds.end.y
+		if (
+			gap < 0.0
+			or gap > VERTICAL_PLATFORM_PASSENGER_MAX_GAP
+		):
+			continue
+
+		var has_closer_support := false
+		for support: Dictionary in other_supports:
+			if str(support.get("id", "")) == platform_id:
+				continue
+			var support_rect: Rect2 = support.get(
+				"rect",
+				Rect2()
+			)
+			if (
+				support_rect.size == Vector2.ZERO
+				or not _rects_overlap_horizontally(
+					actor_bounds,
+					support_rect
+				)
+			):
+				continue
+			if (
+				support_rect.position.y >= actor_bounds.end.y
+				and support_rect.position.y
+				< upper_rect.position.y
+			):
+				has_closer_support = true
+				break
+		if not has_closer_support:
+			result.append(actor)
+	return result
+
+
+func _vertical_platform_passenger_destination(
+	actor: Dictionary,
+	platform_position: Vector2
+) -> Vector2:
+	var object_type := str(actor.get("type", ""))
+	var half_extents: Vector2 = ACTOR_HALF_EXTENTS.get(
+		object_type,
+		Vector2.ZERO
+	)
+	var source_position := _object_anchor(actor)
+	return Vector2(
+		source_position.x,
+		vertical_platform_lower_rect(
+			platform_position
+		).position.y - half_extents.y
+	)
+
+
+func _vertical_platform_destination_blockers(
+	position: Vector2,
+	platform_id: String
+) -> Array[Dictionary]:
+	var blockers: Array[Dictionary] = []
+	var replaced_platform := false
+	for blocker: Dictionary in _initial_collision_rects():
+		if str(blocker.get("id", "")) == platform_id:
+			blockers.append(
+				{
+					"id": platform_id,
+					"rect": vertical_platform_lower_rect(
+						position
+					),
+				}
+			)
+			replaced_platform = true
+		else:
+			blockers.append(blocker)
+	if not replaced_platform:
+		blockers.append(
+			{
+				"id": platform_id,
+				"rect": vertical_platform_lower_rect(position),
+			}
+		)
+	return blockers
+
+
+static func _resting_actor_position(
+	object_type: String,
+	source_position: Variant,
+	blockers: Array[Dictionary]
+) -> Variant:
+	if (
+		typeof(source_position) != TYPE_VECTOR2
+		or not ACTOR_HALF_EXTENTS.has(object_type)
+	):
+		return source_position
+
+	var position: Vector2 = source_position
+	var half_extents: Vector2 = ACTOR_HALF_EXTENTS[object_type]
+	var actor_bounds := Rect2(
+		position - half_extents,
+		half_extents * 2.0
+	)
+	var nearest_support_y := INF
+	for blocker: Dictionary in blockers:
+		var support: Rect2 = blocker.get("rect", Rect2())
+		if (
+			support.size == Vector2.ZERO
+			or not _rects_overlap_horizontally(
+				actor_bounds,
+				support
+			)
+			or support.position.y < actor_bounds.end.y
+		):
+			continue
+		nearest_support_y = minf(
+			nearest_support_y,
+			support.position.y
+		)
+
+	if is_inf(nearest_support_y):
+		return position
+	return Vector2(
+		position.x,
+		nearest_support_y - half_extents.y
+	)
+
+
+static func _rects_overlap_horizontally(
+	first: Rect2,
+	second: Rect2
+) -> bool:
+	return (
+		first.position.x < second.end.x
+		and first.end.x > second.position.x
+	)
+
+
+static func vertical_platform_upper_rect(position: Vector2) -> Rect2:
+	return Rect2(
+		position - VERTICAL_PLATFORM_SIZE * 0.5,
+		VERTICAL_PLATFORM_SIZE
+	)
+
+
+static func vertical_platform_lower_rect(position: Vector2) -> Rect2:
+	return vertical_platform_upper_rect(
+		position + VERTICAL_PLATFORM_TRAVEL_OFFSET
+	)
+
+
+static func vertical_platform_corridor_rect(position: Vector2) -> Rect2:
+	return vertical_platform_upper_rect(position).merge(
+		vertical_platform_lower_rect(position)
+	)
+
+
+static func vertical_platform_passenger_clearance_rect(
+	position: Vector2
+) -> Rect2:
+	var corridor := vertical_platform_corridor_rect(position)
+	var passenger_height: float = (
+		ACTOR_HALF_EXTENTS[TOOL_PLAYER_SPAWN].y * 2.0
+	)
+	return Rect2(
+		corridor.position - Vector2(0.0, passenger_height),
+		corridor.size + Vector2(0.0, passenger_height)
+	)
+
+
+static func clamp_vertical_platform_position(
+	position: Vector2
+) -> Vector2:
+	return position.clamp(
+		VERTICAL_PLATFORM_MIN_POSITION,
+		VERTICAL_PLATFORM_MAX_POSITION
+	)
 
 
 func _draw_catapult(
@@ -1421,6 +1952,10 @@ func _player_spawn_position() -> Variant:
 
 
 func _shooter_blockers() -> Array[Dictionary]:
+	return _initial_collision_rects()
+
+
+func _initial_collision_rects() -> Array[Dictionary]:
 	var blockers: Array[Dictionary] = []
 	for object: Variant in _objects():
 		if typeof(object) != TYPE_DICTIONARY:
@@ -1442,6 +1977,12 @@ func _shooter_blockers() -> Array[Dictionary]:
 			var position_values: Variant = object.get("position")
 			if _is_number_array(position_values, 2):
 				blocker_rect = catapult_rest_rect(
+					_point_from_payload(position_values)
+				)
+		elif object_type == TOOL_VERTICAL_PLATFORM:
+			var position_values: Variant = object.get("position")
+			if _is_number_array(position_values, 2):
+				blocker_rect = vertical_platform_upper_rect(
 					_point_from_payload(position_values)
 				)
 		if blocker_rect.size == Vector2.ZERO:
@@ -1602,6 +2143,7 @@ func _draw_drag_preview(view_rect: Rect2) -> void:
 		and (
 			ACTOR_HALF_EXTENTS.has(_drag_object_type)
 			or _drag_object_type == TOOL_CATAPULT_PLATFORM
+			or _drag_object_type == TOOL_VERTICAL_PLATFORM
 			or _drag_object_type == TOOL_HINGE
 		)
 	):
@@ -1620,6 +2162,15 @@ func _draw_drag_preview(view_rect: Rect2) -> void:
 				view_rect,
 				COLOR_GHOST.a,
 				true
+			)
+		elif _drag_object_type == TOOL_VERTICAL_PLATFORM:
+			logical_rect = vertical_platform_corridor_rect(position)
+			_draw_vertical_platform(
+				position_values,
+				view_rect,
+				COLOR_GHOST.a,
+				true,
+				_drag_object_id
 			)
 		elif _drag_object_type == TOOL_HINGE:
 			logical_rect = Rect2(
@@ -1794,6 +2345,14 @@ func _bounds_for_object(object: Dictionary) -> Rect2:
 			Vector2.ONE * CATAPULT_PIVOT_RADIUS * 2.0
 		)
 		return catapult_rest_rect(position).merge(pivot_bounds)
+
+	if object_type == TOOL_VERTICAL_PLATFORM:
+		var position_values: Variant = object.get("position")
+		if not _is_number_array(position_values, 2):
+			return Rect2()
+		return vertical_platform_corridor_rect(
+			_point_from_payload(position_values)
+		)
 
 	if object_type == TOOL_HINGE:
 		var position_values: Variant = object.get("position")

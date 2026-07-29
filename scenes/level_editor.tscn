@@ -201,6 +201,12 @@ layout_mode = 2
 toggle_mode = true
 text = "8  КАТАПУЛЬТА"
 
+[node name="LiftButton" type="Button" parent="EditorView/PalettePanel/ToolScroll/ToolList"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+toggle_mode = true
+text = "9  ЛИФТ"
+
 [node name="HingeButton" type="Button" parent="EditorView/PalettePanel/ToolScroll/ToolList"]
 custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
