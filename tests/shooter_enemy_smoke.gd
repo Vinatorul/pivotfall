@@ -21,10 +21,13 @@ func _initialize() -> void:
 
 func _run() -> void:
 	_test_builtin_schema_and_preview()
+	_test_arena_06_builtin_fixture()
 	await _test_builder_order_and_real_projectile()
 	await _test_cover_blocks_first_shot()
 	await _test_arena_05_real_clear()
+	await _test_arena_06_projectile_chain_and_clear()
 	await _test_editor_vertical_slice()
+	await _test_arena_06_editor_lifecycle()
 
 	if failures.is_empty():
 		print("SHOOTER_ENEMY_SMOKE_OK")
@@ -34,6 +37,149 @@ func _run() -> void:
 	for failure: String in failures:
 		push_error(failure)
 	quit(1)
+
+
+func _test_arena_06_builtin_fixture() -> void:
+	var builtins := LEVEL_STORAGE.list_builtin_levels()
+	var arena_05_index := _dictionary_index_by_id(
+		builtins,
+		"arena_05_data"
+	)
+	var arena_06_index := _dictionary_index_by_id(
+		builtins,
+		"arena_06_data"
+	)
+	var arena_07_index := _dictionary_index_by_id(
+		builtins,
+		"arena_07_data"
+	)
+	_expect(
+		arena_05_index >= 0
+		and arena_05_index < arena_06_index
+		and arena_06_index < arena_07_index
+		and builtins[arena_06_index] == {
+			"id": "arena_06_data",
+			"path": "res://levels/arena_06.json",
+			"title": "Arena 06 / Чужая рука",
+		},
+		"Built-in catalog does not expose Arena 06 between Arena 05 and 07."
+	)
+
+	var loaded: Dictionary = (
+		LEVEL_STORAGE.load_builtin_level("arena_06_data")
+	)
+	_expect(
+		bool(loaded.get("ok", false))
+		and loaded.get("path", "") == "res://levels/arena_06.json"
+		and (loaded.get("warnings", []) as Array).is_empty(),
+		"Arena 06 built-in JSON did not load cleanly."
+	)
+	if not bool(loaded.get("ok", false)):
+		return
+
+	var arena_06: Dictionary = loaded["data"]
+	var fixture_ids: Array[String] = []
+	for object: Dictionary in arena_06.get("objects", []):
+		fixture_ids.append(str(object.get("id", "")))
+	_expect(
+		arena_06.keys().size() == 7
+		and arena_06.get("schema_version", 0) == 1
+		and arena_06.get("level_id", "") == "arena_06_data"
+		and arena_06.get("title", "")
+		== "GRAYBOX  /  DATA ARENA 06"
+		and arena_06.get("objective", "")
+		== "ЗАФИКСИРУЙ ПРИЦЕЛ И УЙДИ"
+		and arena_06.get("clear_message", "")
+		== "DATA ARENA 06 ПРОЙДЕНА  /  ПЕРЕЗАПУСК..."
+		and arena_06.get("canvas", {}) == {
+			"width": 960,
+			"height": 540,
+			"grid_size": 20,
+		}
+		and fixture_ids == [
+			"floor",
+			"bait_platform",
+			"player_start",
+			"shooter_1",
+			"shooter_platform",
+			"shooter_hinge",
+		],
+		"Arena 06 root metadata or stable object order drifted."
+	)
+	_expect(
+		_object_by_id(
+			arena_06,
+			"floor"
+		).get("rect", []) == [560, 496, 230, 44]
+		and not bool(
+			_object_by_id(
+				arena_06,
+				"floor"
+			).get("one_way", false)
+		)
+		and _object_by_id(
+			arena_06,
+			"bait_platform"
+		).get("rect", []) == [690, 416, 100, 20]
+		and bool(
+			_object_by_id(
+				arena_06,
+				"bait_platform"
+			).get("one_way", false)
+		)
+		and _object_by_id(
+			arena_06,
+			"player_start"
+		).get("position", []) == [620, 450]
+		and _object_by_id(
+			arena_06,
+			"shooter_1"
+		).get("position", []) == [170, 300]
+		and _object_by_id(
+			arena_06,
+			"shooter_platform"
+		).get("rect", []) == [134, 350, 72, 20]
+		and bool(
+			_object_by_id(
+				arena_06,
+				"shooter_platform"
+			).get("starts_active", false)
+		)
+		and _object_by_id(
+			arena_06,
+			"shooter_hinge"
+		).get("position", []) == [400, 355]
+		and _object_by_id(
+			arena_06,
+			"shooter_hinge"
+		).get("target_id", "") == "shooter_platform",
+		"Arena 06 geometry, one-way bait, actors, or mechanism drifted."
+	)
+
+	var encoded_once: Dictionary = LEVEL_DATA_CODEC.encode(arena_06)
+	var decoded: Dictionary = LEVEL_DATA_CODEC.decode_text(
+		encoded_once.get("text", "")
+	)
+	var encoded_twice: Dictionary = LEVEL_DATA_CODEC.encode(
+		decoded.get("data", {})
+	)
+	_expect(
+		bool(encoded_once.get("ok", false))
+		and bool(decoded.get("ok", false))
+		and bool(encoded_twice.get("ok", false))
+		and encoded_once.get("text", "")
+		== encoded_twice.get("text", ""),
+		"Arena 06 JSON is not deterministic across a round trip."
+	)
+
+	var reserved_id: Dictionary = (
+		LEVEL_STORAGE.next_available_level_id("arena_06_data")
+	)
+	_expect(
+		bool(reserved_id.get("ok", false))
+		and reserved_id.get("data", "") != "arena_06_data",
+		"Generated user ID collided with the Arena 06 built-in."
+	)
 
 
 func _test_builtin_schema_and_preview() -> void:
@@ -130,6 +276,32 @@ func _test_builtin_schema_and_preview() -> void:
 		bool(normalized["ok"])
 		and canonical_keys == ["id", "position", "type"],
 		"Shooter schema is not the compact id/type/position contract."
+	)
+	var canonical_floor := _object_by_id(
+		normalized.get("data", {}),
+		"floor"
+	)
+	_expect(
+		canonical_floor.has("one_way")
+		and typeof(canonical_floor.get("one_way")) == TYPE_BOOL
+		and not bool(canonical_floor.get("one_way")),
+		"Solid schema did not normalize an omitted one_way to false."
+	)
+
+	var invalid_one_way := _make_open_lane_level()
+	_object_by_id(invalid_one_way, "floor")["one_way"] = "true"
+	var invalid_one_way_result: Dictionary = (
+		LEVEL_DATA_VALIDATOR.validate_and_normalize(
+			invalid_one_way
+		)
+	)
+	_expect(
+		not bool(invalid_one_way_result.get("ok", false))
+		and _contains_text(
+			invalid_one_way_result.get("errors", []),
+			"one_way must be a boolean"
+		),
+		"Validator accepted a non-boolean solid_rect.one_way."
 	)
 
 	for invalid_key: String in [
@@ -507,6 +679,257 @@ func _test_arena_05_real_clear() -> void:
 	await _cleanup_current_scene()
 
 
+func _test_arena_06_projectile_chain_and_clear() -> void:
+	var loaded: Dictionary = (
+		LEVEL_STORAGE.load_builtin_level("arena_06_data")
+	)
+	if not bool(loaded.get("ok", false)):
+		failures.append("Could not prepare the Arena 06 fixture.")
+		return
+
+	var arena := await _create_embedded_runtime(loaded["data"])
+	if not is_instance_valid(arena) or not arena.level_loaded:
+		failures.append("Arena 06 embedded playtest did not load.")
+		await _cleanup_current_scene()
+		return
+	arena.clear_restart_delay = 10.0
+
+	var floor := arena.get_level_object("floor") as LevelSolidRect
+	var bait := (
+		arena.get_level_object("bait_platform") as LevelSolidRect
+	)
+	var player := arena.get_level_object("player_start") as Player
+	var shooter := (
+		arena.get_level_object("shooter_1") as ShooterEnemy
+	)
+	var platform := (
+		arena.get_level_object("shooter_platform") as TogglePlatform
+	)
+	var hinge := arena.get_level_object("shooter_hinge") as Hinge
+	var cable := arena.get_node_or_null(
+		"Geometry/LevelObjects/Link_shooter_hinge"
+	) as Line2D
+	_expect(
+		is_instance_valid(floor)
+		and is_instance_valid(bait)
+		and is_instance_valid(player)
+		and is_instance_valid(shooter)
+		and is_instance_valid(platform)
+		and is_instance_valid(hinge)
+		and is_instance_valid(cable),
+		"Builder did not create every Arena 06 object."
+	)
+	if (
+		not is_instance_valid(floor)
+		or not is_instance_valid(bait)
+		or not is_instance_valid(player)
+		or not is_instance_valid(shooter)
+		or not is_instance_valid(platform)
+		or not is_instance_valid(hinge)
+		or not is_instance_valid(cable)
+	):
+		await _cleanup_current_scene()
+		return
+
+	var floor_collision := (
+		floor.get_node("CollisionShape2D") as CollisionShape2D
+	)
+	var floor_body := floor.get_node("Body") as Polygon2D
+	var floor_edge := floor.get_node("TopEdge") as Polygon2D
+	var bait_collision := (
+		bait.get_node("CollisionShape2D") as CollisionShape2D
+	)
+	var bait_body := bait.get_node("Body") as Polygon2D
+	var bait_edge := bait.get_node("TopEdge") as Polygon2D
+	var platform_collision := (
+		platform.get_node("CollisionShape2D") as CollisionShape2D
+	)
+	var platform_shape := (
+		platform_collision.shape as RectangleShape2D
+	)
+	_expect(
+		floor.position.is_equal_approx(Vector2(675, 518))
+		and not floor_collision.one_way_collision
+		and floor_body.color.is_equal_approx(
+			LevelEditorCanvas.COLOR_SOLID
+		)
+		and floor_edge.color.is_equal_approx(
+			LevelEditorCanvas.COLOR_SOLID_EDGE
+		)
+		and bait.position.is_equal_approx(Vector2(740, 426))
+		and bait_collision.one_way_collision
+		and is_equal_approx(
+			bait_collision.one_way_collision_margin,
+			4.0
+		)
+		and bait_body.color.is_equal_approx(
+			LevelEditorCanvas.COLOR_ONE_WAY_SOLID
+		)
+		and bait_edge.color.is_equal_approx(
+			LevelEditorCanvas.COLOR_ONE_WAY_EDGE
+		)
+		and shooter.position.x == 170.0
+		and hinge.position.is_equal_approx(Vector2(400, 355))
+		and platform.position.is_equal_approx(Vector2(170, 360))
+		and platform_shape.size.is_equal_approx(Vector2(72, 20))
+		and platform.is_active
+		and not platform_collision.disabled
+		and hinge.target == platform
+		and cable.points == PackedVector2Array(
+			[Vector2(400, 355), Vector2(170, 360)]
+		)
+		and arena.enemies_remaining == 1,
+		"Arena 06 builder geometry, one-way bait, or link drifted."
+	)
+	_expect(
+		is_equal_approx(shooter.line_length, 900.0)
+		and is_equal_approx(shooter.aim_time, 0.7)
+		and is_equal_approx(shooter.aim_lock_time, 0.23)
+		and is_equal_approx(platform.transition_time, 0.18)
+		and is_equal_approx(hinge.cooldown, 0.35),
+		"Arena 06 gameplay presets drifted from the manual scene."
+	)
+
+	for _frame in range(60):
+		await physics_frame
+		if shooter.is_on_floor() and player.is_on_floor():
+			break
+	_expect(
+		shooter.is_on_floor()
+		and absf(shooter.global_position.y - 331.0) <= 1.0
+		and player.is_on_floor()
+		and absf(player.global_position.y - 476.0) <= 1.0,
+		"Arena 06 actors did not settle on their starting supports."
+	)
+
+	shooter.set_physics_process(false)
+	player.global_position = Vector2(740, 476)
+	player.velocity = Vector2.ZERO
+	await physics_frame
+	await _press_physical_key(KEY_W)
+	var crossed_bait_while_rising := false
+	var landed_on_bait := false
+	for _frame in range(120):
+		await physics_frame
+		crossed_bait_while_rising = (
+			crossed_bait_while_rising
+			or player.velocity.y < 0.0
+			and player.global_position.y < 436.0
+		)
+		if (
+			crossed_bait_while_rising
+			and player.is_on_floor()
+			and absf(player.global_position.y - 396.0) <= 1.0
+		):
+			landed_on_bait = true
+			break
+	_expect(
+		crossed_bait_while_rising and landed_on_bait,
+		"Player did not jump through and land on the one-way bait."
+	)
+	shooter.set_physics_process(true)
+
+	var shots: Array[Dictionary] = []
+	shooter.shot_fired.connect(
+		func(projectile: ShooterProjectile) -> void:
+			shots.append(
+				{
+					"direction": projectile.direction,
+					"inside_arena": arena.is_ancestor_of(projectile),
+				}
+		)
+	)
+
+	shooter.call("_enter_ready")
+
+	var saw_tracking := false
+	var saw_lock := false
+	var locked_direction := Vector2.ZERO
+	var locked_target := Vector2.ZERO
+	for _frame in range(120):
+		await physics_frame
+		if shooter.state != ShooterEnemy.State.AIMING:
+			continue
+		saw_tracking = saw_tracking or not shooter.aim_is_locked
+		if shooter.aim_is_locked:
+			saw_lock = true
+			locked_direction = shooter.aim_direction
+			locked_target = shooter.target_mark.global_position
+			break
+	_expect(
+		player.is_on_floor()
+		and absf(player.global_position.y - 396.0) <= 1.0
+		and saw_tracking
+		and saw_lock
+		and locked_target.distance_to(Vector2(740, 396)) <= 1.0,
+		"Shooter did not naturally lock onto the Arena 06 bait point."
+	)
+	if not saw_lock:
+		await _cleanup_current_scene()
+		return
+
+	player.global_position = Vector2(620, 476)
+	player.velocity = Vector2.ZERO
+	await physics_frame
+	var enemy_present_before_shot := (
+		arena.enemies_remaining == 1
+		and is_instance_valid(shooter)
+		and hinge.is_ready
+		and platform.is_active
+	)
+	var saw_hinge_trigger := false
+	var saw_platform_transition := false
+	var saw_platform_off := false
+	var saw_player_hit := false
+	for _frame in range(360):
+		await physics_frame
+		var shot_fired := not shots.is_empty()
+		saw_hinge_trigger = (
+			saw_hinge_trigger
+			or shot_fired and not hinge.is_ready
+		)
+		saw_platform_transition = (
+			saw_platform_transition
+			or shot_fired and platform.is_transitioning
+		)
+		saw_platform_off = (
+			saw_platform_off
+			or not platform.is_active
+			and platform_collision.disabled
+		)
+		saw_player_hit = (
+			saw_player_hit
+			or player.knockback_time_remaining > 0.0
+		)
+		if arena.restart_scheduled:
+			break
+	await process_frame
+
+	var shot_direction: Vector2 = (
+		shots[0].get("direction", Vector2.ZERO)
+		if not shots.is_empty()
+		else Vector2.ZERO
+	)
+	_expect(
+		enemy_present_before_shot
+		and shots.size() == 1
+		and bool(shots[0].get("inside_arena", false))
+		and shot_direction.distance_to(locked_direction) <= 0.001
+		and saw_hinge_trigger
+		and saw_platform_transition
+		and saw_platform_off,
+		"A real Arena 06 projectile did not switch the shooter support off."
+	)
+	_expect(
+		not saw_player_hit
+		and is_instance_valid(player)
+		and arena.enemies_remaining == 0
+		and arena.pending_outcome == Arena.Outcome.CLEAR,
+		"Arena 06 dodge did not keep the player safe and produce CLEAR."
+	)
+	await _cleanup_current_scene()
+
+
 func _test_editor_vertical_slice() -> void:
 	var editor := EDITOR_SCENE.instantiate() as LevelEditor
 	root.add_child(editor)
@@ -696,6 +1119,230 @@ func _test_editor_vertical_slice() -> void:
 		not projectile_survived
 		and _count_projectiles(editor) == 0,
 		"Shooter projectile survived stopping the embedded playtest."
+	)
+	await _cleanup_current_scene()
+
+
+func _test_arena_06_editor_lifecycle() -> void:
+	var editor := EDITOR_SCENE.instantiate() as LevelEditor
+	root.add_child(editor)
+	current_scene = editor
+	await process_frame
+
+	var arena_06_index := _dictionary_index_by_id(
+		editor.load_entries,
+		"arena_06_data"
+	)
+	_expect(
+		arena_06_index >= 0
+		and editor.load_entries[arena_06_index].get("kind", "")
+		== "builtin",
+		"Editor does not list Arena 06 as a built-in example."
+	)
+	if arena_06_index < 0:
+		await _cleanup_current_scene()
+		return
+
+	editor.call("_perform_load_selected_level", arena_06_index)
+	await process_frame
+	editor.call("_select_object", "bait_platform")
+	await process_frame
+	var collision_options := (
+		_find_property_editor(editor, "COLLISION") as OptionButton
+	)
+	var selected_collision := false
+	var selected_collision_text := ""
+	if (
+		is_instance_valid(collision_options)
+		and collision_options.selected >= 0
+	):
+		selected_collision = bool(
+			collision_options.get_item_metadata(
+				collision_options.selected
+			)
+		)
+		selected_collision_text = collision_options.get_item_text(
+			collision_options.selected
+		)
+
+	editor.call("_select_object", "shooter_hinge")
+	await process_frame
+	var target_options := (
+		_find_property_editor(editor, "TARGET") as OptionButton
+	)
+	var selected_target := ""
+	if (
+		is_instance_valid(target_options)
+		and target_options.selected >= 0
+	):
+		selected_target = str(
+			target_options.get_item_metadata(target_options.selected)
+		)
+	var draft_before := editor.draft.to_dictionary()
+	_expect(
+		editor.source_label == "ПРИМЕР"
+		and editor.loaded_user_level_id.is_empty()
+		and not editor.draft.is_dirty()
+		and bool(editor.validation_result.get("ok", false))
+		and selected_collision
+		and selected_collision_text == "ONE WAY"
+		and bool(
+			editor.draft.find_object(
+				"bait_platform"
+			).get("one_way", false)
+		)
+		and editor.draft.find_object(
+			"shooter_hinge"
+		).get("target_id", "") == "shooter_platform"
+		and selected_target == "shooter_platform",
+		"Editor did not retain the Arena 06 one-way bait or mechanism link."
+	)
+
+	editor.call("_start_playtest")
+	await process_frame
+	await process_frame
+	var runtime := editor.playtest_runtime as LevelRuntimeArena
+	_expect(
+		is_instance_valid(runtime) and runtime.level_loaded,
+		"Editor did not start the Arena 06 built-in playtest."
+	)
+	if not is_instance_valid(runtime) or not runtime.level_loaded:
+		editor.call("_stop_playtest")
+		await _cleanup_current_scene()
+		return
+
+	var shooter := (
+		runtime.get_level_object("shooter_1") as ShooterEnemy
+	)
+	var bait := (
+		runtime.get_level_object("bait_platform") as LevelSolidRect
+	)
+	var platform := (
+		runtime.get_level_object("shooter_platform") as TogglePlatform
+	)
+	var hinge := runtime.get_level_object("shooter_hinge") as Hinge
+	var bait_collision := (
+		bait.get_node_or_null("CollisionShape2D") as CollisionShape2D
+		if is_instance_valid(bait)
+		else null
+	)
+	_expect(
+		is_instance_valid(shooter)
+		and is_instance_valid(bait)
+		and is_instance_valid(bait_collision)
+		and bait_collision.one_way_collision
+		and is_instance_valid(platform)
+		and is_instance_valid(hinge)
+		and hinge.target == platform
+		and platform.is_active
+		and runtime.enemies_remaining == 1,
+		"Editor playtest did not preserve the Arena 06 runtime composition."
+	)
+	if (
+		not is_instance_valid(shooter)
+		or not is_instance_valid(bait)
+		or not is_instance_valid(platform)
+		or not is_instance_valid(hinge)
+	):
+		editor.call("_stop_playtest")
+		await process_frame
+		await _cleanup_current_scene()
+		return
+
+	var old_runtime_ref: WeakRef = weakref(runtime)
+	var old_shooter_ref: WeakRef = weakref(shooter)
+	var old_platform_ref: WeakRef = weakref(platform)
+	var old_runtime_id := runtime.get_instance_id()
+	runtime.call("_reload_scene")
+	for _frame in range(30):
+		await process_frame
+		if (
+			is_instance_valid(editor.playtest_runtime)
+			and editor.playtest_runtime.get_instance_id()
+			!= old_runtime_id
+		):
+			break
+
+	var restarted_runtime := (
+		editor.playtest_runtime as LevelRuntimeArena
+	)
+	var restarted_shooter := (
+		restarted_runtime.get_level_object(
+			"shooter_1"
+		) as ShooterEnemy
+		if is_instance_valid(restarted_runtime)
+		else null
+	)
+	var restarted_bait := (
+		restarted_runtime.get_level_object(
+			"bait_platform"
+		) as LevelSolidRect
+		if is_instance_valid(restarted_runtime)
+		else null
+	)
+	var restarted_platform := (
+		restarted_runtime.get_level_object(
+			"shooter_platform"
+		) as TogglePlatform
+		if is_instance_valid(restarted_runtime)
+		else null
+	)
+	var restarted_hinge := (
+		restarted_runtime.get_level_object(
+			"shooter_hinge"
+		) as Hinge
+		if is_instance_valid(restarted_runtime)
+		else null
+	)
+	var restarted_bait_collision := (
+		restarted_bait.get_node_or_null(
+			"CollisionShape2D"
+		) as CollisionShape2D
+		if is_instance_valid(restarted_bait)
+		else null
+	)
+	_expect(
+		old_runtime_ref.get_ref() == null
+		and old_shooter_ref.get_ref() == null
+		and old_platform_ref.get_ref() == null
+		and is_instance_valid(restarted_runtime)
+		and restarted_runtime.level_loaded
+		and is_instance_valid(restarted_shooter)
+		and is_instance_valid(restarted_bait_collision)
+		and restarted_bait_collision.one_way_collision
+		and is_instance_valid(restarted_platform)
+		and restarted_platform.is_active
+		and is_instance_valid(restarted_hinge)
+		and restarted_hinge.target == restarted_platform,
+		"Restart did not rebuild the Arena 06 snapshot and link cleanly."
+	)
+	if (
+		not is_instance_valid(restarted_runtime)
+		or not is_instance_valid(restarted_shooter)
+		or not is_instance_valid(restarted_platform)
+	):
+		editor.call("_stop_playtest")
+		await process_frame
+		await _cleanup_current_scene()
+		return
+
+	var stop_runtime_ref: WeakRef = weakref(restarted_runtime)
+	var stop_shooter_ref: WeakRef = weakref(restarted_shooter)
+	var stop_platform_ref: WeakRef = weakref(restarted_platform)
+	editor.call("_stop_playtest")
+	await process_frame
+	await process_frame
+	_expect(
+		stop_runtime_ref.get_ref() == null
+		and stop_shooter_ref.get_ref() == null
+		and stop_platform_ref.get_ref() == null
+		and not is_instance_valid(editor.playtest_runtime)
+		and _count_projectiles(editor) == 0
+		and editor.editor_view.visible
+		and not editor.playtest_overlay.visible
+		and editor.draft.to_dictionary() == draft_before
+		and not editor.draft.is_dirty(),
+		"Stopping Arena 06 playtest changed the draft or leaked runtime nodes."
 	)
 	await _cleanup_current_scene()
 

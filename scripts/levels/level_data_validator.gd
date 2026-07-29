@@ -60,7 +60,7 @@ const ROOT_KEYS := [
 	"objects",
 ]
 const CANVAS_KEYS := ["width", "height", "grid_size"]
-const SOLID_RECT_KEYS := ["id", "type", "rect"]
+const SOLID_RECT_KEYS := ["id", "type", "rect", "one_way"]
 const PLAYER_SPAWN_KEYS := ["id", "type", "position"]
 const PATROL_ENEMY_KEYS := [
 	"id",
@@ -395,6 +395,7 @@ static func _validate_object(
 		"solid_rect":
 			_reject_unknown_keys(object, SOLID_RECT_KEYS, path, errors)
 			var rect: Variant = null
+			var one_way := false
 			if _require_key(object, "rect", path, errors):
 				rect = _read_int_array(
 					object["rect"],
@@ -405,6 +406,15 @@ static func _validate_object(
 				if rect != null:
 					_validate_rect_bounds(rect, canvas_size, path, errors)
 
+			if object.has("one_way"):
+				var one_way_result: Variant = _read_boolean(
+					object["one_way"],
+					"%s.one_way" % path,
+					errors
+				)
+				if one_way_result != null:
+					one_way = one_way_result
+
 			if errors.size() != error_count_before:
 				return {"ok": false, "data": {}}
 			return {
@@ -413,6 +423,7 @@ static func _validate_object(
 					"id": object_id,
 					"type": object_type,
 					"rect": rect,
+					"one_way": one_way,
 				},
 			}
 

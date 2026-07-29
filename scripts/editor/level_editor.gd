@@ -517,6 +517,7 @@ func _place_object(object_type: String, payload: Variant) -> void:
 					"id": object_id,
 					"type": TOOL_SOLID,
 					"rect": (payload as Array).duplicate(),
+					"one_way": false,
 				}
 			)
 		TOOL_PLAYER:
@@ -1526,6 +1527,9 @@ func _rebuild_inspector() -> void:
 				)
 			else:
 				_add_numeric_property("HEIGHT", "rect:3", rect[3])
+				_add_collision_property(
+					bool(object.get("one_way", false))
+				)
 		TOOL_PLAYER:
 			var position: Array = object["position"]
 			_add_numeric_property("X", "position:0", position[0])
@@ -1662,6 +1666,32 @@ func _add_start_state_property(current: bool) -> void:
 				target_id,
 				{
 					"starts_active": bool(
+						options.get_item_metadata(index)
+					)
+				}
+			)
+	)
+	row.add_child(options)
+
+
+func _add_collision_property(current_one_way: bool) -> void:
+	var target_id := selected_id
+	var row := _make_property_row("COLLISION")
+	var options := OptionButton.new()
+	options.add_item("SOLID")
+	options.set_item_metadata(0, false)
+	options.add_item("ONE WAY")
+	options.set_item_metadata(1, true)
+	options.select(1 if current_one_way else 0)
+	options.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	options.item_selected.connect(
+		func(index: int) -> void:
+			if syncing_ui:
+				return
+			draft.update_object(
+				target_id,
+				{
+					"one_way": bool(
 						options.get_item_metadata(index)
 					)
 				}

@@ -1,0 +1,47 @@
+{
+	"schema_version": 1,
+	"level_id": "arena_06_data",
+	"title": "GRAYBOX  /  DATA ARENA 06",
+	"objective": "ЗАФИКСИРУЙ ПРИЦЕЛ И УЙДИ",
+	"clear_message": "DATA ARENA 06 ПРОЙДЕНА  /  ПЕРЕЗАПУСК...",
+	"canvas": {
+		"width": 960,
+		"height": 540,
+		"grid_size": 20
+	},
+	"objects": [
+		{
+			"id": "floor",
+			"type": "solid_rect",
+			"rect": [560, 496, 230, 44]
+		},
+		{
+			"id": "bait_platform",
+			"type": "solid_rect",
+			"rect": [690, 416, 100, 20],
+			"one_way": true
+		},
+		{
+			"id": "player_start",
+			"type": "player_spawn",
+			"position": [620, 450]
+		},
+		{
+			"id": "shooter_1",
+			"type": "shooter_enemy",
+			"position": [170, 300]
+		},
+		{
+			"id": "shooter_platform",
+			"type": "toggle_platform",
+			"rect": [134, 350, 72, 20],
+			"starts_active": true
+		},
+		{
+			"id": "shooter_hinge",
+			"type": "hinge",
+			"position": [400, 355],
+			"target_id": "shooter_platform"
+		}
+	]
+}

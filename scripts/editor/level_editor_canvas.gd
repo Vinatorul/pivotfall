@@ -131,6 +131,8 @@ const COLOR_GRID_MAJOR := Color(0.392, 0.455, 0.584, 0.25)
 const COLOR_FIXED_GEOMETRY := Color(0.157, 0.2, 0.286, 1.0)
 const COLOR_SOLID := Color(0.235, 0.302, 0.416, 1.0)
 const COLOR_SOLID_EDGE := Color(0.392, 0.455, 0.584, 1.0)
+const COLOR_ONE_WAY_SOLID := Color(0.267, 0.365, 0.498, 1.0)
+const COLOR_ONE_WAY_EDGE := Color(0.439, 0.827, 0.816, 0.9)
 const COLOR_PLAYER := Color(0.251, 0.878, 0.816, 1.0)
 const COLOR_PLAYER_FACE := Color(0.071, 0.204, 0.251, 1.0)
 const COLOR_PATROL := Color(0.973, 0.58, 0.267, 1.0)
@@ -783,7 +785,12 @@ func _draw_object(
 			var rect_values: Variant = object.get("rect")
 			if not _is_number_array(rect_values, 4):
 				return
-			_draw_solid(rect_values, view_rect, alpha)
+			_draw_solid(
+				rect_values,
+				view_rect,
+				alpha,
+				bool(object.get("one_way", false))
+			)
 
 		TOOL_TOGGLE_PLATFORM:
 			var rect_values: Variant = object.get("rect")
@@ -902,11 +909,18 @@ func _draw_object(
 func _draw_solid(
 	rect_values: Array,
 	view_rect: Rect2,
-	alpha: float
+	alpha: float,
+	one_way := false
 ) -> void:
 	var logical_rect := _rect_from_payload(rect_values)
 	var local_rect := _logical_rect_to_local(logical_rect, view_rect)
-	draw_rect(local_rect, _with_alpha(COLOR_SOLID, alpha))
+	var body_color := (
+		COLOR_ONE_WAY_SOLID if one_way else COLOR_SOLID
+	)
+	var edge_color := (
+		COLOR_ONE_WAY_EDGE if one_way else COLOR_SOLID_EDGE
+	)
+	draw_rect(local_rect, _with_alpha(body_color, alpha))
 
 	var edge_height := minf(TOP_EDGE_HEIGHT, logical_rect.size.y)
 	var logical_edge := Rect2(
@@ -915,7 +929,7 @@ func _draw_solid(
 	)
 	draw_rect(
 		_logical_rect_to_local(logical_edge, view_rect),
-		_with_alpha(COLOR_SOLID_EDGE, alpha)
+		_with_alpha(edge_color, alpha)
 	)
 
 
@@ -2134,7 +2148,8 @@ func _draw_drag_preview(view_rect: Rect2) -> void:
 			_draw_solid(
 				_drag_preview_payload,
 				view_rect,
-				COLOR_GHOST.a
+				COLOR_GHOST.a,
+				false
 			)
 	elif (
 		_drag_kind == TOOL_SELECT
@@ -2252,10 +2267,12 @@ func _draw_drag_preview(view_rect: Rect2) -> void:
 				COLOR_GHOST.a
 			)
 		else:
+			var dragged_object := _find_object(_drag_object_id)
 			_draw_solid(
 				_drag_preview_payload,
 				view_rect,
-				COLOR_GHOST.a
+				COLOR_GHOST.a,
+				bool(dragged_object.get("one_way", false))
 			)
 
 	if logical_rect.size != Vector2.ZERO:

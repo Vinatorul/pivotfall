@@ -121,7 +121,8 @@ static func _create_object(definition: Dictionary) -> Dictionary:
 					float(values[1]),
 					float(values[2]),
 					float(values[3])
-				)
+				),
+				bool(definition.get("one_way", false))
 			)
 			return _object_success(solid, "geometry")
 
