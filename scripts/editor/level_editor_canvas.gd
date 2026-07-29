@@ -19,12 +19,17 @@ const DRAG_THRESHOLD := 4.0
 const TOP_EDGE_HEIGHT := 6.0
 const HINGE_HALF_EXTENTS := Vector2(18.0, 18.0)
 const SHOVE_DETECTION_HALF_SIZE := Vector2(180.0, 48.0)
+const SHOOTER_GUN_PIVOT_OFFSET := Vector2(0.0, -4.0)
+const SHOOTER_MUZZLE_LENGTH := 28.0
+const SHOOTER_LINE_LENGTH := 900.0
+const SHOOTER_PROJECTILE_RADIUS := 5.0
 
 const TOOL_SELECT := "select"
 const TOOL_SOLID_RECT := "solid_rect"
 const TOOL_PLAYER_SPAWN := "player_spawn"
 const TOOL_PATROL_ENEMY := "patrol_enemy"
 const TOOL_SHOVE_ENEMY := "shove_enemy"
+const TOOL_SHOOTER_ENEMY := "shooter_enemy"
 const TOOL_TOGGLE_PLATFORM := "toggle_platform"
 const TOOL_HINGE := "hinge"
 const SUPPORTED_TOOLS := [
@@ -33,6 +38,7 @@ const SUPPORTED_TOOLS := [
 	TOOL_PLAYER_SPAWN,
 	TOOL_PATROL_ENEMY,
 	TOOL_SHOVE_ENEMY,
+	TOOL_SHOOTER_ENEMY,
 	TOOL_TOGGLE_PLATFORM,
 	TOOL_HINGE,
 ]
@@ -44,11 +50,13 @@ const ACTOR_OBJECT_TYPES := [
 	TOOL_PLAYER_SPAWN,
 	TOOL_PATROL_ENEMY,
 	TOOL_SHOVE_ENEMY,
+	TOOL_SHOOTER_ENEMY,
 ]
 const POINT_OBJECT_TYPES := [
 	TOOL_PLAYER_SPAWN,
 	TOOL_PATROL_ENEMY,
 	TOOL_SHOVE_ENEMY,
+	TOOL_SHOOTER_ENEMY,
 	TOOL_HINGE,
 ]
 const DRAW_ORDER := [
@@ -57,10 +65,12 @@ const DRAW_ORDER := [
 	TOOL_PLAYER_SPAWN,
 	TOOL_PATROL_ENEMY,
 	TOOL_SHOVE_ENEMY,
+	TOOL_SHOOTER_ENEMY,
 	TOOL_HINGE,
 ]
 const HIT_ORDER := [
 	TOOL_HINGE,
+	TOOL_SHOOTER_ENEMY,
 	TOOL_SHOVE_ENEMY,
 	TOOL_PATROL_ENEMY,
 	TOOL_PLAYER_SPAWN,
@@ -72,6 +82,7 @@ const ACTOR_HALF_EXTENTS := {
 	TOOL_PLAYER_SPAWN: Vector2(14.0, 20.0),
 	TOOL_PATROL_ENEMY: Vector2(15.0, 18.0),
 	TOOL_SHOVE_ENEMY: Vector2(16.0, 19.0),
+	TOOL_SHOOTER_ENEMY: Vector2(17.0, 19.0),
 }
 
 const COLOR_OUTSIDE := Color(0.035, 0.047, 0.082, 1.0)
@@ -91,6 +102,12 @@ const COLOR_SHOVE := Color(0.929, 0.31, 0.337, 1.0)
 const COLOR_SHOVE_FACE := Color(0.286, 0.071, 0.118, 1.0)
 const COLOR_SHOVE_RANGE := Color(0.929, 0.31, 0.337, 0.1)
 const COLOR_SHOVE_RANGE_EDGE := Color(0.929, 0.31, 0.337, 0.52)
+const COLOR_SHOOTER := Color(0.718, 0.376, 0.925, 1.0)
+const COLOR_SHOOTER_FACE := Color(0.204, 0.075, 0.333, 1.0)
+const COLOR_SHOOTER_GUN := Color(1.0, 0.58, 0.267, 1.0)
+const COLOR_SHOOTER_LINE := Color(1.0, 0.255, 0.31, 0.72)
+const COLOR_SHOOTER_CORRIDOR := Color(1.0, 0.255, 0.31, 0.08)
+const COLOR_SHOOTER_OUT_OF_RANGE := Color(0.439, 0.502, 0.616, 0.55)
 const COLOR_TOGGLE_ACTIVE := Color(0.278, 0.345, 0.459, 1.0)
 const COLOR_TOGGLE_INACTIVE := Color(0.278, 0.345, 0.459, 0.2)
 const COLOR_TOGGLE_EDGE := Color(0.439, 0.827, 0.816, 0.9)
@@ -330,7 +347,7 @@ func _begin_primary_action(local_position: Vector2) -> void:
 			)
 			queue_redraw()
 
-		TOOL_PLAYER_SPAWN, TOOL_PATROL_ENEMY, TOOL_SHOVE_ENEMY, TOOL_HINGE:
+		TOOL_PLAYER_SPAWN, TOOL_PATROL_ENEMY, TOOL_SHOVE_ENEMY, TOOL_SHOOTER_ENEMY, TOOL_HINGE:
 			var snapped_position := _snap_logical_point(
 				logical_position,
 				false
@@ -700,7 +717,7 @@ func _draw_object(
 				alpha
 			)
 
-		TOOL_PLAYER_SPAWN, TOOL_PATROL_ENEMY, TOOL_SHOVE_ENEMY:
+		TOOL_PLAYER_SPAWN, TOOL_PATROL_ENEMY, TOOL_SHOVE_ENEMY, TOOL_SHOOTER_ENEMY:
 			var position_values: Variant = object.get("position")
 			if not _is_number_array(position_values, 2):
 				return
@@ -713,18 +730,51 @@ func _draw_object(
 					view_rect,
 					alpha
 				)
+			var direction := int(
+				object.get(
+					"direction",
+					-1 if object_type == TOOL_SHOVE_ENEMY else 1
+				)
+			)
+			var shooter_aim_direction := Vector2.LEFT
+			if object_type == TOOL_SHOOTER_ENEMY:
+				var shooter_preview := _shooter_preview(position_values)
+				shooter_aim_direction = shooter_preview.get(
+					"direction",
+					Vector2.LEFT
+				)
+				direction = (
+					-1 if shooter_aim_direction.x < 0.0 else 1
+				)
+				var object_id := str(object.get("id", ""))
+				var moving_this_shooter := (
+					_drag_kind == TOOL_SELECT
+					and _drag_moved
+					and _drag_object_id == object_id
+				)
+				if (
+					object_id == _selected_id
+					and not moving_this_shooter
+				):
+					_draw_shooter_aim(
+						shooter_preview,
+						view_rect,
+						alpha
+					)
 			_draw_actor(
 				object_type,
 				position_values,
 				view_rect,
 				alpha,
-				int(
-					object.get(
-						"direction",
-						-1 if object_type == TOOL_SHOVE_ENEMY else 1
-					)
-				)
+				direction
 			)
+			if object_type == TOOL_SHOOTER_ENEMY:
+				_draw_shooter_barrel(
+					position_values,
+					shooter_aim_direction,
+					view_rect,
+					alpha
+				)
 
 		TOOL_HINGE:
 			var position_values: Variant = object.get("position")
@@ -856,6 +906,9 @@ func _draw_actor(
 		TOOL_SHOVE_ENEMY:
 			body_color = COLOR_SHOVE
 			face_color = COLOR_SHOVE_FACE
+		TOOL_SHOOTER_ENEMY:
+			body_color = COLOR_SHOOTER
+			face_color = COLOR_SHOOTER_FACE
 	draw_rect(local_rect, _with_alpha(body_color, alpha))
 
 	var face_offset := (
@@ -874,7 +927,10 @@ func _draw_actor(
 		)
 	)
 	draw_rect(face_rect, _with_alpha(face_color, alpha))
-	if object_type != TOOL_PLAYER_SPAWN:
+	if (
+		object_type != TOOL_PLAYER_SPAWN
+		and object_type != TOOL_SHOOTER_ENEMY
+	):
 		var facing := -1.0 if direction < 0 else 1.0
 		var logical_tip := position + Vector2(
 			facing * (half_extents.x + 9.0),
@@ -924,6 +980,236 @@ static func shove_detection_rect(position: Vector2) -> Rect2:
 		position - SHOVE_DETECTION_HALF_SIZE,
 		SHOVE_DETECTION_HALF_SIZE * 2.0
 	)
+
+
+func _draw_shooter_barrel(
+	position_values: Array,
+	aim_direction: Vector2,
+	view_rect: Rect2,
+	alpha: float
+) -> void:
+	var position := Vector2(
+		float(position_values[0]),
+		float(position_values[1])
+	)
+	var direction := (
+		aim_direction.normalized()
+		if aim_direction.length_squared() > 0.001
+		else Vector2.LEFT
+	)
+	var pivot := position + SHOOTER_GUN_PIVOT_OFFSET
+	draw_line(
+		_logical_point_to_local(pivot + direction * 7.0, view_rect),
+		_logical_point_to_local(
+			pivot + direction * SHOOTER_MUZZLE_LENGTH,
+			view_rect
+		),
+		_with_alpha(COLOR_SHOOTER_GUN, alpha),
+		5.0,
+		true
+	)
+
+
+func _draw_shooter_aim(
+	preview: Dictionary,
+	view_rect: Rect2,
+	alpha: float
+) -> void:
+	if not bool(preview.get("has_target", false)):
+		return
+
+	var muzzle: Vector2 = preview["muzzle"]
+	var line_end: Vector2 = preview["line_end"]
+	var in_range := bool(preview["in_range"])
+	var center_color := (
+		COLOR_SHOOTER_LINE
+		if in_range
+		else COLOR_SHOOTER_OUT_OF_RANGE
+	)
+	var local_muzzle := _logical_point_to_local(muzzle, view_rect)
+	var local_end := _logical_point_to_local(line_end, view_rect)
+	if in_range:
+		draw_line(
+			local_muzzle,
+			local_end,
+			_with_alpha(COLOR_SHOOTER_CORRIDOR, alpha),
+			SHOOTER_PROJECTILE_RADIUS * 2.0 * _canvas_scale(),
+			true
+		)
+		draw_line(
+			local_muzzle,
+			local_end,
+			_with_alpha(center_color, alpha),
+			2.0,
+			true
+		)
+	else:
+		draw_dashed_line(
+			local_muzzle,
+			local_end,
+			_with_alpha(center_color, alpha),
+			1.5,
+			6.0
+		)
+
+	var marker_size := 5.0
+	draw_line(
+		local_end - Vector2(marker_size, marker_size),
+		local_end + Vector2(marker_size, marker_size),
+		_with_alpha(center_color, alpha),
+		2.0
+	)
+	draw_line(
+		local_end + Vector2(-marker_size, marker_size),
+		local_end + Vector2(marker_size, -marker_size),
+		_with_alpha(center_color, alpha),
+		2.0
+	)
+
+
+func _shooter_preview(position_values: Array) -> Dictionary:
+	var shooter_position := Vector2(
+		float(position_values[0]),
+		float(position_values[1])
+	)
+	var player_position: Variant = _player_spawn_position()
+	if player_position == null:
+		return {
+			"has_target": false,
+			"direction": Vector2.LEFT,
+		}
+	return shooter_aim_preview(
+		shooter_position,
+		player_position,
+		_shooter_blockers()
+	)
+
+
+func _player_spawn_position() -> Variant:
+	for object: Variant in _objects():
+		if (
+			typeof(object) == TYPE_DICTIONARY
+			and object.get("type", "") == TOOL_PLAYER_SPAWN
+		):
+			var values: Variant = object.get("position")
+			if _is_number_array(values, 2):
+				return Vector2(float(values[0]), float(values[1]))
+	return null
+
+
+func _shooter_blockers() -> Array[Dictionary]:
+	var blockers: Array[Dictionary] = []
+	for object: Variant in _objects():
+		if typeof(object) != TYPE_DICTIONARY:
+			continue
+		var object_type := str(object.get("type", ""))
+		if (
+			object_type != TOOL_SOLID_RECT
+			and not (
+				object_type == TOOL_TOGGLE_PLATFORM
+				and bool(object.get("starts_active", true))
+			)
+		):
+			continue
+		var values: Variant = object.get("rect")
+		if not _is_number_array(values, 4):
+			continue
+		blockers.append(
+			{
+				"id": str(object.get("id", "")),
+				"rect": _rect_from_payload(values),
+			}
+		)
+	return blockers
+
+
+static func shooter_aim_preview(
+	shooter_position: Vector2,
+	player_position: Vector2,
+	blockers: Array[Dictionary]
+) -> Dictionary:
+	var pivot := shooter_position + SHOOTER_GUN_PIVOT_OFFSET
+	var target_offset := player_position - pivot
+	var direction := (
+		target_offset.normalized()
+		if target_offset.length_squared() > 0.001
+		else Vector2.LEFT
+	)
+	var muzzle := pivot + direction * SHOOTER_MUZZLE_LENGTH
+	var center_distance := shooter_position.distance_to(player_position)
+	var in_range := center_distance <= SHOOTER_LINE_LENGTH
+	var aim_distance := minf(
+		muzzle.distance_to(player_position),
+		SHOOTER_LINE_LENGTH
+	)
+	var unclipped_end := muzzle + direction * aim_distance
+	var line_end := unclipped_end
+	var blocker_id := ""
+	var nearest_t := 1.0
+	if in_range:
+		var lateral_direction := direction.orthogonal()
+		var lateral_offsets: Array[float] = [
+			-SHOOTER_PROJECTILE_RADIUS,
+			0.0,
+			SHOOTER_PROJECTILE_RADIUS,
+		]
+		for blocker: Dictionary in blockers:
+			var rect: Rect2 = blocker.get("rect", Rect2())
+			for lateral_offset: float in lateral_offsets:
+				var ray_offset := (
+					lateral_direction * lateral_offset
+				)
+				var hit_t := _segment_rect_hit_t(
+					muzzle + ray_offset,
+					unclipped_end + ray_offset,
+					rect
+				)
+				if hit_t < 0.0 or hit_t >= nearest_t:
+					continue
+				nearest_t = hit_t
+				line_end = muzzle.lerp(unclipped_end, hit_t)
+				blocker_id = str(blocker.get("id", ""))
+
+	return {
+		"has_target": true,
+		"in_range": in_range,
+		"direction": direction,
+		"pivot": pivot,
+		"muzzle": muzzle,
+		"unclipped_end": unclipped_end,
+		"line_end": line_end,
+		"blocker_id": blocker_id,
+	}
+
+
+static func _segment_rect_hit_t(
+	segment_start: Vector2,
+	segment_end: Vector2,
+	rect: Rect2
+) -> float:
+	var delta := segment_end - segment_start
+	var t_enter := 0.0
+	var t_exit := 1.0
+	for axis in 2:
+		var origin := segment_start[axis]
+		var direction := delta[axis]
+		var minimum := rect.position[axis]
+		var maximum := rect.end[axis]
+		if is_zero_approx(direction):
+			if origin < minimum or origin > maximum:
+				return -1.0
+			continue
+		var first := (minimum - origin) / direction
+		var second := (maximum - origin) / direction
+		if first > second:
+			var swap := first
+			first = second
+			second = swap
+		t_enter = maxf(t_enter, first)
+		t_exit = minf(t_exit, second)
+		if t_enter > t_exit:
+			return -1.0
+	return t_enter
 
 
 func _draw_selection(view_rect: Rect2) -> void:
@@ -1013,18 +1299,43 @@ func _draw_drag_preview(view_rect: Rect2) -> void:
 					view_rect,
 					COLOR_GHOST.a
 				)
+			var actor_direction := int(
+				_find_object(_drag_object_id).get(
+					"direction",
+					1
+				)
+			)
+			var shooter_aim_direction := Vector2.LEFT
+			if _drag_object_type == TOOL_SHOOTER_ENEMY:
+				var shooter_preview := _shooter_preview(position_values)
+				shooter_aim_direction = shooter_preview.get(
+					"direction",
+					Vector2.LEFT
+				)
+				actor_direction = (
+					-1
+					if shooter_aim_direction.x < 0.0
+					else 1
+				)
+				_draw_shooter_aim(
+					shooter_preview,
+					view_rect,
+					COLOR_GHOST.a
+				)
 			_draw_actor(
 				_drag_object_type,
 				position_values,
 				view_rect,
 				COLOR_GHOST.a,
-				int(
-					_find_object(_drag_object_id).get(
-						"direction",
-						1
-					)
-				)
+				actor_direction
 			)
+			if _drag_object_type == TOOL_SHOOTER_ENEMY:
+				_draw_shooter_barrel(
+					position_values,
+					shooter_aim_direction,
+					view_rect,
+					COLOR_GHOST.a
+				)
 	elif (
 		_drag_kind == TOOL_SELECT
 		and _drag_moved

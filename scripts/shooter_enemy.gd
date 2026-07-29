@@ -41,7 +41,7 @@ var aim_is_locked := false
 
 func _ready() -> void:
 	super()
-	player = get_tree().get_first_node_in_group("player") as Player
+	player = _find_player_sibling()
 	_track_player()
 	_enter_ready()
 
@@ -87,6 +87,8 @@ func _process_knockback(delta: float) -> void:
 
 
 func _can_begin_aim() -> bool:
+	if not is_instance_valid(player):
+		player = _find_player_sibling()
 	if not is_instance_valid(player) or not is_on_floor():
 		return false
 
@@ -131,7 +133,14 @@ func _fire() -> void:
 		_begin_cooldown()
 		return
 
-	get_tree().current_scene.add_child(projectile)
+	var projectile_parent := _find_arena_parent()
+	if not is_instance_valid(projectile_parent):
+		push_error("Shooter enemy must be inside an Arena.")
+		projectile.free()
+		_begin_cooldown()
+		return
+
+	projectile_parent.add_child(projectile)
 	projectile.launch(
 		muzzle.global_position,
 		aim_direction,
@@ -142,6 +151,25 @@ func _fire() -> void:
 	muzzle_flash.visible = true
 	flash_time_remaining = muzzle_flash_time
 	_begin_cooldown()
+
+
+func _find_player_sibling() -> Player:
+	var actor_parent := get_parent()
+	if not is_instance_valid(actor_parent):
+		return null
+	for sibling: Node in actor_parent.get_children():
+		if sibling is Player:
+			return sibling as Player
+	return null
+
+
+func _find_arena_parent() -> Arena:
+	var ancestor := get_parent()
+	while is_instance_valid(ancestor):
+		if ancestor is Arena:
+			return ancestor as Arena
+		ancestor = ancestor.get_parent()
+	return null
 
 
 func _begin_cooldown() -> void:
@@ -190,6 +218,8 @@ func _update_aim_line() -> void:
 
 
 func _track_player() -> void:
+	if not is_instance_valid(player):
+		player = _find_player_sibling()
 	if not is_instance_valid(player):
 		return
 

@@ -22,6 +22,7 @@ const TOOL_SOLID := "solid_rect"
 const TOOL_PLAYER := "player_spawn"
 const TOOL_PATROL := "patrol_enemy"
 const TOOL_SHOVE := "shove_enemy"
+const TOOL_SHOOTER := "shooter_enemy"
 const TOOL_TOGGLE := "toggle_platform"
 const TOOL_HINGE := "hinge"
 
@@ -41,6 +42,9 @@ const TOOL_HINGE := "hinge"
 @onready var select_button: Button = (
 	$EditorView/PalettePanel/SelectButton
 )
+@onready var tool_scroll: ScrollContainer = (
+	$EditorView/PalettePanel/ToolScroll
+)
 @onready var solid_button: Button = (
 	$EditorView/PalettePanel/ToolScroll/ToolList/SolidButton
 )
@@ -52,6 +56,9 @@ const TOOL_HINGE := "hinge"
 )
 @onready var shove_button: Button = (
 	$EditorView/PalettePanel/ToolScroll/ToolList/ShoveButton
+)
+@onready var shooter_button: Button = (
+	$EditorView/PalettePanel/ToolScroll/ToolList/ShooterButton
 )
 @onready var toggle_button: Button = (
 	$EditorView/PalettePanel/ToolScroll/ToolList/ToggleButton
@@ -242,6 +249,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_set_tool(TOOL_HINGE)
 		KEY_6:
 			_set_tool(TOOL_SHOVE)
+		KEY_7:
+			_set_tool(TOOL_SHOOTER)
 		KEY_DELETE, KEY_BACKSPACE:
 			_delete_selected()
 		KEY_LEFT:
@@ -273,6 +282,7 @@ func _connect_ui() -> void:
 		player_button,
 		patrol_button,
 		shove_button,
+		shooter_button,
 		toggle_button,
 		hinge_button,
 	]:
@@ -283,6 +293,7 @@ func _connect_ui() -> void:
 	player_button.pressed.connect(_set_tool.bind(TOOL_PLAYER))
 	patrol_button.pressed.connect(_set_tool.bind(TOOL_PATROL))
 	shove_button.pressed.connect(_set_tool.bind(TOOL_SHOVE))
+	shooter_button.pressed.connect(_set_tool.bind(TOOL_SHOOTER))
 	toggle_button.pressed.connect(_set_tool.bind(TOOL_TOGGLE))
 	hinge_button.pressed.connect(_set_tool.bind(TOOL_HINGE))
 	duplicate_button.pressed.connect(_duplicate_selected)
@@ -435,8 +446,34 @@ func _set_tool(tool: String) -> void:
 	player_button.set_pressed_no_signal(tool == TOOL_PLAYER)
 	patrol_button.set_pressed_no_signal(tool == TOOL_PATROL)
 	shove_button.set_pressed_no_signal(tool == TOOL_SHOVE)
+	shooter_button.set_pressed_no_signal(tool == TOOL_SHOOTER)
 	toggle_button.set_pressed_no_signal(tool == TOOL_TOGGLE)
 	hinge_button.set_pressed_no_signal(tool == TOOL_HINGE)
+	var active_button := _palette_button_for_tool(tool)
+	if is_instance_valid(active_button):
+		tool_scroll.call_deferred(
+			"ensure_control_visible",
+			active_button
+		)
+
+
+func _palette_button_for_tool(tool: String) -> Button:
+	match tool:
+		TOOL_SOLID:
+			return solid_button
+		TOOL_PLAYER:
+			return player_button
+		TOOL_PATROL:
+			return patrol_button
+		TOOL_SHOVE:
+			return shove_button
+		TOOL_SHOOTER:
+			return shooter_button
+		TOOL_TOGGLE:
+			return toggle_button
+		TOOL_HINGE:
+			return hinge_button
+	return null
 
 
 func _select_object(object_id: String) -> void:
@@ -500,6 +537,16 @@ func _place_object(object_type: String, payload: Variant) -> void:
 					"type": TOOL_SHOVE,
 					"position": (payload as Array).duplicate(),
 					"direction": -1,
+				}
+			)
+		TOOL_SHOOTER:
+			var object_id := draft.make_unique_id("shooter")
+			selected_id = object_id
+			draft.add_object(
+				{
+					"id": object_id,
+					"type": TOOL_SHOOTER,
+					"position": (payload as Array).duplicate(),
 				}
 			)
 		TOOL_TOGGLE:
@@ -632,6 +679,19 @@ func _refresh_inspector_hint() -> void:
 			+ "Направление задаёт старт патруля."
 		)
 		inspector_hint.modulate = Color(0.925, 0.365, 0.231)
+		return
+	if selected.get("type", "") == TOOL_SHOOTER:
+		if draft.find_first_object_of_type(TOOL_PLAYER).is_empty():
+			inspector_hint.text = (
+				"ДОБАВЬТЕ ИГРОКА ДЛЯ ЛИНИИ ПРИЦЕЛА"
+			)
+			inspector_hint.modulate = Color(0.973, 0.58, 0.267)
+		else:
+			inspector_hint.text = (
+				"СЛЕДИТ ЗА ИГРОКОМ ДО 900 PX\n"
+				+ "Пол и активные платформы блокируют выстрел."
+			)
+			inspector_hint.modulate = Color(0.718, 0.376, 0.925)
 		return
 	if selected.get("type", "") == TOOL_HINGE:
 		var target_id := str(selected.get("target_id", ""))
@@ -1216,6 +1276,10 @@ func _rebuild_inspector() -> void:
 			_add_numeric_property("X", "position:0", position[0])
 			_add_numeric_property("Y", "position:1", position[1])
 			_add_direction_property(int(object["direction"]))
+		TOOL_SHOOTER:
+			var position: Array = object["position"]
+			_add_numeric_property("X", "position:0", position[0])
+			_add_numeric_property("Y", "position:1", position[1])
 		TOOL_HINGE:
 			var position: Array = object["position"]
 			_add_numeric_property("X", "position:0", position[0])

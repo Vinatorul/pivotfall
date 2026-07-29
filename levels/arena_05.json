@@ -1,0 +1,34 @@
+{
+	"schema_version": 1,
+	"level_id": "arena_05_data",
+	"title": "GRAYBOX  /  DATA ARENA 05",
+	"objective": "УКРОЙСЯ ОТ ПРИЦЕЛА → СТОЛКНИ СТРЕЛКА В ЯМУ",
+	"clear_message": "DATA ARENA 05 ПРОЙДЕНА  /  ПЕРЕЗАПУСК...",
+	"canvas": {
+		"width": 960,
+		"height": 540,
+		"grid_size": 20
+	},
+	"objects": [
+		{
+			"id": "floor",
+			"type": "solid_rect",
+			"rect": [32, 496, 800, 44]
+		},
+		{
+			"id": "cover",
+			"type": "solid_rect",
+			"rect": [454, 416, 52, 80]
+		},
+		{
+			"id": "player_start",
+			"type": "player_spawn",
+			"position": [120, 450]
+		},
+		{
+			"id": "shooter_1",
+			"type": "shooter_enemy",
+			"position": [780, 450]
+		}
+	]
+}

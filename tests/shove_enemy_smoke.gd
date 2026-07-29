@@ -38,7 +38,7 @@ func _run() -> void:
 func _test_builtin_and_schema() -> void:
 	var builtins := LEVEL_STORAGE.list_builtin_levels()
 	_expect(
-		builtins.size() == 2
+		builtins.size() >= 2
 		and builtins[0]["id"] == "arena_01_data"
 		and builtins[1]["id"] == "arena_03_data",
 		"Built-in level catalog does not expose Arena 01 and Arena 03."

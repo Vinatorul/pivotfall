@@ -11,6 +11,9 @@ const PATROL_ENEMY_SCENE := preload(
 const SHOVE_ENEMY_SCENE := preload(
 	"res://scenes/shove_enemy.tscn"
 )
+const SHOOTER_ENEMY_SCENE := preload(
+	"res://scenes/shooter_enemy.tscn"
+)
 const TOGGLE_PLATFORM_SCENE := preload(
 	"res://scenes/toggle_platform.tscn"
 )
@@ -151,6 +154,18 @@ static func _create_object(definition: Dictionary) -> Dictionary:
 
 			enemy.position = _vector_from(definition["position"])
 			enemy.patrol_direction = float(definition["direction"])
+			return _object_success(enemy, "actors")
+
+		"shooter_enemy":
+			var enemy := (
+				SHOOTER_ENEMY_SCENE.instantiate() as ShooterEnemy
+			)
+			if not is_instance_valid(enemy):
+				return _object_failure(
+					"Could not instantiate shooter_enemy."
+				)
+
+			enemy.position = _vector_from(definition["position"])
 			return _object_success(enemy, "actors")
 
 		"toggle_platform":

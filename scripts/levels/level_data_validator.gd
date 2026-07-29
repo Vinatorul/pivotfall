@@ -42,6 +42,7 @@ const ACTOR_HALF_EXTENTS := {
 	"player_spawn": Vector2i(14, 20),
 	"patrol_enemy": Vector2i(15, 18),
 	"shove_enemy": Vector2i(16, 19),
+	"shooter_enemy": Vector2i(17, 19),
 }
 
 const ROOT_KEYS := [
@@ -64,6 +65,7 @@ const PATROL_ENEMY_KEYS := [
 	"speed",
 ]
 const SHOVE_ENEMY_KEYS := ["id", "type", "position", "direction"]
+const SHOOTER_ENEMY_KEYS := ["id", "type", "position"]
 const TOGGLE_PLATFORM_KEYS := [
 	"id",
 	"type",
@@ -76,10 +78,15 @@ const SUPPORTED_TYPES := [
 	"player_spawn",
 	"patrol_enemy",
 	"shove_enemy",
+	"shooter_enemy",
 	"toggle_platform",
 	"hinge",
 ]
-const ENEMY_TYPES := ["patrol_enemy", "shove_enemy"]
+const ENEMY_TYPES := [
+	"patrol_enemy",
+	"shove_enemy",
+	"shooter_enemy",
+]
 
 
 ## Parses JSON text, then applies the same validation as dictionary input.
@@ -515,6 +522,35 @@ static func _validate_object(
 					"type": object_type,
 					"position": position,
 					"direction": direction,
+				},
+			}
+
+		"shooter_enemy":
+			_reject_unknown_keys(object, SHOOTER_ENEMY_KEYS, path, errors)
+			var position: Variant = null
+			if _require_key(object, "position", path, errors):
+				position = _read_int_array(
+					object["position"],
+					"%s.position" % path,
+					2,
+					errors
+				)
+				if position != null:
+					_validate_point_bounds(
+						position,
+						canvas_size,
+						"%s.position" % path,
+						errors
+					)
+
+			if errors.size() != error_count_before:
+				return {"ok": false, "data": {}}
+			return {
+				"ok": true,
+				"data": {
+					"id": object_id,
+					"type": object_type,
+					"position": position,
 				},
 			}
 
