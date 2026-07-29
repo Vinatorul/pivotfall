@@ -1,0 +1,350 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/editor/level_editor.gd" id="1_editor"]
+[ext_resource type="Script" path="res://scripts/editor/level_editor_canvas.gd" id="2_canvas"]
+
+[node name="LevelEditor" type="Node"]
+script = ExtResource("1_editor")
+
+[node name="DiscardDialog" type="ConfirmationDialog" parent="."]
+title = "Несохранённые изменения"
+dialog_text = "Текущий черновик изменён. Отбросить изменения?"
+ok_button_text = "ОТБРОСИТЬ"
+cancel_button_text = "ОСТАТЬСЯ"
+
+[node name="PlaytestHost" type="Node2D" parent="."]
+
+[node name="EditorView" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Background" type="ColorRect" parent="EditorView"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.035, 0.047, 0.082, 1)
+
+[node name="Toolbar" type="ColorRect" parent="EditorView"]
+layout_mode = 0
+offset_left = 8.0
+offset_top = 8.0
+offset_right = 952.0
+offset_bottom = 40.0
+color = Color(0.075, 0.098, 0.165, 1)
+
+[node name="Title" type="Label" parent="EditorView/Toolbar"]
+layout_mode = 0
+offset_left = 12.0
+offset_top = 5.0
+offset_right = 290.0
+offset_bottom = 28.0
+theme_override_colors/font_color = Color(0.651, 0.714, 0.82, 1)
+theme_override_font_sizes/font_size = 15
+text = "GRAYBOX  /  LEVEL EDITOR"
+
+[node name="DirtyLabel" type="Label" parent="EditorView/Toolbar"]
+layout_mode = 0
+offset_left = 300.0
+offset_top = 6.0
+offset_right = 490.0
+offset_bottom = 28.0
+theme_override_colors/font_color = Color(0.439, 0.827, 0.816, 1)
+theme_override_font_sizes/font_size = 12
+text = "ПРИМЕР / БЕЗ ИЗМЕНЕНИЙ"
+
+[node name="ExitButton" type="Button" parent="EditorView/Toolbar"]
+layout_mode = 0
+offset_left = 496.0
+offset_top = 2.0
+offset_right = 576.0
+offset_bottom = 30.0
+text = "← GAME"
+
+[node name="UndoButton" type="Button" parent="EditorView/Toolbar"]
+layout_mode = 0
+offset_left = 582.0
+offset_top = 2.0
+offset_right = 666.0
+offset_bottom = 30.0
+text = "↶ UNDO"
+
+[node name="RedoButton" type="Button" parent="EditorView/Toolbar"]
+layout_mode = 0
+offset_left = 672.0
+offset_top = 2.0
+offset_right = 756.0
+offset_bottom = 30.0
+text = "↷ REDO"
+
+[node name="TestButton" type="Button" parent="EditorView/Toolbar"]
+layout_mode = 0
+offset_left = 766.0
+offset_top = 2.0
+offset_right = 932.0
+offset_bottom = 30.0
+theme_override_colors/font_color = Color(0.439, 0.878, 0.816, 1)
+text = "▶ TEST  [F5]"
+
+[node name="PalettePanel" type="ColorRect" parent="EditorView"]
+layout_mode = 0
+offset_left = 8.0
+offset_top = 48.0
+offset_right = 152.0
+offset_bottom = 532.0
+color = Color(0.075, 0.098, 0.165, 1)
+
+[node name="Title" type="Label" parent="EditorView/PalettePanel"]
+layout_mode = 0
+offset_left = 10.0
+offset_top = 10.0
+offset_right = 134.0
+offset_bottom = 34.0
+theme_override_colors/font_color = Color(0.651, 0.714, 0.82, 1)
+theme_override_font_sizes/font_size = 13
+text = "ИНСТРУМЕНТЫ"
+
+[node name="SelectButton" type="Button" parent="EditorView/PalettePanel"]
+layout_mode = 0
+offset_left = 8.0
+offset_top = 40.0
+offset_right = 136.0
+offset_bottom = 74.0
+toggle_mode = true
+button_pressed = true
+text = "Q  ВЫБОР"
+
+[node name="SolidButton" type="Button" parent="EditorView/PalettePanel"]
+layout_mode = 0
+offset_left = 8.0
+offset_top = 80.0
+offset_right = 136.0
+offset_bottom = 114.0
+toggle_mode = true
+text = "1  ПОЛ"
+
+[node name="PlayerButton" type="Button" parent="EditorView/PalettePanel"]
+layout_mode = 0
+offset_left = 8.0
+offset_top = 120.0
+offset_right = 136.0
+offset_bottom = 154.0
+toggle_mode = true
+text = "2  ИГРОК"
+
+[node name="PatrolButton" type="Button" parent="EditorView/PalettePanel"]
+layout_mode = 0
+offset_left = 8.0
+offset_top = 160.0
+offset_right = 136.0
+offset_bottom = 194.0
+toggle_mode = true
+text = "3  ПАТРУЛЬ"
+
+[node name="EditTitle" type="Label" parent="EditorView/PalettePanel"]
+layout_mode = 0
+offset_left = 10.0
+offset_top = 218.0
+offset_right = 134.0
+offset_bottom = 242.0
+theme_override_colors/font_color = Color(0.439, 0.502, 0.616, 1)
+theme_override_font_sizes/font_size = 12
+text = "ВЫДЕЛЕННОЕ"
+
+[node name="DuplicateButton" type="Button" parent="EditorView/PalettePanel"]
+layout_mode = 0
+offset_left = 8.0
+offset_top = 248.0
+offset_right = 136.0
+offset_bottom = 282.0
+text = "DUPLICATE"
+
+[node name="DeleteButton" type="Button" parent="EditorView/PalettePanel"]
+layout_mode = 0
+offset_left = 8.0
+offset_top = 288.0
+offset_right = 136.0
+offset_bottom = 322.0
+theme_override_colors/font_color = Color(0.925, 0.365, 0.231, 1)
+text = "DELETE"
+
+[node name="Help" type="Label" parent="EditorView/PalettePanel"]
+layout_mode = 0
+offset_left = 10.0
+offset_top = 350.0
+offset_right = 134.0
+offset_bottom = 472.0
+theme_override_colors/font_color = Color(0.439, 0.502, 0.616, 1)
+theme_override_font_sizes/font_size = 11
+text = "ЛКМ — поставить\nDrag — размер / сдвиг\nDel — удалить\nCmd/Ctrl+D — копия\nCmd/Ctrl+Z — undo\nEsc — выбор / назад"
+autowrap_mode = 2
+
+[node name="EditorCanvas" type="Control" parent="EditorView"]
+layout_mode = 0
+offset_left = 160.0
+offset_top = 48.0
+offset_right = 736.0
+offset_bottom = 372.0
+mouse_filter = 0
+clip_contents = true
+focus_mode = 2
+script = ExtResource("2_canvas")
+
+[node name="ProblemsPanel" type="ColorRect" parent="EditorView"]
+layout_mode = 0
+offset_left = 160.0
+offset_top = 380.0
+offset_right = 736.0
+offset_bottom = 532.0
+color = Color(0.075, 0.098, 0.165, 1)
+
+[node name="LevelIdEdit" type="LineEdit" parent="EditorView/ProblemsPanel"]
+layout_mode = 0
+offset_left = 8.0
+offset_top = 8.0
+offset_right = 172.0
+offset_bottom = 38.0
+placeholder_text = "level_id"
+
+[node name="TitleEdit" type="LineEdit" parent="EditorView/ProblemsPanel"]
+layout_mode = 0
+offset_left = 180.0
+offset_top = 8.0
+offset_right = 374.0
+offset_bottom = 38.0
+placeholder_text = "Название"
+
+[node name="ObjectiveEdit" type="LineEdit" parent="EditorView/ProblemsPanel"]
+layout_mode = 0
+offset_left = 382.0
+offset_top = 8.0
+offset_right = 568.0
+offset_bottom = 38.0
+placeholder_text = "Цель"
+
+[node name="ValidationChip" type="Label" parent="EditorView/ProblemsPanel"]
+layout_mode = 0
+offset_left = 10.0
+offset_top = 45.0
+offset_right = 566.0
+offset_bottom = 67.0
+theme_override_colors/font_color = Color(0.439, 0.878, 0.816, 1)
+theme_override_font_sizes/font_size = 12
+text = "ГОТОВО К ТЕСТУ"
+
+[node name="Problems" type="RichTextLabel" parent="EditorView/ProblemsPanel"]
+layout_mode = 0
+offset_left = 8.0
+offset_top = 70.0
+offset_right = 568.0
+offset_bottom = 144.0
+mouse_filter = 0
+theme_override_colors/default_color = Color(0.651, 0.714, 0.82, 1)
+theme_override_font_sizes/normal_font_size = 12
+bbcode_enabled = true
+fit_content = false
+scroll_active = true
+text = "Ошибок нет. Можно сохранить или запустить тест."
+
+[node name="InspectorPanel" type="ColorRect" parent="EditorView"]
+layout_mode = 0
+offset_left = 744.0
+offset_top = 48.0
+offset_right = 952.0
+offset_bottom = 532.0
+color = Color(0.075, 0.098, 0.165, 1)
+
+[node name="FileTitle" type="Label" parent="EditorView/InspectorPanel"]
+layout_mode = 0
+offset_left = 10.0
+offset_top = 10.0
+offset_right = 198.0
+offset_bottom = 32.0
+theme_override_colors/font_color = Color(0.651, 0.714, 0.82, 1)
+theme_override_font_sizes/font_size = 12
+text = "УРОВНИ"
+
+[node name="LoadOptions" type="OptionButton" parent="EditorView/InspectorPanel"]
+layout_mode = 0
+offset_left = 8.0
+offset_top = 36.0
+offset_right = 200.0
+offset_bottom = 68.0
+
+[node name="NewButton" type="Button" parent="EditorView/InspectorPanel"]
+layout_mode = 0
+offset_left = 8.0
+offset_top = 76.0
+offset_right = 68.0
+offset_bottom = 108.0
+text = "NEW"
+
+[node name="LoadButton" type="Button" parent="EditorView/InspectorPanel"]
+layout_mode = 0
+offset_left = 74.0
+offset_top = 76.0
+offset_right = 134.0
+offset_bottom = 108.0
+text = "LOAD"
+
+[node name="SaveButton" type="Button" parent="EditorView/InspectorPanel"]
+layout_mode = 0
+offset_left = 140.0
+offset_top = 76.0
+offset_right = 200.0
+offset_bottom = 108.0
+theme_override_colors/font_color = Color(0.439, 0.878, 0.816, 1)
+text = "SAVE"
+
+[node name="InspectorTitle" type="Label" parent="EditorView/InspectorPanel"]
+layout_mode = 0
+offset_left = 10.0
+offset_top = 126.0
+offset_right = 198.0
+offset_bottom = 150.0
+theme_override_colors/font_color = Color(0.651, 0.714, 0.82, 1)
+theme_override_font_sizes/font_size = 12
+text = "СВОЙСТВА УРОВНЯ"
+
+[node name="PropertiesScroll" type="ScrollContainer" parent="EditorView/InspectorPanel"]
+layout_mode = 0
+offset_left = 8.0
+offset_top = 156.0
+offset_right = 200.0
+offset_bottom = 424.0
+horizontal_scroll_mode = 0
+
+[node name="Properties" type="VBoxContainer" parent="EditorView/InspectorPanel/PropertiesScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 7
+
+[node name="InspectorHint" type="Label" parent="EditorView/InspectorPanel"]
+layout_mode = 0
+offset_left = 10.0
+offset_top = 434.0
+offset_right = 198.0
+offset_bottom = 476.0
+theme_override_colors/font_color = Color(0.439, 0.502, 0.616, 1)
+theme_override_font_sizes/font_size = 10
+text = "Выберите объект на поле.\nЗначения применяются по Enter."
+autowrap_mode = 2
+
+[node name="PlaytestOverlay" type="CanvasLayer" parent="."]
+visible = false
+layer = 20
+
+[node name="ReturnButton" type="Button" parent="PlaytestOverlay"]
+offset_left = 774.0
+offset_top = 8.0
+offset_right = 952.0
+offset_bottom = 42.0
+theme_override_colors/font_color = Color(0.439, 0.878, 0.816, 1)
+text = "← EDITOR  [ESC]"

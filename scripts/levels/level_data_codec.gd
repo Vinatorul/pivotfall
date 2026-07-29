@@ -65,10 +65,19 @@ static func encode(data: Variant) -> Dictionary:
 		true,
 		false
 	) + "\n"
+	if text.to_utf8_buffer().size() > MAX_FILE_BYTES:
+		return _failure(
+			[
+				"Encoded level JSON exceeds the %d byte limit."
+				% MAX_FILE_BYTES
+			]
+		)
+
 	return {
 		"ok": true,
 		"data": validation["data"],
 		"errors": [] as Array[String],
+		"warnings": validation.get("warnings", []),
 		"text": text,
 	}
 
@@ -78,5 +87,6 @@ static func _failure(errors: Array[String]) -> Dictionary:
 		"ok": false,
 		"data": {},
 		"errors": errors,
+		"warnings": [] as Array[String],
 		"text": "",
 	}

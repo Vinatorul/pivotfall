@@ -10,6 +10,8 @@ const ARENA_PATHS := [
 	"res://scenes/arena_07.tscn",
 	"res://scenes/arena_08.tscn",
 ]
+const LEVEL_EDITOR_PATH := "res://scenes/level_editor.tscn"
+const DEFAULT_EDITOR_RETURN_PATH := "res://scenes/arena_01.tscn"
 
 const ARENA_NAMES := [
 	"ARENA 01  /  ИМПУЛЬС",
@@ -29,6 +31,8 @@ const ARENA_NAMES := [
 
 var selected_index := 0
 var previous_tree_paused := false
+var context_suppressed := false
+var editor_return_scene_path := DEFAULT_EDITOR_RETURN_PATH
 
 
 func _ready() -> void:
@@ -40,12 +44,25 @@ func _ready() -> void:
 		return
 
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	set_process_input(true)
 	menu.visible = false
-	hint.visible = true
+	_apply_context_availability()
+
+
+func set_context_suppressed(suppressed: bool) -> void:
+	context_suppressed = suppressed
+	if not is_node_ready():
+		return
+
+	if menu.visible:
+		_close_menu()
+
+	_apply_context_availability()
 
 
 func _input(event: InputEvent) -> void:
+	if context_suppressed:
+		return
+
 	if not event is InputEventKey or not event.pressed or event.echo:
 		return
 
@@ -67,6 +84,10 @@ func _input(event: InputEvent) -> void:
 	var digit_index := _digit_to_arena_index(key_event)
 	if digit_index >= 0:
 		_load_arena(digit_index)
+		get_viewport().set_input_as_handled()
+		return
+	if key == KEY_E:
+		_open_level_editor()
 		get_viewport().set_input_as_handled()
 		return
 
@@ -93,6 +114,9 @@ func _toggle_menu() -> void:
 
 
 func _open_menu() -> void:
+	if context_suppressed:
+		return
+
 	selected_index = _current_arena_index()
 	previous_tree_paused = get_tree().paused
 	get_tree().paused = true
@@ -103,8 +127,15 @@ func _open_menu() -> void:
 
 func _close_menu() -> void:
 	menu.visible = false
-	hint.visible = true
+	hint.visible = OS.is_debug_build() and not context_suppressed
 	get_tree().paused = previous_tree_paused
+
+
+func _apply_context_availability() -> void:
+	var available := OS.is_debug_build() and not context_suppressed
+	set_process_input(available)
+	menu.visible = false
+	hint.visible = available
 
 
 func _move_selection(offset: int) -> void:
@@ -122,12 +153,36 @@ func _load_arena(index: int) -> void:
 		return
 
 	selected_index = index
+	_load_scene(ARENA_PATHS[index], "debug arena")
+
+
+func _open_level_editor() -> void:
+	var current_scene := get_tree().current_scene
+	if is_instance_valid(current_scene):
+		var current_path := current_scene.scene_file_path
+		if (
+			not current_path.is_empty()
+			and current_path != LEVEL_EDITOR_PATH
+			and ResourceLoader.exists(current_path)
+		):
+			editor_return_scene_path = current_path
+
+	_load_scene(LEVEL_EDITOR_PATH, "level editor")
+
+
+func get_editor_return_scene_path() -> String:
+	if ResourceLoader.exists(editor_return_scene_path):
+		return editor_return_scene_path
+	return DEFAULT_EDITOR_RETURN_PATH
+
+
+func _load_scene(scene_path: String, description: String) -> void:
 	_close_menu()
-	var change_error := get_tree().change_scene_to_file(arena_path)
+	var change_error := get_tree().change_scene_to_file(scene_path)
 	if change_error != OK:
 		push_error(
-			"Could not open debug arena '%s' (error %d)."
-			% [arena_path, change_error]
+			"Could not open %s '%s' (error %d)."
+			% [description, scene_path, change_error]
 		)
 
 
@@ -182,6 +237,7 @@ func _render_menu() -> void:
 			"[color=%s]%s  [%d]  %s[/color]"
 			% [color, marker, index + 1, ARENA_NAMES[index]]
 		)
+	lines.append("[color=#f89444]   [E]  LEVEL EDITOR[/color]")
 
 	arena_list.text = "\n".join(lines)
 	current_label.text = "СЕЙЧАС: %s" % ARENA_NAMES[_current_arena_index()]

@@ -153,6 +153,20 @@ func _test_invalid_data() -> void:
 		"Validator rejected actors resting exactly on a floor."
 	)
 
+	var unsupported_patrol: Dictionary = loaded["data"].duplicate(true)
+	unsupported_patrol["objects"][3]["position"] = [480, 200]
+	unsupported_patrol["objects"][3]["speed"] = 0
+	var warning_result: Dictionary = (
+		LEVEL_DATA_VALIDATOR.validate_and_normalize(
+			unsupported_patrol
+		)
+	)
+	_expect(
+		bool(warning_result["ok"])
+		and warning_result["warnings"].size() == 2,
+		"Validator did not report non-blocking patrol warnings."
+	)
+
 
 func _test_runtime_snapshot_and_idle() -> void:
 	var foreign_enemy := PATROL_SCENE.instantiate() as PatrolEnemy

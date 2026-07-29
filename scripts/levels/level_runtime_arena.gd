@@ -1,6 +1,8 @@
 class_name LevelRuntimeArena
 extends Arena
 
+signal embedded_restart_requested
+
 const LEVEL_DATA_CODEC := preload(
 	"res://scripts/levels/level_data_codec.gd"
 )
@@ -11,15 +13,37 @@ const LEVEL_BUILDER := preload(
 @export_file("*.json") var level_path := ""
 
 @onready var title_label: Label = $UI/Title
+@onready var controls_label: Label = $UI/Controls
 
 var level_loaded := false
 var level_data: Dictionary = {}
 var level_objects: Dictionary = {}
 var load_errors: Array[String] = []
+var embedded_mode := false
+
+var _embedded_snapshot_json := ""
+
+
+func configure_embedded_snapshot(json_text: String) -> void:
+	if is_inside_tree():
+		push_error(
+			"Embedded level snapshot must be configured before entering the tree."
+		)
+		return
+
+	embedded_mode = true
+	_embedded_snapshot_json = json_text
 
 
 func _ready() -> void:
-	var load_result: Dictionary = LEVEL_DATA_CODEC.load_file(level_path)
+	if embedded_mode:
+		controls_label.text += "    Esc — в редактор"
+
+	var load_result: Dictionary = (
+		LEVEL_DATA_CODEC.decode_text(_embedded_snapshot_json)
+		if embedded_mode
+		else LEVEL_DATA_CODEC.load_file(level_path)
+	)
 	if not bool(load_result["ok"]):
 		_show_load_failure(load_result["errors"])
 		return
@@ -43,6 +67,14 @@ func _ready() -> void:
 
 func get_level_object(object_id: String) -> Node:
 	return level_objects.get(object_id) as Node
+
+
+func _reload_scene() -> void:
+	if embedded_mode:
+		embedded_restart_requested.emit()
+		return
+
+	super._reload_scene()
 
 
 func _show_load_failure(errors: Array) -> void:

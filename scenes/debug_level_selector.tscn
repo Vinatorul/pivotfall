@@ -80,7 +80,7 @@ offset_right = 454.0
 offset_bottom = 340.0
 mouse_filter = 2
 theme_override_colors/default_color = Color(0.651, 0.714, 0.82, 1)
-theme_override_constants/line_separation = 10
+theme_override_constants/line_separation = 7
 theme_override_font_sizes/normal_font_size = 17
 bbcode_enabled = true
 text = "[color=#6fe0d0]▶  [1]  ARENA 01  /  ИМПУЛЬС[/color]"
@@ -104,7 +104,7 @@ offset_right = 454.0
 offset_bottom = 414.0
 theme_override_colors/font_color = Color(0.651, 0.714, 0.82, 1)
 theme_override_font_sizes/font_size = 13
-text = "1–8 — открыть сразу    ↑ ↓ — выбрать\nEnter / Space — открыть    F1 / Esc — закрыть"
+text = "1–8 — арена    E — редактор    ↑ ↓ — выбрать\nEnter / Space — открыть    F1 / Esc — закрыть"
 
 [node name="Hint" type="Label" parent="."]
 visible = false
@@ -118,4 +118,4 @@ offset_bottom = -10.0
 grow_vertical = 0
 theme_override_colors/font_color = Color(0.439, 0.827, 0.816, 0.72)
 theme_override_font_sizes/font_size = 13
-text = "DEBUG: F1 — ВЫБОР АРЕНЫ"
+text = "DEBUG: F1 — АРЕНЫ / РЕДАКТОР"

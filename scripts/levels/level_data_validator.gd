@@ -4,7 +4,12 @@ extends RefCounted
 ## Validates untrusted level data and returns a canonical dictionary for LevelBuilder.
 ##
 ## Public results always have the shape:
-##     { "ok": bool, "data": Dictionary, "errors": Array[String] }
+##     {
+##         "ok": bool,
+##         "data": Dictionary,
+##         "errors": Array[String],
+##         "warnings": Array[String],
+##     }
 ## Invalid input never exposes partially normalized data through `data`.
 
 const SCHEMA_VERSION := 1
@@ -27,6 +32,8 @@ const PLAYFIELD_BOTTOM := 540
 const MAX_GRID_SIZE := 512
 const MAX_OBJECTS := 512
 const MAX_PATROL_SPEED := 1000.0
+const MAX_SAFE_FLOAT_INTEGER := 9_007_199_254_740_991.0
+const MAX_SUPPORT_WARNING_GAP := 64.0
 const ACTOR_HALF_EXTENTS := {
 	"player_spawn": Vector2i(14, 20),
 	"patrol_enemy": Vector2i(15, 18),
@@ -114,7 +121,15 @@ static func validate_and_normalize(raw: Variant) -> Dictionary:
 			errors
 		)
 		if not level_id.is_empty():
-			normalized["level_id"] = level_id
+			if _is_windows_reserved_file_name(level_id):
+				errors.append(
+					(
+						"root.level_id must not be a reserved Windows "
+						+ "file name."
+					)
+				)
+			else:
+				normalized["level_id"] = level_id
 
 	if _require_key(root, "title", "root", errors):
 		var title: Variant = _read_text(
@@ -174,7 +189,11 @@ static func validate_and_normalize(raw: Variant) -> Dictionary:
 				)
 
 			var known_ids := {}
-			for index in objects.size():
+			var object_count_to_validate := mini(
+				objects.size(),
+				MAX_OBJECTS
+			)
+			for index in object_count_to_validate:
 				var object_result := _validate_object(
 					objects[index],
 					index,
@@ -212,6 +231,7 @@ static func validate_and_normalize(raw: Variant) -> Dictionary:
 		"ok": true,
 		"data": normalized,
 		"errors": errors,
+		"warnings": _collect_warnings(normalized_objects),
 	}
 
 
@@ -554,6 +574,64 @@ static func _rects_overlap_strictly(first: Rect2, second: Rect2) -> bool:
 	)
 
 
+static func _collect_warnings(
+	objects: Array[Dictionary]
+) -> Array[String]:
+	var warnings: Array[String] = []
+	var solids: Array[Rect2] = []
+	for object: Dictionary in objects:
+		if object["type"] != "solid_rect":
+			continue
+		var values: Array = object["rect"]
+		solids.append(
+			Rect2(
+				float(values[0]),
+				float(values[1]),
+				float(values[2]),
+				float(values[3])
+			)
+		)
+
+	for object: Dictionary in objects:
+		var object_type: String = object["type"]
+		if not ACTOR_HALF_EXTENTS.has(object_type):
+			continue
+
+		var values: Array = object["position"]
+		var origin := Vector2(float(values[0]), float(values[1]))
+		var half_extents := Vector2(ACTOR_HALF_EXTENTS[object_type])
+		var actor_left := origin.x - half_extents.x
+		var actor_right := origin.x + half_extents.x
+		var actor_bottom := origin.y + half_extents.y
+		var has_nearby_support := false
+		for solid: Rect2 in solids:
+			if (
+				solid.position.y >= actor_bottom
+				and solid.position.y
+				<= actor_bottom + MAX_SUPPORT_WARNING_GAP
+				and solid.position.x < actor_right
+				and solid.end.x > actor_left
+			):
+				has_nearby_support = true
+				break
+
+		if not has_nearby_support:
+			warnings.append(
+				"Object '%s' has no solid support near its spawn."
+				% object["id"]
+			)
+
+		if (
+			object_type == "patrol_enemy"
+			and is_zero_approx(float(object["speed"]))
+		):
+			warnings.append(
+				"Patrol '%s' has zero speed." % object["id"]
+			)
+
+	return warnings
+
+
 static func _read_int_array(
 	raw: Variant,
 	path: String,
@@ -597,16 +675,19 @@ static func _read_integer(
 		errors.append("%s must be an integer." % path)
 		return null
 
-	var number := float(raw)
-	if not is_finite(number) or number != floorf(number):
-		errors.append("%s must be a finite integer." % path)
-		return null
-
-	if number < float(-9223372036854775807) or number > float(9223372036854775807):
-		errors.append("%s is outside the supported integer range." % path)
-		return null
-
-	var value := int(number)
+	var value: int
+	if raw_type == TYPE_INT:
+		value = int(raw)
+	else:
+		var number := float(raw)
+		if (
+			not is_finite(number)
+			or number != floorf(number)
+			or absf(number) > MAX_SAFE_FLOAT_INTEGER
+		):
+			errors.append("%s must be a finite, exactly representable integer." % path)
+			return null
+		value = int(number)
 	if minimum != null and value < int(minimum):
 		errors.append("%s must be at least %d." % [path, minimum])
 		return null
@@ -707,6 +788,21 @@ static func _is_stable_id(value: String) -> bool:
 	return true
 
 
+static func _is_windows_reserved_file_name(value: String) -> bool:
+	if value in ["con", "prn", "aux", "nul"]:
+		return true
+	if value.length() != 4:
+		return false
+
+	var prefix := value.left(3)
+	var digit := value.unicode_at(3)
+	return (
+		(prefix == "com" or prefix == "lpt")
+		and digit >= 49
+		and digit <= 57
+	)
+
+
 static func _is_ascii_lower(character: int) -> bool:
 	return character >= 97 and character <= 122
 
@@ -751,4 +847,5 @@ static func _failure(errors: Array[String]) -> Dictionary:
 		"ok": false,
 		"data": {},
 		"errors": errors,
+		"warnings": [] as Array[String],
 	}
