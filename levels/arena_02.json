@@ -1,0 +1,48 @@
+{
+	"schema_version": 1,
+	"level_id": "arena_02_data",
+	"title": "GRAYBOX  /  DATA ARENA 02",
+	"objective": "УДАРЬ ШАРНИР, УБЕРИ МОСТ ↓",
+	"clear_message": "DATA ARENA 02 ПРОЙДЕНА  /  ПЕРЕЗАПУСК...",
+	"canvas": {
+		"width": 960,
+		"height": 540,
+		"grid_size": 20
+	},
+	"objects": [
+		{
+			"id": "left_floor",
+			"type": "solid_rect",
+			"rect": [32, 496, 368, 44]
+		},
+		{
+			"id": "right_floor",
+			"type": "solid_rect",
+			"rect": [560, 496, 368, 44]
+		},
+		{
+			"id": "player_start",
+			"type": "player_spawn",
+			"position": [150, 450]
+		},
+		{
+			"id": "patrol_1",
+			"type": "patrol_enemy",
+			"position": [480, 450],
+			"speed": 65,
+			"direction": 1
+		},
+		{
+			"id": "center_bridge",
+			"type": "toggle_platform",
+			"rect": [400, 496, 160, 20],
+			"starts_active": true
+		},
+		{
+			"id": "bridge_hinge",
+			"type": "hinge",
+			"position": [300, 468],
+			"target_id": "center_bridge"
+		}
+	]
+}

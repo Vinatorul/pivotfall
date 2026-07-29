@@ -37,10 +37,12 @@ func _run() -> void:
 
 func _test_builtin_and_schema() -> void:
 	var builtins := LEVEL_STORAGE.list_builtin_levels()
+	var builtin_ids: Array[String] = []
+	for entry: Dictionary in builtins:
+		builtin_ids.append(str(entry.get("id", "")))
 	_expect(
-		builtins.size() >= 2
-		and builtins[0]["id"] == "arena_01_data"
-		and builtins[1]["id"] == "arena_03_data",
+		builtin_ids.has("arena_01_data")
+		and builtin_ids.has("arena_03_data"),
 		"Built-in level catalog does not expose Arena 01 and Arena 03."
 	)
 
@@ -318,13 +320,15 @@ func _test_editor_vertical_slice() -> void:
 	current_scene = editor
 	await process_frame
 
+	var arena_03_index := _load_entry_index(editor, "arena_03_data")
 	_expect(
-		editor.load_entries.size() >= 2
-		and editor.load_entries[0]["id"] == "arena_01_data"
-		and editor.load_entries[1]["id"] == "arena_03_data",
-		"Editor does not list both built-in examples first."
+		arena_03_index >= 0,
+		"Editor does not list the Arena 03 built-in."
 	)
-	editor.call("_perform_load_selected_level", 1)
+	if arena_03_index < 0:
+		await _cleanup_current_scene()
+		return
+	editor.call("_perform_load_selected_level", arena_03_index)
 	await process_frame
 	var builtin_shove := (
 		editor.draft.find_first_object_of_type("shove_enemy")
@@ -543,6 +547,13 @@ func _find_property_editor(
 		):
 			return children[1] as Control
 	return null
+
+
+func _load_entry_index(editor: LevelEditor, level_id: String) -> int:
+	for index in editor.load_entries.size():
+		if editor.load_entries[index].get("id", "") == level_id:
+			return index
+	return -1
 
 
 func _object_by_id(data: Dictionary, object_id: String) -> Dictionary:
