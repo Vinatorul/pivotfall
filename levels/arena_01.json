@@ -1,0 +1,36 @@
+{
+	"schema_version": 1,
+	"level_id": "arena_01_data",
+	"title": "GRAYBOX  /  DATA ARENA 01",
+	"objective": "СТОЛКНИ ВРАГА В ЯМУ ↓",
+	"clear_message": "DATA ARENA ПРОЙДЕНА  /  ПЕРЕЗАПУСК...",
+	"canvas": {
+		"width": 960,
+		"height": 540,
+		"grid_size": 20
+	},
+	"objects": [
+		{
+			"id": "left_floor",
+			"type": "solid_rect",
+			"rect": [32, 496, 368, 44]
+		},
+		{
+			"id": "right_floor",
+			"type": "solid_rect",
+			"rect": [560, 496, 368, 44]
+		},
+		{
+			"id": "player_start",
+			"type": "player_spawn",
+			"position": [150, 450]
+		},
+		{
+			"id": "patrol_1",
+			"type": "patrol_enemy",
+			"position": [360, 450],
+			"speed": 65,
+			"direction": 1
+		}
+	]
+}

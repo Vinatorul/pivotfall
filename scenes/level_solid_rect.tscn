@@ -1,0 +1,16 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/levels/level_solid_rect.gd" id="1_solid"]
+
+[node name="LevelSolidRect" type="StaticBody2D"]
+collision_layer = 1
+collision_mask = 0
+script = ExtResource("1_solid")
+
+[node name="Body" type="Polygon2D" parent="."]
+color = Color(0.235, 0.302, 0.416, 1)
+
+[node name="TopEdge" type="Polygon2D" parent="."]
+color = Color(0.392, 0.455, 0.584, 1)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]

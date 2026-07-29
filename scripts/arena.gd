@@ -23,7 +23,7 @@ var outcome_generation := 0
 
 
 func _ready() -> void:
-	enemies_remaining = get_tree().get_nodes_in_group("enemies").size()
+	enemies_remaining = _count_arena_enemies()
 	death_zone.body_entered.connect(_on_death_zone_body_entered)
 
 
@@ -95,3 +95,11 @@ func _finish_outcome(generation: int) -> void:
 
 func _reload_scene() -> void:
 	get_tree().reload_current_scene()
+
+
+func _count_arena_enemies() -> int:
+	var count := 0
+	for enemy: Node in get_tree().get_nodes_in_group("enemies"):
+		if is_ancestor_of(enemy):
+			count += 1
+	return count
