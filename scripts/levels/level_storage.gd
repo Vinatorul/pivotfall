@@ -1,59 +1,19 @@
 class_name LevelStorage
 extends RefCounted
 
-## Owns every filesystem path used by the level editor.
+## Owns user-level filesystem paths and exposes the built-in campaign catalog.
 ##
 ## Public methods accept stable level IDs or level data, never paths. User
-## levels are always stored directly under `user://levels/` as `<level_id>.json`.
+## levels are stored under `user://levels/`; built-ins come from campaign.json.
 
 const LEVEL_DATA_CODEC := preload(
 	"res://scripts/levels/level_data_codec.gd"
 )
+const CAMPAIGN_STORAGE := preload(
+	"res://scripts/campaign/campaign_storage.gd"
+)
 
-const BUILTIN_ARENA_01_PATH := "res://levels/arena_01.json"
 const BUILTIN_ARENA_01_ID := "arena_01_data"
-const BUILTIN_LEVELS := [
-	{
-		"id": BUILTIN_ARENA_01_ID,
-		"path": BUILTIN_ARENA_01_PATH,
-		"title": "Arena 01 / Патруль",
-	},
-	{
-		"id": "arena_02_data",
-		"path": "res://levels/arena_02.json",
-		"title": "Arena 02 / Опора",
-	},
-	{
-		"id": "arena_03_data",
-		"path": "res://levels/arena_03.json",
-		"title": "Arena 03 / Толкач",
-	},
-	{
-		"id": "arena_04_data",
-		"path": "res://levels/arena_04.json",
-		"title": "Arena 04 / Катапульта",
-	},
-	{
-		"id": "arena_05_data",
-		"path": "res://levels/arena_05.json",
-		"title": "Arena 05 / Стрелок",
-	},
-	{
-		"id": "arena_06_data",
-		"path": "res://levels/arena_06.json",
-		"title": "Arena 06 / Чужая рука",
-	},
-	{
-		"id": "arena_07_data",
-		"path": "res://levels/arena_07.json",
-		"title": "Arena 07 / Лифт",
-	},
-	{
-		"id": "arena_08_data",
-		"path": "res://levels/arena_08.json",
-		"title": "Arena 08 / Экзамен",
-	},
-]
 const USER_LEVEL_ROOT := "user://levels"
 const USER_LEVEL_DIRECTORY := "levels"
 const LEVEL_EXTENSION := ".json"
@@ -67,17 +27,40 @@ static func load_builtin_arena_01() -> Dictionary:
 
 
 static func list_builtin_levels() -> Array[Dictionary]:
+	var result := load_builtin_catalog()
 	var entries: Array[Dictionary] = []
-	for entry: Dictionary in BUILTIN_LEVELS:
+	if not bool(result.get("ok", false)):
+		return entries
+	for entry: Dictionary in result.get("entries", []):
 		entries.append(entry.duplicate(true))
 	return entries
 
 
+static func load_builtin_catalog() -> Dictionary:
+	var campaign_result := CAMPAIGN_STORAGE.load_builtin_campaign()
+	if not bool(campaign_result.get("ok", false)):
+		return campaign_result
+
+	var entries: Array[Dictionary] = []
+	for entry: Dictionary in campaign_result.get("entries", []):
+		entries.append(
+			{
+				"id": entry["id"],
+				"path": entry["path"],
+				"title": entry["title"],
+			}
+		)
+	return {
+		"ok": true,
+		"entries": entries,
+		"errors": [] as Array[String],
+		"warnings": campaign_result.get("warnings", []),
+		"path": campaign_result.get("path", ""),
+	}
+
+
 static func load_builtin_level(level_id: String) -> Dictionary:
-	for entry: Dictionary in BUILTIN_LEVELS:
-		if entry["id"] == level_id:
-			return _load_verified_file(entry["path"], level_id)
-	return _failure(["Built-in level '%s' does not exist." % level_id])
+	return CAMPAIGN_STORAGE.load_builtin_level(level_id)
 
 
 static func load_user_level(level_id: String) -> Dictionary:
@@ -415,6 +398,8 @@ static func next_available_level_id(base: String = "my_arena") -> Dictionary:
 
 	var directory := directory_result["directory"] as DirAccess
 	var unavailable_ids := {}
+	for builtin: Dictionary in list_builtin_levels():
+		unavailable_ids[str(builtin["id"])] = true
 	if bool(directory_result["exists"]):
 		var recovery_result := _recover_all_interrupted_saves(directory)
 		for failure: Dictionary in recovery_result.get("failures", []):
@@ -428,8 +413,6 @@ static func next_available_level_id(base: String = "my_arena") -> Dictionary:
 		var suffix := "" if index == 0 else "_%d" % (index + 1)
 		var maximum_base_length := MAX_LEVEL_ID_LENGTH - suffix.length()
 		var candidate := base.left(maximum_base_length) + suffix
-		if _is_builtin_level_id(candidate):
-			continue
 		if unavailable_ids.has(candidate):
 			continue
 		if (
@@ -450,13 +433,6 @@ static func next_available_level_id(base: String = "my_arena") -> Dictionary:
 			% MAX_GENERATED_ID_ATTEMPTS
 		]
 	)
-
-
-static func _is_builtin_level_id(level_id: String) -> bool:
-	for entry: Dictionary in BUILTIN_LEVELS:
-		if entry["id"] == level_id:
-			return true
-	return false
 
 
 static func make_default_level(level_id: String) -> Dictionary:

@@ -2,6 +2,8 @@ class_name LevelRuntimeArena
 extends Arena
 
 signal embedded_restart_requested
+signal campaign_advance_requested
+signal campaign_restart_requested(outcome: int)
 
 const LEVEL_DATA_CODEC := preload(
 	"res://scripts/levels/level_data_codec.gd"
@@ -20,8 +22,12 @@ var level_data: Dictionary = {}
 var level_objects: Dictionary = {}
 var load_errors: Array[String] = []
 var embedded_mode := false
+var campaign_mode := false
 
 var _embedded_snapshot_json := ""
+var _campaign_snapshot_json := ""
+var _campaign_has_next := false
+var _campaign_advance_message := ""
 
 
 func configure_embedded_snapshot(json_text: String) -> void:
@@ -30,20 +36,56 @@ func configure_embedded_snapshot(json_text: String) -> void:
 			"Embedded level snapshot must be configured before entering the tree."
 		)
 		return
+	if campaign_mode:
+		push_error(
+			"Campaign and embedded level modes are mutually exclusive."
+		)
+		return
 
 	embedded_mode = true
 	_embedded_snapshot_json = json_text
+
+
+func configure_campaign_snapshot(
+	json_text: String,
+	has_next: bool,
+	advance_message: String
+) -> void:
+	if is_inside_tree():
+		push_error(
+			"Campaign level snapshot must be configured before entering the tree."
+		)
+		return
+	if embedded_mode:
+		push_error(
+			"Campaign and embedded level modes are mutually exclusive."
+		)
+		return
+	if campaign_mode:
+		push_error("Campaign level snapshot is already configured.")
+		return
+
+	campaign_mode = true
+	_campaign_snapshot_json = json_text
+	_campaign_has_next = has_next
+	_campaign_advance_message = advance_message
 
 
 func _ready() -> void:
 	if embedded_mode:
 		controls_label.text += "    Esc — в редактор"
 
-	var load_result: Dictionary = (
-		LEVEL_DATA_CODEC.decode_text(_embedded_snapshot_json)
-		if embedded_mode
-		else LEVEL_DATA_CODEC.load_file(level_path)
-	)
+	var load_result: Dictionary
+	if campaign_mode:
+		load_result = LEVEL_DATA_CODEC.decode_text(
+			_campaign_snapshot_json
+		)
+	elif embedded_mode:
+		load_result = LEVEL_DATA_CODEC.decode_text(
+			_embedded_snapshot_json
+		)
+	else:
+		load_result = LEVEL_DATA_CODEC.load_file(level_path)
 	if not bool(load_result["ok"]):
 		_show_load_failure(load_result["errors"])
 		return
@@ -60,7 +102,11 @@ func _ready() -> void:
 	level_objects = build_result["objects"]
 	title_label.text = level_data["title"]
 	status_label.text = level_data["objective"]
-	clear_message = level_data["clear_message"]
+	clear_message = (
+		_campaign_advance_message
+		if campaign_mode and _campaign_has_next
+		else level_data["clear_message"]
+	)
 	level_loaded = true
 	super._ready()
 
@@ -69,9 +115,25 @@ func get_level_object(object_id: String) -> Node:
 	return level_objects.get(object_id) as Node
 
 
+func _should_advance_after_clear() -> bool:
+	if campaign_mode:
+		return _campaign_has_next
+	return super._should_advance_after_clear()
+
+
+func _advance_arena() -> bool:
+	if campaign_mode:
+		campaign_advance_requested.emit()
+		return true
+	return super._advance_arena()
+
+
 func _reload_scene() -> void:
 	if embedded_mode:
 		embedded_restart_requested.emit()
+		return
+	if campaign_mode:
+		campaign_restart_requested.emit(int(pending_outcome))
 		return
 
 	super._reload_scene()

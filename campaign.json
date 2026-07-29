@@ -1,0 +1,48 @@
+{
+	"schema_version": 1,
+	"campaign_id": "main",
+	"advance_message": "АРЕНА ПРОЙДЕНА  /  ДАЛЬШЕ...",
+	"final_behavior": "restart_final_level",
+	"levels": [
+		{
+			"level_id": "arena_01_data",
+			"path": "res://levels/arena_01.json",
+			"catalog_title": "Arena 01 / Патруль"
+		},
+		{
+			"level_id": "arena_02_data",
+			"path": "res://levels/arena_02.json",
+			"catalog_title": "Arena 02 / Опора"
+		},
+		{
+			"level_id": "arena_03_data",
+			"path": "res://levels/arena_03.json",
+			"catalog_title": "Arena 03 / Толкач"
+		},
+		{
+			"level_id": "arena_04_data",
+			"path": "res://levels/arena_04.json",
+			"catalog_title": "Arena 04 / Катапульта"
+		},
+		{
+			"level_id": "arena_05_data",
+			"path": "res://levels/arena_05.json",
+			"catalog_title": "Arena 05 / Стрелок"
+		},
+		{
+			"level_id": "arena_06_data",
+			"path": "res://levels/arena_06.json",
+			"catalog_title": "Arena 06 / Чужая рука"
+		},
+		{
+			"level_id": "arena_07_data",
+			"path": "res://levels/arena_07.json",
+			"catalog_title": "Arena 07 / Лифт"
+		},
+		{
+			"level_id": "arena_08_data",
+			"path": "res://levels/arena_08.json",
+			"catalog_title": "Arena 08 / Экзамен"
+		}
+	]
+}

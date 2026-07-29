@@ -57,7 +57,7 @@ func _on_death_zone_body_entered(body: Node2D) -> void:
 			status_label.text = clear_message
 			_schedule_outcome(
 				clear_restart_delay,
-				not next_arena_path.is_empty(),
+				_should_advance_after_clear(),
 				Outcome.CLEAR
 			)
 
@@ -80,17 +80,29 @@ func _finish_outcome(generation: int) -> void:
 	if generation != outcome_generation:
 		return
 
-	if advance_after_delay:
-		var change_error := get_tree().change_scene_to_file(next_arena_path)
-		if change_error == OK:
-			return
-
-		push_error(
-			"Could not open the next arena '%s' (error %d)."
-			% [next_arena_path, change_error]
-		)
+	if advance_after_delay and _advance_arena():
+		return
 
 	_reload_scene()
+
+
+func _should_advance_after_clear() -> bool:
+	return not next_arena_path.is_empty()
+
+
+func _advance_arena() -> bool:
+	if next_arena_path.is_empty():
+		return false
+
+	var change_error := get_tree().change_scene_to_file(next_arena_path)
+	if change_error == OK:
+		return true
+
+	push_error(
+		"Could not open the next arena '%s' (error %d)."
+		% [next_arena_path, change_error]
+	)
+	return false
 
 
 func _reload_scene() -> void:

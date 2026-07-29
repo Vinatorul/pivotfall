@@ -1345,7 +1345,7 @@ func _request_return_to_game() -> void:
 
 
 func _perform_return_to_game() -> void:
-	var scene_path := "res://scenes/arena_01.tscn"
+	var scene_path := "res://scenes/campaign_runner.tscn"
 	var selector := get_node_or_null("/root/DebugLevelSelector")
 	if (
 		is_instance_valid(selector)
@@ -1375,7 +1375,10 @@ func _perform_return_to_game() -> void:
 func _refresh_load_options(select_id := "") -> String:
 	load_entries.clear()
 	load_options.clear()
-	for builtin: Dictionary in LEVEL_STORAGE.list_builtin_levels():
+	var builtin_result: Dictionary = (
+		LEVEL_STORAGE.load_builtin_catalog()
+	)
+	for builtin: Dictionary in builtin_result.get("entries", []):
 		var label := "★ Пример: %s" % builtin["title"]
 		load_entries.append(
 			{
@@ -1424,6 +1427,11 @@ func _refresh_load_options(select_id := "") -> String:
 				load_options.select(index)
 
 	var storage_messages := PackedStringArray()
+	if not bool(builtin_result.get("ok", false)):
+		storage_messages.append(
+			"Встроенная кампания недоступна: %s"
+			% _first_error(builtin_result)
+		)
 	var result_notice := _storage_notice_from_result(result)
 	if not result_notice.is_empty():
 		storage_messages.append(result_notice)
