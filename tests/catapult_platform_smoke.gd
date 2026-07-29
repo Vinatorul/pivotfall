@@ -8,6 +8,9 @@ const LEVEL_DATA_CODEC := preload(
 const LEVEL_DATA_VALIDATOR := preload(
 	"res://scripts/levels/level_data_validator.gd"
 )
+const LEVEL_BEHAVIOR_PRESETS := preload(
+	"res://scripts/levels/level_behavior_presets.gd"
+)
 const LEVEL_STORAGE := preload(
 	"res://scripts/levels/level_storage.gd"
 )
@@ -151,8 +154,20 @@ func _test_builtin_schema_and_preview() -> void:
 	canonical_keys.sort()
 	_expect(
 		bool(normalized["ok"])
-		and canonical_keys == ["id", "position", "type"],
-		"Catapult schema is not the compact id/type/position contract."
+		and canonical_keys == [
+			"behavior_preset",
+			"id",
+			"position",
+			"type",
+		]
+		and canonical_catapult.get(
+			"behavior_preset",
+			""
+		) == "standard",
+		(
+			"Catapult schema is not the compact position plus canonical "
+			+ "standard preset contract."
+		)
 	)
 
 	for invalid_key: String in [
@@ -172,6 +187,18 @@ func _test_builtin_schema_and_preview() -> void:
 		_expect_invalid(
 			injected,
 			"catapult with internal '%s' tuning" % invalid_key
+		)
+
+	for invalid_preset: Variant in ["unknown", 7]:
+		var invalid_behavior := _make_forward_reference_level()
+		_object_by_id(
+			invalid_behavior,
+			"catapult_1"
+		)["behavior_preset"] = invalid_preset
+		_expect_invalid(
+			invalid_behavior,
+			"catapult with invalid behavior preset %s"
+			% str(invalid_preset)
 		)
 
 	for invalid_position: Array in [
@@ -282,6 +309,23 @@ func _test_builtin_schema_and_preview() -> void:
 			LevelEditorCanvas.CATAPULT_PREVIEW_PLAYER_DRAG
 		)
 	)
+	var exam_trajectory := (
+		LevelEditorCanvas.catapult_trajectory_points(
+			Vector2(270, 332),
+			LevelEditorCanvas.CATAPULT_PREVIEW_ENEMY_DRAG,
+			"exam"
+		)
+	)
+	var standard_guide := (
+		LevelEditorCanvas.catapult_guide_points(pivot)
+	)
+	var exam_guide := LevelEditorCanvas.catapult_guide_points(
+		pivot,
+		"exam"
+	)
+	var exam_arrow := (
+		LevelEditorCanvas.catapult_guide_arrow_polygon(exam_guide)
+	)
 	_expect(
 		rest_rect.is_equal_approx(Rect2(180, 350, 180, 20))
 		and launch_rect.is_equal_approx(
@@ -308,13 +352,33 @@ func _test_builtin_schema_and_preview() -> void:
 		and player_trajectory[12].distance_to(
 			Vector2(387.576, 305.9)
 		) < 0.01
+		and exam_trajectory[12].distance_to(
+			Vector2(295.596, 341.9)
+		) < 0.01
+		and standard_guide.size() == 3
+		and standard_guide[0].is_equal_approx(Vector2(270, 328))
+		and standard_guide[2].distance_to(
+			Vector2(389.196, 301.9)
+		) < 0.01
+		and exam_guide.size() == 3
+		and exam_guide[2].distance_to(
+			Vector2(295.596, 337.9)
+		) < 0.01
+		and exam_arrow.size() == 3
+		and exam_arrow[0].is_equal_approx(exam_guide[2])
+		and LEVEL_BEHAVIOR_PRESETS.catapult_launch_impulse(
+			"standard"
+		).is_equal_approx(Vector2(700, -280))
+		and LEVEL_BEHAVIOR_PRESETS.catapult_launch_impulse(
+			"exam"
+		).is_equal_approx(Vector2(180, -80))
 		and LevelEditorCanvas.clamp_catapult_position(
 			Vector2(-100, -100)
 		).is_equal_approx(Vector2(32, 94))
 		and LevelEditorCanvas.clamp_catapult_position(
 			Vector2(900, 900)
 		).is_equal_approx(Vector2(748, 530)),
-		"Catapult editor geometry or initial trajectory drifted."
+		"Catapult editor geometry or standard/exam trajectory drifted."
 	)
 
 
@@ -371,7 +435,9 @@ func _test_builder_forward_reference() -> void:
 		and catapult.position.is_equal_approx(Vector2(180, 360))
 		and is_equal_approx(catapult.launch_direction, 1.0)
 		and catapult.launch_impulse.is_equal_approx(
-			LevelEditorCanvas.CATAPULT_LAUNCH_IMPULSE
+			LEVEL_BEHAVIOR_PRESETS.catapult_launch_impulse(
+				"standard"
+			)
 		)
 		and is_equal_approx(
 			-catapult.swing_angle_degrees,
@@ -637,19 +703,38 @@ func _test_editor_vertical_slice() -> void:
 
 	editor.call("_select_object", "catapult_1")
 	await process_frame
+	var preset_options := (
+		_find_property_editor(editor, "PRESET") as OptionButton
+	)
 	_expect(
 		editor.source_label == "ПРИМЕР"
 		and not editor.draft.is_dirty()
 		and bool(editor.validation_result.get("ok", false))
 		and is_instance_valid(_find_property_editor(editor, "X"))
 		and is_instance_valid(_find_property_editor(editor, "Y"))
+		and _selected_option_metadata(preset_options) == "standard"
 		and not is_instance_valid(
 			_find_property_editor(editor, "DIRECTION")
 		)
 		and not is_instance_valid(_find_property_editor(editor, "SPEED"))
-		and "ЗАПУСК ВПРАВО" in editor.inspector_hint.text,
+		and "PRESET STANDARD" in editor.inspector_hint.text
+		and "700, -280" in editor.inspector_hint.text,
 		"Catapult built-in or compact inspector is incorrect."
 	)
+	if is_instance_valid(preset_options):
+		preset_options.select(1)
+		preset_options.item_selected.emit(1)
+		await process_frame
+		_expect(
+			editor.draft.find_object(
+				"catapult_1"
+			).get("behavior_preset", "") == "exam"
+			and "PRESET EXAM" in editor.inspector_hint.text
+			and "180, -80" in editor.inspector_hint.text,
+			"Catapult PRESET inspector did not apply the exam variant."
+		)
+		editor.call("_undo")
+		await process_frame
 
 	editor.canvas.grab_focus()
 	await process_frame
@@ -685,7 +770,8 @@ func _test_editor_vertical_slice() -> void:
 	_expect(
 		placed.get("type", "") == "catapult_platform"
 		and placed.get("position", []) == [500, 300]
-		and placed.keys().size() == 3
+		and placed.get("behavior_preset", "") == "standard"
+		and placed.keys().size() == 4
 		and hit.get("id", "") == placed_id
 		and catapult_blocker.get(
 			"rect",
@@ -705,7 +791,8 @@ func _test_editor_vertical_slice() -> void:
 	_expect(
 		duplicate_id != placed_id
 		and duplicate.get("position", []) == [500, 320]
-		and duplicate.keys().size() == 3,
+		and duplicate.get("behavior_preset", "") == "standard"
+		and duplicate.keys().size() == 4,
 		"Catapult duplicate leaked tuning or used the wrong offset."
 	)
 
@@ -994,6 +1081,12 @@ func _find_property_editor(
 		):
 			return children[1] as Control
 	return null
+
+
+func _selected_option_metadata(options: OptionButton) -> Variant:
+	if not is_instance_valid(options) or options.selected < 0:
+		return null
+	return options.get_item_metadata(options.selected)
 
 
 func _load_entry_index(editor: LevelEditor, level_id: String) -> int:

@@ -1,6 +1,9 @@
 class_name LevelBuilder
 extends RefCounted
 
+const LEVEL_BEHAVIOR_PRESETS := preload(
+	"res://scripts/levels/level_behavior_presets.gd"
+)
 const SOLID_RECT_SCENE := preload(
 	"res://scenes/level_solid_rect.tscn"
 )
@@ -161,6 +164,18 @@ static func _create_object(definition: Dictionary) -> Dictionary:
 
 			enemy.position = _vector_from(definition["position"])
 			enemy.patrol_direction = float(definition["direction"])
+			var preset_result := _apply_shove_preset(
+				enemy,
+				str(
+					definition.get(
+						"behavior_preset",
+						LEVEL_BEHAVIOR_PRESETS.STANDARD_PRESET
+					)
+				)
+			)
+			if not preset_result.is_empty():
+				enemy.free()
+				return _object_failure(preset_result)
 			return _object_success(enemy, "actors")
 
 		"shooter_enemy":
@@ -173,6 +188,18 @@ static func _create_object(definition: Dictionary) -> Dictionary:
 				)
 
 			enemy.position = _vector_from(definition["position"])
+			var preset_result := _apply_shooter_preset(
+				enemy,
+				str(
+					definition.get(
+						"behavior_preset",
+						LEVEL_BEHAVIOR_PRESETS.STANDARD_PRESET
+					)
+				)
+			)
+			if not preset_result.is_empty():
+				enemy.free()
+				return _object_failure(preset_result)
 			return _object_success(enemy, "actors")
 
 		"catapult_platform":
@@ -186,6 +213,18 @@ static func _create_object(definition: Dictionary) -> Dictionary:
 				)
 
 			platform.position = _vector_from(definition["position"])
+			var preset_result := _apply_catapult_preset(
+				platform,
+				str(
+					definition.get(
+						"behavior_preset",
+						LEVEL_BEHAVIOR_PRESETS.STANDARD_PRESET
+					)
+				)
+			)
+			if not preset_result.is_empty():
+				platform.free()
+				return _object_failure(preset_result)
 			return _object_success(platform, "geometry")
 
 		"vertical_platform":
@@ -236,6 +275,91 @@ static func _create_object(definition: Dictionary) -> Dictionary:
 	return _object_failure(
 		"Builder does not support object type '%s'." % object_type
 	)
+
+
+static func _apply_shove_preset(
+	enemy: ShoveEnemy,
+	preset: String
+) -> String:
+	var values := LEVEL_BEHAVIOR_PRESETS.values_for(
+		"shove_enemy",
+		preset
+	)
+	if values.is_empty():
+		return (
+			"Behavior preset '%s' is not supported for shove_enemy."
+			% preset
+		)
+
+	enemy.patrol_speed = float(values["patrol_speed"])
+	enemy.detection_range = float(values["detection_range"])
+	enemy.vertical_detection_tolerance = float(
+		values["vertical_detection_tolerance"]
+	)
+	enemy.telegraph_time = float(values["telegraph_time"])
+	enemy.lunge_speed = float(values["lunge_speed"])
+	enemy.lunge_time = float(values["lunge_time"])
+	enemy.recovery_time = float(values["recovery_time"])
+	enemy.shove_horizontal_impulse = float(
+		values["shove_horizontal_impulse"]
+	)
+	enemy.shove_vertical_impulse = float(
+		values["shove_vertical_impulse"]
+	)
+	return ""
+
+
+static func _apply_shooter_preset(
+	enemy: ShooterEnemy,
+	preset: String
+) -> String:
+	var values := LEVEL_BEHAVIOR_PRESETS.values_for(
+		"shooter_enemy",
+		preset
+	)
+	if values.is_empty():
+		return (
+			"Behavior preset '%s' is not supported for shooter_enemy."
+			% preset
+		)
+
+	enemy.line_length = float(values["line_length"])
+	enemy.aim_time = float(values["aim_time"])
+	enemy.aim_lock_time = float(values["aim_lock_time"])
+	enemy.cooldown_time = float(values["cooldown_time"])
+	enemy.muzzle_flash_time = float(values["muzzle_flash_time"])
+	return ""
+
+
+static func _apply_catapult_preset(
+	platform: RotatingPlatform,
+	preset: String
+) -> String:
+	var values := LEVEL_BEHAVIOR_PRESETS.values_for(
+		"catapult_platform",
+		preset
+	)
+	if values.is_empty():
+		return (
+			"Behavior preset '%s' is not supported for catapult_platform."
+			% preset
+		)
+
+	platform.warning_time = float(values["warning_time"])
+	platform.swing_out_time = float(values["swing_out_time"])
+	platform.swing_hold_time = float(values["swing_hold_time"])
+	platform.return_time = float(values["return_time"])
+	platform.clearance_time = float(values["clearance_time"])
+	platform.clearance_attempts = int(values["clearance_attempts"])
+	platform.swing_angle_degrees = float(
+		values["swing_angle_degrees"]
+	)
+	platform.launch_direction = float(values["launch_direction"])
+	platform.launch_impulse = Vector2(values["launch_impulse"])
+	platform.clearance_impulse = Vector2(
+		values["clearance_impulse"]
+	)
+	return ""
 
 
 static func _resolve_links(

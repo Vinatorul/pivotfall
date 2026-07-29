@@ -12,12 +12,19 @@ extends RefCounted
 ##     }
 ## Invalid input never exposes partially normalized data through `data`.
 
+const LEVEL_BEHAVIOR_PRESETS := preload(
+	"res://scripts/levels/level_behavior_presets.gd"
+)
+
 const SCHEMA_VERSION := 1
 
 const DEFAULT_OBJECTIVE := ""
 const DEFAULT_CLEAR_MESSAGE := "АРЕНА ПРОЙДЕНА  /  ПЕРЕЗАПУСК..."
 const DEFAULT_PATROL_DIRECTION := -1
 const DEFAULT_PATROL_SPEED := 85.0
+const DEFAULT_BEHAVIOR_PRESET := (
+	LEVEL_BEHAVIOR_PRESETS.STANDARD_PRESET
+)
 
 const MAX_LEVEL_ID_LENGTH := 64
 const MAX_OBJECT_ID_LENGTH := 64
@@ -69,9 +76,25 @@ const PATROL_ENEMY_KEYS := [
 	"direction",
 	"speed",
 ]
-const SHOVE_ENEMY_KEYS := ["id", "type", "position", "direction"]
-const SHOOTER_ENEMY_KEYS := ["id", "type", "position"]
-const CATAPULT_PLATFORM_KEYS := ["id", "type", "position"]
+const SHOVE_ENEMY_KEYS := [
+	"id",
+	"type",
+	"position",
+	"direction",
+	"behavior_preset",
+]
+const SHOOTER_ENEMY_KEYS := [
+	"id",
+	"type",
+	"position",
+	"behavior_preset",
+]
+const CATAPULT_PLATFORM_KEYS := [
+	"id",
+	"type",
+	"position",
+	"behavior_preset",
+]
 const VERTICAL_PLATFORM_KEYS := ["id", "type", "position"]
 const TOGGLE_PLATFORM_KEYS := [
 	"id",
@@ -513,6 +536,11 @@ static func _validate_object(
 			_reject_unknown_keys(object, SHOVE_ENEMY_KEYS, path, errors)
 			var position: Variant = null
 			var direction: Variant = DEFAULT_PATROL_DIRECTION
+			var behavior_preset := _read_behavior_preset(
+				object,
+				path,
+				errors
+			)
 			if _require_key(object, "position", path, errors):
 				position = _read_int_array(
 					object["position"],
@@ -548,12 +576,18 @@ static func _validate_object(
 					"type": object_type,
 					"position": position,
 					"direction": direction,
+					"behavior_preset": behavior_preset,
 				},
 			}
 
 		"shooter_enemy":
 			_reject_unknown_keys(object, SHOOTER_ENEMY_KEYS, path, errors)
 			var position: Variant = null
+			var behavior_preset := _read_behavior_preset(
+				object,
+				path,
+				errors
+			)
 			if _require_key(object, "position", path, errors):
 				position = _read_int_array(
 					object["position"],
@@ -577,6 +611,7 @@ static func _validate_object(
 					"id": object_id,
 					"type": object_type,
 					"position": position,
+					"behavior_preset": behavior_preset,
 				},
 			}
 
@@ -588,6 +623,11 @@ static func _validate_object(
 				errors
 			)
 			var position: Variant = null
+			var behavior_preset := _read_behavior_preset(
+				object,
+				path,
+				errors
+			)
 			if _require_key(object, "position", path, errors):
 				position = _read_int_array(
 					object["position"],
@@ -616,6 +656,7 @@ static func _validate_object(
 					"id": object_id,
 					"type": object_type,
 					"position": position,
+					"behavior_preset": behavior_preset,
 				},
 			}
 
@@ -1283,6 +1324,38 @@ static func _support_definition(object: Dictionary) -> Dictionary:
 			],
 		}
 	return {}
+
+
+static func _read_behavior_preset(
+	object: Dictionary,
+	path: String,
+	errors: Array[String]
+) -> String:
+	if not object.has("behavior_preset"):
+		return DEFAULT_BEHAVIOR_PRESET
+
+	var raw: Variant = object["behavior_preset"]
+	if typeof(raw) != TYPE_STRING:
+		errors.append(
+			"%s.behavior_preset must be a string." % path
+		)
+		return DEFAULT_BEHAVIOR_PRESET
+
+	var preset := String(raw)
+	if not LEVEL_BEHAVIOR_PRESETS.is_valid_preset(preset):
+		errors.append(
+			(
+				"%s.behavior_preset must be one of %s; got '%s'."
+				% [
+					path,
+					LEVEL_BEHAVIOR_PRESETS.preset_names(),
+					preset,
+				]
+			)
+		)
+		return DEFAULT_BEHAVIOR_PRESET
+
+	return preset
 
 
 static func _read_boolean(

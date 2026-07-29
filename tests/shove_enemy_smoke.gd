@@ -104,16 +104,32 @@ func _test_builtin_and_schema() -> void:
 		and _object_by_id(
 			normalized["data"],
 			"shove_1"
-		).get("direction", 0) == -1,
-		"A shove-only enemy level was rejected or missed direction=-1."
+		).get("direction", 0) == -1
+		and _object_by_id(
+			normalized["data"],
+			"shove_1"
+		).get("behavior_preset", "") == "standard",
+		(
+			"A shove-only enemy level was rejected or missed its "
+			+ "direction/default standard preset."
+		)
 	)
 	if bool(normalized["ok"]):
 		var canonical_shove := _object_by_id(
 			normalized["data"],
 			"shove_1"
 		)
+		var canonical_keys := canonical_shove.keys()
+		canonical_keys.sort()
 		_expect(
-			not canonical_shove.has("speed")
+			canonical_keys == [
+				"behavior_preset",
+				"direction",
+				"id",
+				"position",
+				"type",
+			]
+			and not canonical_shove.has("speed")
 			and not canonical_shove.has("telegraph_time"),
 			"Canonical shove data leaked internal combat tuning."
 		)
@@ -129,6 +145,18 @@ func _test_builtin_and_schema() -> void:
 		_expect_invalid(
 			injected,
 			"shove enemy with internal '%s' tuning" % invalid_key
+		)
+
+	for invalid_preset: Variant in ["unknown", 7]:
+		var invalid_behavior := _make_continuous_floor_level()
+		_object_by_id(
+			invalid_behavior,
+			"shove_1"
+		)["behavior_preset"] = invalid_preset
+		_expect_invalid(
+			invalid_behavior,
+			"shove enemy with invalid behavior preset %s"
+			% str(invalid_preset)
 		)
 
 	var wrong_direction := _make_continuous_floor_level()
@@ -178,8 +206,15 @@ func _test_builtin_and_schema() -> void:
 	_expect(
 		LevelEditorCanvas.shove_detection_rect(
 			Vector2(500, 300)
-		).is_equal_approx(Rect2(320, 252, 360, 96)),
-		"Editor shove detection preview drifted from ±180 × ±48."
+		).is_equal_approx(Rect2(320, 252, 360, 96))
+		and LevelEditorCanvas.shove_detection_rect(
+			Vector2(500, 300),
+			"exam"
+		).is_equal_approx(Rect2(410, 252, 180, 96)),
+		(
+			"Editor shove detection preview drifted from the standard "
+			+ "or exam preset."
+		)
 	)
 
 
@@ -347,12 +382,34 @@ func _test_editor_vertical_slice() -> void:
 	var direction_options := (
 		_find_property_editor(editor, "DIRECTION") as OptionButton
 	)
+	var preset_options := (
+		_find_property_editor(editor, "PRESET") as OptionButton
+	)
 	_expect(
 		is_instance_valid(direction_options)
+		and _selected_option_metadata(preset_options) == "standard"
 		and not is_instance_valid(_find_property_editor(editor, "SPEED"))
+		and "PRESET STANDARD" in editor.inspector_hint.text
 		and "±180" in editor.inspector_hint.text,
 		"Shove inspector exposed tuning or omitted direction/range guidance."
 	)
+	if is_instance_valid(preset_options):
+		preset_options.select(1)
+		preset_options.item_selected.emit(1)
+		await process_frame
+		_expect(
+			editor.draft.find_object(
+				"shove_1"
+			).get("behavior_preset", "") == "exam"
+			and "PRESET EXAM" in editor.inspector_hint.text
+			and "±90" in editor.inspector_hint.text,
+			"Shove PRESET inspector did not apply the exam preview."
+		)
+		editor.call("_undo")
+		await process_frame
+		direction_options = (
+			_find_property_editor(editor, "DIRECTION") as OptionButton
+		)
 	if is_instance_valid(direction_options):
 		direction_options.select(1)
 		direction_options.item_selected.emit(1)
@@ -389,6 +446,8 @@ func _test_editor_vertical_slice() -> void:
 		placed.get("type", "") == "shove_enemy"
 		and placed.get("position", []) == [700, 420]
 		and placed.get("direction", 0) == -1
+		and placed.get("behavior_preset", "") == "standard"
+		and placed.keys().size() == 5
 		and not placed.has("speed")
 		and hit.get("id", "") == placed_id,
 		"Shove palette placement or hit-test produced the wrong object."
@@ -407,6 +466,11 @@ func _test_editor_vertical_slice() -> void:
 			"position",
 			[]
 		) == [700, 440]
+		and editor.draft.find_object(duplicate_id).get(
+			"behavior_preset",
+			""
+		) == "standard"
+		and editor.draft.find_object(duplicate_id).keys().size() == 5
 		and not editor.draft.find_object(duplicate_id).has("speed"),
 		"Shove duplicate did not preserve the compact schema."
 	)
@@ -547,6 +611,12 @@ func _find_property_editor(
 		):
 			return children[1] as Control
 	return null
+
+
+func _selected_option_metadata(options: OptionButton) -> Variant:
+	if not is_instance_valid(options) or options.selected < 0:
+		return null
+	return options.get_item_metadata(options.selected)
 
 
 func _load_entry_index(editor: LevelEditor, level_id: String) -> int:

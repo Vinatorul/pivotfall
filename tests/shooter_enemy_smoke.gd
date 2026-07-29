@@ -274,8 +274,17 @@ func _test_builtin_schema_and_preview() -> void:
 	canonical_keys.sort()
 	_expect(
 		bool(normalized["ok"])
-		and canonical_keys == ["id", "position", "type"],
-		"Shooter schema is not the compact id/type/position contract."
+		and canonical_keys == [
+			"behavior_preset",
+			"id",
+			"position",
+			"type",
+		]
+		and canonical_shooter.get("behavior_preset", "") == "standard",
+		(
+			"Shooter schema is not the compact position plus canonical "
+			+ "standard preset contract."
+		)
 	)
 	var canonical_floor := _object_by_id(
 		normalized.get("data", {}),
@@ -320,6 +329,18 @@ func _test_builtin_schema_and_preview() -> void:
 		_expect_invalid(
 			injected,
 			"shooter enemy with internal '%s' tuning" % invalid_key
+		)
+
+	for invalid_preset: Variant in ["unknown", 7]:
+		var invalid_behavior := _make_open_lane_level()
+		_object_by_id(
+			invalid_behavior,
+			"shooter_1"
+		)["behavior_preset"] = invalid_preset
+		_expect_invalid(
+			invalid_behavior,
+			"shooter enemy with invalid behavior preset %s"
+			% str(invalid_preset)
 		)
 
 	var clipped_actor := _make_open_lane_level()
@@ -960,16 +981,34 @@ func _test_editor_vertical_slice() -> void:
 
 	editor.call("_select_object", "shooter_1")
 	await process_frame
+	var preset_options := (
+		_find_property_editor(editor, "PRESET") as OptionButton
+	)
 	_expect(
 		is_instance_valid(_find_property_editor(editor, "X"))
 		and is_instance_valid(_find_property_editor(editor, "Y"))
+		and _selected_option_metadata(preset_options) == "standard"
 		and not is_instance_valid(
 			_find_property_editor(editor, "DIRECTION")
 		)
 		and not is_instance_valid(_find_property_editor(editor, "SPEED"))
+		and "PRESET STANDARD" in editor.inspector_hint.text
 		and "900 PX" in editor.inspector_hint.text,
 		"Shooter inspector exposed tuning or omitted line-range guidance."
 	)
+	if is_instance_valid(preset_options):
+		preset_options.select(1)
+		preset_options.item_selected.emit(1)
+		await process_frame
+		_expect(
+			editor.draft.find_object(
+				"shooter_1"
+			).get("behavior_preset", "") == "exam"
+			and "PRESET EXAM" in editor.inspector_hint.text,
+			"Shooter PRESET inspector did not apply the exam variant."
+		)
+		editor.call("_undo")
+		await process_frame
 
 	editor.canvas.grab_focus()
 	await process_frame
@@ -998,7 +1037,8 @@ func _test_editor_vertical_slice() -> void:
 	_expect(
 		placed.get("type", "") == "shooter_enemy"
 		and placed.get("position", []) == [700, 420]
-		and placed.keys().size() == 3
+		and placed.get("behavior_preset", "") == "standard"
+		and placed.keys().size() == 4
 		and hit.get("id", "") == placed_id,
 		"Shooter palette placement or hit-test broke its compact schema."
 	)
@@ -1014,7 +1054,8 @@ func _test_editor_vertical_slice() -> void:
 	_expect(
 		duplicate_id != placed_id
 		and duplicate.get("position", []) == [700, 440]
-		and duplicate.keys().size() == 3,
+		and duplicate.get("behavior_preset", "") == "standard"
+		and duplicate.keys().size() == 4,
 		"Shooter duplicate leaked runtime tuning or used the wrong offset."
 	)
 	editor.call("_undo")
@@ -1456,6 +1497,12 @@ func _find_property_editor(
 		):
 			return children[1] as Control
 	return null
+
+
+func _selected_option_metadata(options: OptionButton) -> Variant:
+	if not is_instance_valid(options) or options.selected < 0:
+		return null
+	return options.get_item_metadata(options.selected)
 
 
 func _count_projectiles(node: Node) -> int:

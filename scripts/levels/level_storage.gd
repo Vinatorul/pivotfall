@@ -48,6 +48,11 @@ const BUILTIN_LEVELS := [
 		"path": "res://levels/arena_07.json",
 		"title": "Arena 07 / Лифт",
 	},
+	{
+		"id": "arena_08_data",
+		"path": "res://levels/arena_08.json",
+		"title": "Arena 08 / Экзамен",
+	},
 ]
 const USER_LEVEL_ROOT := "user://levels"
 const USER_LEVEL_DIRECTORY := "levels"

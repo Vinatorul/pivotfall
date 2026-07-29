@@ -8,6 +8,10 @@ signal nudge_requested(direction: Vector2i, fine: bool)
 signal link_target_requested(target_id: String)
 signal link_cancel_requested
 
+const LEVEL_BEHAVIOR_PRESETS := preload(
+	"res://scripts/levels/level_behavior_presets.gd"
+)
+
 const LOGICAL_SIZE := Vector2(960.0, 540.0)
 const DEFAULT_GRID_SIZE := 20
 const DEFAULT_SOLID_SIZE := Vector2i(120, 20)
@@ -18,7 +22,6 @@ const FIXED_BORDER_SIZE := 32.0
 const DRAG_THRESHOLD := 4.0
 const TOP_EDGE_HEIGHT := 6.0
 const HINGE_HALF_EXTENTS := Vector2(18.0, 18.0)
-const SHOVE_DETECTION_HALF_SIZE := Vector2(180.0, 48.0)
 const SHOOTER_GUN_PIVOT_OFFSET := Vector2(0.0, -4.0)
 const SHOOTER_MUZZLE_LENGTH := 28.0
 const SHOOTER_LINE_LENGTH := 900.0
@@ -27,7 +30,6 @@ const CATAPULT_SIZE := Vector2(180.0, 20.0)
 const CATAPULT_LAUNCH_AREA_OFFSET := Vector2(0.0, -58.0)
 const CATAPULT_LAUNCH_AREA_SIZE := Vector2(180.0, 52.0)
 const CATAPULT_LAUNCH_ORIGIN_OFFSET := Vector2(90.0, -32.0)
-const CATAPULT_LAUNCH_IMPULSE := Vector2(700.0, -280.0)
 const CATAPULT_SWING_ANGLE_DEGREES := -55.0
 const CATAPULT_PREVIEW_GRAVITY := 1500.0
 const CATAPULT_PREVIEW_ENEMY_DRAG := 420.0
@@ -837,7 +839,8 @@ func _draw_object(
 				view_rect,
 				alpha,
 				object_id == _selected_id
-				and not moving_this_catapult
+				and not moving_this_catapult,
+				_behavior_preset(object)
 			)
 
 		TOOL_PLAYER_SPAWN, TOOL_PATROL_ENEMY, TOOL_SHOVE_ENEMY, TOOL_SHOOTER_ENEMY:
@@ -851,7 +854,8 @@ func _draw_object(
 				_draw_shove_detection(
 					position_values,
 					view_rect,
-					alpha
+					alpha,
+					_behavior_preset(object)
 				)
 			var direction := int(
 				object.get(
@@ -1457,7 +1461,8 @@ func _draw_catapult(
 	position_values: Array,
 	view_rect: Rect2,
 	alpha: float,
-	show_preview: bool
+	show_preview: bool,
+	behavior_preset: String = LEVEL_BEHAVIOR_PRESETS.STANDARD_PRESET
 ) -> void:
 	var position := _point_from_payload(position_values)
 	var rest_rect := catapult_rest_rect(position)
@@ -1509,12 +1514,9 @@ func _draw_catapult(
 		_with_alpha(COLOR_BACKDROP, alpha)
 	)
 
-	var guide_points := PackedVector2Array(
-		[
-			position + Vector2(92.0, -32.0),
-			position + Vector2(126.0, -62.0),
-			position + Vector2(164.0, -80.0),
-		]
+	var guide_points := catapult_guide_points(
+		position,
+		behavior_preset
 	)
 	draw_polyline(
 		_logical_points_to_local(guide_points, view_rect),
@@ -1522,12 +1524,8 @@ func _draw_catapult(
 		2.0,
 		true
 	)
-	var arrow := PackedVector2Array(
-		[
-			position + Vector2(164.0, -80.0),
-			position + Vector2(150.0, -78.0),
-			position + Vector2(158.0, -66.0),
-		]
+	var arrow := catapult_guide_arrow_polygon(
+		guide_points
 	)
 	draw_colored_polygon(
 		_logical_points_to_local(arrow, view_rect),
@@ -1535,13 +1533,19 @@ func _draw_catapult(
 	)
 
 	if show_preview:
-		_draw_catapult_preview(position, view_rect, alpha)
+		_draw_catapult_preview(
+			position,
+			view_rect,
+			alpha,
+			behavior_preset
+		)
 
 
 func _draw_catapult_preview(
 	position: Vector2,
 	view_rect: Rect2,
-	alpha: float
+	alpha: float,
+	behavior_preset: String
 ) -> void:
 	var launch_area := catapult_launch_area_rect(position)
 	var local_launch_area := _logical_rect_to_local(
@@ -1610,7 +1614,8 @@ func _draw_catapult_preview(
 		_draw_catapult_trajectory(
 			catapult_trajectory_points(
 				origin,
-				float(target["drag"])
+				float(target["drag"]),
+				behavior_preset
 			),
 			view_rect,
 			alpha
@@ -1670,11 +1675,63 @@ static func catapult_swing_polygon(
 	return points
 
 
+static func catapult_guide_points(
+	position: Vector2,
+	behavior_preset: String = LEVEL_BEHAVIOR_PRESETS.STANDARD_PRESET
+) -> PackedVector2Array:
+	var trajectory := catapult_trajectory_points(
+		position + CATAPULT_LAUNCH_ORIGIN_OFFSET,
+		CATAPULT_PREVIEW_ENEMY_DRAG,
+		behavior_preset
+	)
+	if trajectory.is_empty():
+		return PackedVector2Array()
+
+	var midpoint_index := floori(
+		float(trajectory.size() - 1) * 0.5
+	)
+	return PackedVector2Array(
+		[
+			trajectory[0],
+			trajectory[midpoint_index],
+			trajectory[trajectory.size() - 1],
+		]
+	)
+
+
+static func catapult_guide_arrow_polygon(
+	guide_points: PackedVector2Array
+) -> PackedVector2Array:
+	if guide_points.size() < 2:
+		return PackedVector2Array()
+
+	var tip := guide_points[guide_points.size() - 1]
+	var direction := (
+		tip - guide_points[guide_points.size() - 2]
+	).normalized()
+	if direction.is_zero_approx():
+		direction = Vector2.RIGHT
+	var perpendicular := Vector2(-direction.y, direction.x)
+	return PackedVector2Array(
+		[
+			tip,
+			tip - direction * 14.0 + perpendicular * 6.0,
+			tip - direction * 14.0 - perpendicular * 6.0,
+		]
+	)
+
+
 static func catapult_trajectory_points(
 	origin: Vector2,
-	horizontal_drag: float = CATAPULT_PREVIEW_ENEMY_DRAG
+	horizontal_drag: float = CATAPULT_PREVIEW_ENEMY_DRAG,
+	behavior_preset: String = LEVEL_BEHAVIOR_PRESETS.STANDARD_PRESET
 ) -> PackedVector2Array:
 	var points := PackedVector2Array()
+	var launch_impulse: Vector2 = (
+		LEVEL_BEHAVIOR_PRESETS.catapult_launch_impulse(
+			behavior_preset
+		)
+	)
 	for index in CATAPULT_PREVIEW_SEGMENTS + 1:
 		var time := (
 			CATAPULT_PREVIEW_DURATION
@@ -1685,10 +1742,10 @@ static func catapult_trajectory_points(
 			origin
 			+ Vector2(
 				(
-					CATAPULT_LAUNCH_IMPULSE.x * time
+					launch_impulse.x * time
 					- 0.5 * horizontal_drag * time * time
 				),
-				CATAPULT_LAUNCH_IMPULSE.y * time
+				launch_impulse.y * time
 			)
 			+ Vector2(
 				0.0,
@@ -1821,14 +1878,15 @@ func _draw_actor(
 func _draw_shove_detection(
 	position_values: Array,
 	view_rect: Rect2,
-	alpha: float
+	alpha: float,
+	behavior_preset: String = LEVEL_BEHAVIOR_PRESETS.STANDARD_PRESET
 ) -> void:
 	var position := Vector2(
 		float(position_values[0]),
 		float(position_values[1])
 	)
 	var local_rect := _logical_rect_to_local(
-		shove_detection_rect(position),
+		shove_detection_rect(position, behavior_preset),
 		view_rect
 	)
 	draw_rect(
@@ -1843,10 +1901,18 @@ func _draw_shove_detection(
 	)
 
 
-static func shove_detection_rect(position: Vector2) -> Rect2:
+static func shove_detection_rect(
+	position: Vector2,
+	behavior_preset: String = LEVEL_BEHAVIOR_PRESETS.STANDARD_PRESET
+) -> Rect2:
+	var half_size: Vector2 = (
+		LEVEL_BEHAVIOR_PRESETS.shove_detection_half_size(
+			behavior_preset
+		)
+	)
 	return Rect2(
-		position - SHOVE_DETECTION_HALF_SIZE,
-		SHOVE_DETECTION_HALF_SIZE * 2.0
+		position - half_size,
+		half_size * 2.0
 	)
 
 
@@ -2165,6 +2231,7 @@ func _draw_drag_preview(view_rect: Rect2) -> void:
 		var position_values: Array = _drag_preview_payload
 		var position := _point_from_payload(position_values)
 		if _drag_object_type == TOOL_CATAPULT_PLATFORM:
+			var dragged_object := _find_object(_drag_object_id)
 			var pivot_bounds := Rect2(
 				position - Vector2.ONE * CATAPULT_PIVOT_RADIUS,
 				Vector2.ONE * CATAPULT_PIVOT_RADIUS * 2.0
@@ -2176,7 +2243,8 @@ func _draw_drag_preview(view_rect: Rect2) -> void:
 				position_values,
 				view_rect,
 				COLOR_GHOST.a,
-				true
+				true,
+				_behavior_preset(dragged_object)
 			)
 		elif _drag_object_type == TOOL_VERTICAL_PLATFORM:
 			logical_rect = vertical_platform_corridor_rect(position)
@@ -2206,10 +2274,12 @@ func _draw_drag_preview(view_rect: Rect2) -> void:
 				half_extents * 2.0
 			)
 			if _drag_object_type == TOOL_SHOVE_ENEMY:
+				var dragged_object := _find_object(_drag_object_id)
 				_draw_shove_detection(
 					position_values,
 					view_rect,
-					COLOR_GHOST.a
+					COLOR_GHOST.a,
+					_behavior_preset(dragged_object)
 				)
 			var actor_direction := int(
 				_find_object(_drag_object_id).get(
@@ -2395,6 +2465,15 @@ func _find_object(object_id: String) -> Dictionary:
 		):
 			return object
 	return {}
+
+
+static func _behavior_preset(object: Dictionary) -> String:
+	return str(
+		object.get(
+			"behavior_preset",
+			LEVEL_BEHAVIOR_PRESETS.STANDARD_PRESET
+		)
+	)
 
 
 func _payload_for_object(object: Dictionary) -> Variant:

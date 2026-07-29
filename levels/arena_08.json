@@ -1,0 +1,89 @@
+{
+	"schema_version": 1,
+	"level_id": "arena_08_data",
+	"title": "GRAYBOX  /  DATA ARENA 08  /  ЭКЗАМЕН",
+	"objective": "ТРИ ВРАГА  /  ТРИ МЕХАНИЗМА",
+	"clear_message": "ЭКЗАМЕН ПРОЙДЕН  /  ПЕРЕЗАПУСК...",
+	"canvas": {
+		"width": 960,
+		"height": 540,
+		"grid_size": 20
+	},
+	"objects": [
+		{
+			"id": "left_floor",
+			"type": "solid_rect",
+			"rect": [32, 496, 288, 44]
+		},
+		{
+			"id": "right_floor",
+			"type": "solid_rect",
+			"rect": [640, 496, 160, 44]
+		},
+		{
+			"id": "cover",
+			"type": "solid_rect",
+			"rect": [764, 430, 36, 66]
+		},
+		{
+			"id": "player_start",
+			"type": "player_spawn",
+			"position": [140, 450]
+		},
+		{
+			"id": "patrol_1",
+			"type": "patrol_enemy",
+			"position": [430, 250],
+			"speed": 40,
+			"direction": 1
+		},
+		{
+			"id": "shove_1",
+			"type": "shove_enemy",
+			"position": [480, 430],
+			"direction": 1,
+			"behavior_preset": "exam"
+		},
+		{
+			"id": "shooter_1",
+			"type": "shooter_enemy",
+			"position": [819, 270],
+			"behavior_preset": "exam"
+		},
+		{
+			"id": "bridge_1",
+			"type": "toggle_platform",
+			"rect": [380, 476, 200, 20],
+			"starts_active": true
+		},
+		{
+			"id": "catapult_1",
+			"type": "catapult_platform",
+			"position": [340, 320],
+			"behavior_preset": "exam"
+		},
+		{
+			"id": "lift_1",
+			"type": "vertical_platform",
+			"position": [840, 330]
+		},
+		{
+			"id": "bridge_hinge",
+			"type": "hinge",
+			"position": [460, 455],
+			"target_id": "bridge_1"
+		},
+		{
+			"id": "catapult_hinge",
+			"type": "hinge",
+			"position": [680, 390],
+			"target_id": "catapult_1"
+		},
+		{
+			"id": "lift_hinge",
+			"type": "hinge",
+			"position": [750, 468],
+			"target_id": "lift_1"
+		}
+	]
+}

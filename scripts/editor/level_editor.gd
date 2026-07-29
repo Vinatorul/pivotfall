@@ -13,6 +13,9 @@ const LEVEL_DATA_CODEC := preload(
 const LEVEL_DATA_VALIDATOR := preload(
 	"res://scripts/levels/level_data_validator.gd"
 )
+const LEVEL_BEHAVIOR_PRESETS := preload(
+	"res://scripts/levels/level_behavior_presets.gd"
+)
 const PLAYTEST_SCENE := preload(
 	"res://scenes/data_arena_01.tscn"
 )
@@ -560,6 +563,7 @@ func _place_object(object_type: String, payload: Variant) -> void:
 					"type": TOOL_SHOVE,
 					"position": (payload as Array).duplicate(),
 					"direction": -1,
+					"behavior_preset": LEVEL_BEHAVIOR_PRESETS.STANDARD_PRESET,
 				}
 			)
 		TOOL_SHOOTER:
@@ -570,6 +574,7 @@ func _place_object(object_type: String, payload: Variant) -> void:
 					"id": object_id,
 					"type": TOOL_SHOOTER,
 					"position": (payload as Array).duplicate(),
+					"behavior_preset": LEVEL_BEHAVIOR_PRESETS.STANDARD_PRESET,
 				}
 			)
 		TOOL_TOGGLE:
@@ -591,6 +596,7 @@ func _place_object(object_type: String, payload: Variant) -> void:
 					"id": object_id,
 					"type": TOOL_CATAPULT,
 					"position": (payload as Array).duplicate(),
+					"behavior_preset": LEVEL_BEHAVIOR_PRESETS.STANDARD_PRESET,
 				}
 			)
 		TOOL_LIFT:
@@ -729,28 +735,54 @@ func _refresh_inspector_hint() -> void:
 		return
 	var selected := draft.find_object(selected_id)
 	if selected.get("type", "") == TOOL_SHOVE:
+		var behavior_preset := _behavior_preset(selected)
+		var half_size: Vector2 = (
+			LEVEL_BEHAVIOR_PRESETS.shove_detection_half_size(
+				behavior_preset
+			)
+		)
 		inspector_hint.text = (
-			"ЦЕЛИТСЯ В ИГРОКА В ЗОНЕ ±180 × ±48\n"
+			"PRESET %s  /  ЗОНА ±%d × ±%d\n"
+			% [
+				behavior_preset.to_upper(),
+				roundi(half_size.x),
+				roundi(half_size.y),
+			]
 			+ "Направление задаёт старт патруля."
 		)
 		inspector_hint.modulate = Color(0.925, 0.365, 0.231)
 		return
 	if selected.get("type", "") == TOOL_SHOOTER:
+		var behavior_preset := _behavior_preset(selected)
 		if draft.find_first_object_of_type(TOOL_PLAYER).is_empty():
 			inspector_hint.text = (
-				"ДОБАВЬТЕ ИГРОКА ДЛЯ ЛИНИИ ПРИЦЕЛА"
+				"PRESET %s\n"
+				% behavior_preset.to_upper()
+				+ "Добавьте игрока для линии прицела."
 			)
 			inspector_hint.modulate = Color(0.973, 0.58, 0.267)
 		else:
 			inspector_hint.text = (
-				"СЛЕДИТ ЗА ИГРОКОМ ДО 900 PX\n"
+				"PRESET %s  /  ЛИНИЯ 900 PX\n"
+				% behavior_preset.to_upper()
 				+ "Пол и активные платформы блокируют выстрел."
 			)
 			inspector_hint.modulate = Color(0.718, 0.376, 0.925)
 		return
 	if selected.get("type", "") == TOOL_CATAPULT:
+		var behavior_preset := _behavior_preset(selected)
+		var launch_impulse: Vector2 = (
+			LEVEL_BEHAVIOR_PRESETS.catapult_launch_impulse(
+				behavior_preset
+			)
+		)
 		inspector_hint.text = (
-			"ФИКСИРОВАННЫЙ ЗАПУСК ВПРАВО\n"
+			"PRESET %s  /  БРОСОК %d, %d\n"
+			% [
+				behavior_preset.to_upper(),
+				roundi(launch_impulse.x),
+				roundi(launch_impulse.y),
+			]
 			+ "Выделение показывает зону и начальную дугу."
 		)
 		inspector_hint.modulate = Color(0.439, 0.827, 0.816)
@@ -1545,14 +1577,23 @@ func _rebuild_inspector() -> void:
 			_add_numeric_property("X", "position:0", position[0])
 			_add_numeric_property("Y", "position:1", position[1])
 			_add_direction_property(int(object["direction"]))
+			_add_behavior_preset_property(
+				_behavior_preset(object)
+			)
 		TOOL_SHOOTER:
 			var position: Array = object["position"]
 			_add_numeric_property("X", "position:0", position[0])
 			_add_numeric_property("Y", "position:1", position[1])
+			_add_behavior_preset_property(
+				_behavior_preset(object)
+			)
 		TOOL_CATAPULT:
 			var position: Array = object["position"]
 			_add_numeric_property("X", "position:0", position[0])
 			_add_numeric_property("Y", "position:1", position[1])
+			_add_behavior_preset_property(
+				_behavior_preset(object)
+			)
 		TOOL_LIFT:
 			var position: Array = object["position"]
 			_add_numeric_property("X", "position:0", position[0])
@@ -1648,6 +1689,35 @@ func _add_direction_property(current: int) -> void:
 	row.add_child(options)
 
 
+func _add_behavior_preset_property(current: String) -> void:
+	var target_id := selected_id
+	var row := _make_property_row("PRESET")
+	var options := OptionButton.new()
+	var selected_index := 0
+	for preset_name: String in LEVEL_BEHAVIOR_PRESETS.preset_names():
+		var index := options.item_count
+		options.add_item(preset_name.to_upper())
+		options.set_item_metadata(index, preset_name)
+		if preset_name == current:
+			selected_index = index
+	options.select(selected_index)
+	options.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	options.item_selected.connect(
+		func(index: int) -> void:
+			if syncing_ui:
+				return
+			draft.update_object(
+				target_id,
+				{
+					"behavior_preset": str(
+						options.get_item_metadata(index)
+					)
+				}
+			)
+	)
+	row.add_child(options)
+
+
 func _add_start_state_property(current: bool) -> void:
 	var target_id := selected_id
 	var row := _make_property_row("START")
@@ -1698,6 +1768,15 @@ func _add_collision_property(current_one_way: bool) -> void:
 			)
 	)
 	row.add_child(options)
+
+
+func _behavior_preset(object: Dictionary) -> String:
+	return str(
+		object.get(
+			"behavior_preset",
+			LEVEL_BEHAVIOR_PRESETS.STANDARD_PRESET
+		)
+	)
 
 
 func _add_hinge_target_property(current_target_id: String) -> void:
