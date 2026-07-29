@@ -37,6 +37,8 @@ const MAX_SUPPORT_WARNING_GAP := 64.0
 const MIN_SHOVE_RUNWAY := 48.0
 const TOGGLE_PLATFORM_HEIGHT := 20
 const MIN_TOGGLE_PLATFORM_WIDTH := 20
+const CATAPULT_SIZE := Vector2i(180, 20)
+const CATAPULT_MINIMUM_Y := 94
 const HINGE_RADIUS := 18
 const ACTOR_HALF_EXTENTS := {
 	"player_spawn": Vector2i(14, 20),
@@ -66,6 +68,7 @@ const PATROL_ENEMY_KEYS := [
 ]
 const SHOVE_ENEMY_KEYS := ["id", "type", "position", "direction"]
 const SHOOTER_ENEMY_KEYS := ["id", "type", "position"]
+const CATAPULT_PLATFORM_KEYS := ["id", "type", "position"]
 const TOGGLE_PLATFORM_KEYS := [
 	"id",
 	"type",
@@ -79,6 +82,7 @@ const SUPPORTED_TYPES := [
 	"patrol_enemy",
 	"shove_enemy",
 	"shooter_enemy",
+	"catapult_platform",
 	"toggle_platform",
 	"hinge",
 ]
@@ -86,6 +90,10 @@ const ENEMY_TYPES := [
 	"patrol_enemy",
 	"shove_enemy",
 	"shooter_enemy",
+]
+const HINGE_TARGET_TYPES := [
+	"toggle_platform",
+	"catapult_platform",
 ]
 
 
@@ -554,6 +562,45 @@ static func _validate_object(
 				},
 			}
 
+		"catapult_platform":
+			_reject_unknown_keys(
+				object,
+				CATAPULT_PLATFORM_KEYS,
+				path,
+				errors
+			)
+			var position: Variant = null
+			if _require_key(object, "position", path, errors):
+				position = _read_int_array(
+					object["position"],
+					"%s.position" % path,
+					2,
+					errors
+				)
+				if position != null:
+					_validate_point_bounds(
+						position,
+						canvas_size,
+						"%s.position" % path,
+						errors
+					)
+					_validate_catapult_playfield_bounds(
+						position,
+						object_id,
+						errors
+					)
+
+			if errors.size() != error_count_before:
+				return {"ok": false, "data": {}}
+			return {
+				"ok": true,
+				"data": {
+					"id": object_id,
+					"type": object_type,
+					"position": position,
+				},
+			}
+
 		"toggle_platform":
 			_reject_unknown_keys(
 				object,
@@ -754,6 +801,29 @@ static func _validate_toggle_platform_playfield_bounds(
 		)
 
 
+static func _validate_catapult_playfield_bounds(
+	point: Array,
+	object_id: String,
+	errors: Array[String]
+) -> void:
+	var x: int = point[0]
+	var y: int = point[1]
+	var half_height := CATAPULT_SIZE.y / 2
+	if (
+		x < PLAYFIELD_LEFT
+		or y < CATAPULT_MINIMUM_Y
+		or x + CATAPULT_SIZE.x > PLAYFIELD_RIGHT
+		or y + half_height > PLAYFIELD_BOTTOM
+	):
+		errors.append(
+			(
+				"Object '%s' bounds must fit inside "
+				+ "the runtime playfield."
+			)
+			% object_id
+		)
+
+
 static func _validate_links(
 	objects: Array[Dictionary],
 	declared_object_ids: Dictionary,
@@ -783,11 +853,11 @@ static func _validate_links(
 			continue
 
 		var target: Dictionary = objects_by_id[target_id]
-		if target["type"] != "toggle_platform":
+		if not HINGE_TARGET_TYPES.has(target["type"]):
 			errors.append(
 				(
-					"Hinge '%s' target '%s' must be a "
-					+ "toggle_platform; got '%s'."
+					"Hinge '%s' target '%s' must be a supported "
+					+ "mechanism; got '%s'."
 				)
 				% [object_id, target_id, target["type"]]
 			)
@@ -799,14 +869,9 @@ static func _validate_actor_placements(
 ) -> void:
 	var solids: Array[Dictionary] = []
 	for object: Dictionary in objects:
-		if (
-			object["type"] == "solid_rect"
-			or (
-				object["type"] == "toggle_platform"
-				and bool(object["starts_active"])
-			)
-		):
-			solids.append(object)
+		var support := _support_definition(object)
+		if not support.is_empty():
+			solids.append(support)
 
 	for object: Dictionary in objects:
 		var object_type: String = object["type"]
@@ -876,15 +941,10 @@ static func _collect_warnings(
 		if object["type"] == "hinge":
 			targeted_platforms[object["target_id"]] = true
 			continue
-		if (
-			object["type"] != "solid_rect"
-			and not (
-				object["type"] == "toggle_platform"
-				and bool(object["starts_active"])
-			)
-		):
+		var support := _support_definition(object)
+		if support.is_empty():
 			continue
-		var values: Array = object["rect"]
+		var values: Array = support["rect"]
 		solids.append(
 			Rect2(
 				float(values[0]),
@@ -952,15 +1012,44 @@ static func _collect_warnings(
 
 	for object: Dictionary in objects:
 		if (
-			object["type"] == "toggle_platform"
+			HINGE_TARGET_TYPES.has(object["type"])
 			and not targeted_platforms.has(object["id"])
 		):
+			var label := (
+				"Toggle platform"
+				if object["type"] == "toggle_platform"
+				else "Catapult platform"
+			)
 			warnings.append(
-				"Toggle platform '%s' has no controlling hinge."
-				% object["id"]
+				"%s '%s' has no controlling hinge."
+				% [label, object["id"]]
 			)
 
 	return warnings
+
+
+static func _support_definition(object: Dictionary) -> Dictionary:
+	var object_type: String = object["type"]
+	if object_type == "solid_rect":
+		return object
+	if (
+		object_type == "toggle_platform"
+		and bool(object["starts_active"])
+	):
+		return object
+	if object_type == "catapult_platform":
+		var position: Array = object["position"]
+		return {
+			"id": object["id"],
+			"type": object_type,
+			"rect": [
+				position[0],
+				position[1] - CATAPULT_SIZE.y / 2,
+				CATAPULT_SIZE.x,
+				CATAPULT_SIZE.y,
+			],
+		}
+	return {}
 
 
 static func _read_boolean(

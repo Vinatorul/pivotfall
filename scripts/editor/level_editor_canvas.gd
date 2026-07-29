@@ -23,6 +23,20 @@ const SHOOTER_GUN_PIVOT_OFFSET := Vector2(0.0, -4.0)
 const SHOOTER_MUZZLE_LENGTH := 28.0
 const SHOOTER_LINE_LENGTH := 900.0
 const SHOOTER_PROJECTILE_RADIUS := 5.0
+const CATAPULT_SIZE := Vector2(180.0, 20.0)
+const CATAPULT_LAUNCH_AREA_OFFSET := Vector2(0.0, -58.0)
+const CATAPULT_LAUNCH_AREA_SIZE := Vector2(180.0, 52.0)
+const CATAPULT_LAUNCH_ORIGIN_OFFSET := Vector2(90.0, -32.0)
+const CATAPULT_LAUNCH_IMPULSE := Vector2(700.0, -280.0)
+const CATAPULT_SWING_ANGLE_DEGREES := -55.0
+const CATAPULT_PREVIEW_GRAVITY := 1500.0
+const CATAPULT_PREVIEW_ENEMY_DRAG := 420.0
+const CATAPULT_PREVIEW_PLAYER_DRAG := 520.0
+const CATAPULT_PREVIEW_DURATION := 0.18
+const CATAPULT_PREVIEW_SEGMENTS := 12
+const CATAPULT_PIVOT_RADIUS := 14.0
+const CATAPULT_MIN_POSITION := Vector2(32.0, 94.0)
+const CATAPULT_MAX_POSITION := Vector2(748.0, 530.0)
 
 const TOOL_SELECT := "select"
 const TOOL_SOLID_RECT := "solid_rect"
@@ -30,6 +44,7 @@ const TOOL_PLAYER_SPAWN := "player_spawn"
 const TOOL_PATROL_ENEMY := "patrol_enemy"
 const TOOL_SHOVE_ENEMY := "shove_enemy"
 const TOOL_SHOOTER_ENEMY := "shooter_enemy"
+const TOOL_CATAPULT_PLATFORM := "catapult_platform"
 const TOOL_TOGGLE_PLATFORM := "toggle_platform"
 const TOOL_HINGE := "hinge"
 const SUPPORTED_TOOLS := [
@@ -39,6 +54,7 @@ const SUPPORTED_TOOLS := [
 	TOOL_PATROL_ENEMY,
 	TOOL_SHOVE_ENEMY,
 	TOOL_SHOOTER_ENEMY,
+	TOOL_CATAPULT_PLATFORM,
 	TOOL_TOGGLE_PLATFORM,
 	TOOL_HINGE,
 ]
@@ -57,11 +73,13 @@ const POINT_OBJECT_TYPES := [
 	TOOL_PATROL_ENEMY,
 	TOOL_SHOVE_ENEMY,
 	TOOL_SHOOTER_ENEMY,
+	TOOL_CATAPULT_PLATFORM,
 	TOOL_HINGE,
 ]
 const DRAW_ORDER := [
 	TOOL_SOLID_RECT,
 	TOOL_TOGGLE_PLATFORM,
+	TOOL_CATAPULT_PLATFORM,
 	TOOL_PLAYER_SPAWN,
 	TOOL_PATROL_ENEMY,
 	TOOL_SHOVE_ENEMY,
@@ -74,8 +92,13 @@ const HIT_ORDER := [
 	TOOL_SHOVE_ENEMY,
 	TOOL_PATROL_ENEMY,
 	TOOL_PLAYER_SPAWN,
+	TOOL_CATAPULT_PLATFORM,
 	TOOL_TOGGLE_PLATFORM,
 	TOOL_SOLID_RECT,
+]
+const HINGE_TARGET_TYPES := [
+	TOOL_TOGGLE_PLATFORM,
+	TOOL_CATAPULT_PLATFORM,
 ]
 
 const ACTOR_HALF_EXTENTS := {
@@ -108,6 +131,12 @@ const COLOR_SHOOTER_GUN := Color(1.0, 0.58, 0.267, 1.0)
 const COLOR_SHOOTER_LINE := Color(1.0, 0.255, 0.31, 0.72)
 const COLOR_SHOOTER_CORRIDOR := Color(1.0, 0.255, 0.31, 0.08)
 const COLOR_SHOOTER_OUT_OF_RANGE := Color(0.439, 0.502, 0.616, 0.55)
+const COLOR_CATAPULT := Color(0.278, 0.345, 0.459, 1.0)
+const COLOR_CATAPULT_EDGE := Color(0.392, 0.455, 0.584, 1.0)
+const COLOR_CATAPULT_ACCENT := Color(0.439, 0.827, 0.816, 0.85)
+const COLOR_CATAPULT_WARNING := Color(0.925, 0.58, 0.267, 0.65)
+const COLOR_CATAPULT_ZONE := Color(0.925, 0.58, 0.267, 0.1)
+const COLOR_CATAPULT_TARGET := Color(1.0, 0.82, 0.36, 0.85)
 const COLOR_TOGGLE_ACTIVE := Color(0.278, 0.345, 0.459, 1.0)
 const COLOR_TOGGLE_INACTIVE := Color(0.278, 0.345, 0.459, 0.2)
 const COLOR_TOGGLE_EDGE := Color(0.439, 0.827, 0.816, 0.9)
@@ -279,9 +308,8 @@ func _gui_input(event: InputEvent) -> void:
 					button_event.position,
 					true
 				)
-				var target := _hit_test_type(
-					logical_position,
-					TOOL_TOGGLE_PLATFORM
+				var target := _hit_test_hinge_target(
+					logical_position
 				)
 				link_target_requested.emit(
 					str(target.get("id", ""))
@@ -303,9 +331,8 @@ func _gui_input(event: InputEvent) -> void:
 			link_motion.position,
 			true
 		)
-		var target := _hit_test_type(
-			_link_cursor_logical,
-			TOOL_TOGGLE_PLATFORM
+		var target := _hit_test_hinge_target(
+			_link_cursor_logical
 		)
 		_link_hover_id = str(target.get("id", ""))
 		queue_redraw()
@@ -347,11 +374,20 @@ func _begin_primary_action(local_position: Vector2) -> void:
 			)
 			queue_redraw()
 
-		TOOL_PLAYER_SPAWN, TOOL_PATROL_ENEMY, TOOL_SHOVE_ENEMY, TOOL_SHOOTER_ENEMY, TOOL_HINGE:
+		TOOL_PLAYER_SPAWN, \
+		TOOL_PATROL_ENEMY, \
+		TOOL_SHOVE_ENEMY, \
+		TOOL_SHOOTER_ENEMY, \
+		TOOL_CATAPULT_PLATFORM, \
+		TOOL_HINGE:
 			var snapped_position := _snap_logical_point(
 				logical_position,
 				false
 			)
+			if _tool == TOOL_CATAPULT_PLATFORM:
+				snapped_position = clamp_catapult_position(
+					snapped_position
+				)
 			placement_requested.emit(
 				_tool,
 				_point_payload(snapped_position)
@@ -490,6 +526,7 @@ func _moved_payload() -> Variant:
 
 	if (
 		ACTOR_HALF_EXTENTS.has(_drag_object_type)
+		or _drag_object_type == TOOL_CATAPULT_PLATFORM
 		or _drag_object_type == TOOL_HINGE
 	):
 		if not _is_number_array(_drag_original_payload, 2):
@@ -500,8 +537,19 @@ func _moved_payload() -> Variant:
 			float(original[0]),
 			float(original[1])
 		) + snapped_delta
-		position.x = clampf(position.x, 0.0, LOGICAL_SIZE.x - 1.0)
-		position.y = clampf(position.y, 0.0, LOGICAL_SIZE.y - 1.0)
+		if _drag_object_type == TOOL_CATAPULT_PLATFORM:
+			position = clamp_catapult_position(position)
+		else:
+			position.x = clampf(
+				position.x,
+				0.0,
+				LOGICAL_SIZE.x - 1.0
+			)
+			position.y = clampf(
+				position.y,
+				0.0,
+				LOGICAL_SIZE.y - 1.0
+			)
 		return _point_payload(position)
 
 	return null
@@ -606,7 +654,9 @@ func _draw_links(view_rect: Rect2) -> void:
 		var selected := str(source.get("id", "")) == _selected_id
 		if (
 			not target.is_empty()
-			and target.get("type", "") == TOOL_TOGGLE_PLATFORM
+			and _is_hinge_target_type(
+				str(target.get("type", ""))
+			)
 		):
 			var target_position := _object_anchor(target)
 			var color := (
@@ -715,6 +765,24 @@ func _draw_object(
 				bool(object.get("starts_active", true)),
 				view_rect,
 				alpha
+			)
+
+		TOOL_CATAPULT_PLATFORM:
+			var position_values: Variant = object.get("position")
+			if not _is_number_array(position_values, 2):
+				return
+			var object_id := str(object.get("id", ""))
+			var moving_this_catapult := (
+				_drag_kind == TOOL_SELECT
+				and _drag_moved
+				and _drag_object_id == object_id
+			)
+			_draw_catapult(
+				position_values,
+				view_rect,
+				alpha,
+				object_id == _selected_id
+				and not moving_this_catapult
 			)
 
 		TOOL_PLAYER_SPAWN, TOOL_PATROL_ENEMY, TOOL_SHOVE_ENEMY, TOOL_SHOOTER_ENEMY:
@@ -838,6 +906,261 @@ func _draw_toggle_platform(
 			_with_alpha(COLOR_TOGGLE_EDGE, alpha),
 			2.0
 		)
+
+
+func _draw_catapult(
+	position_values: Array,
+	view_rect: Rect2,
+	alpha: float,
+	show_preview: bool
+) -> void:
+	var position := _point_from_payload(position_values)
+	var rest_rect := catapult_rest_rect(position)
+	var local_rest := _logical_rect_to_local(rest_rect, view_rect)
+	draw_rect(
+		local_rest,
+		_with_alpha(COLOR_CATAPULT, alpha)
+	)
+	var edge_rect := Rect2(
+		rest_rect.position,
+		Vector2(rest_rect.size.x, 5.0)
+	)
+	draw_rect(
+		_logical_rect_to_local(edge_rect, view_rect),
+		_with_alpha(COLOR_CATAPULT_EDGE, alpha)
+	)
+	draw_rect(
+		local_rest,
+		_with_alpha(COLOR_CATAPULT_ACCENT, alpha),
+		false,
+		2.0
+	)
+
+	var local_pivot := _logical_point_to_local(position, view_rect)
+	var pivot_radius := CATAPULT_PIVOT_RADIUS * _canvas_scale()
+	var pivot_points := PackedVector2Array(
+		[
+			local_pivot + Vector2(0.0, -pivot_radius),
+			local_pivot + Vector2(pivot_radius, 0.0),
+			local_pivot + Vector2(0.0, pivot_radius),
+			local_pivot + Vector2(-pivot_radius, 0.0),
+		]
+	)
+	draw_colored_polygon(
+		pivot_points,
+		_with_alpha(COLOR_CATAPULT_ACCENT, alpha)
+	)
+	var inner_radius := pivot_radius * 0.5
+	var inner_points := PackedVector2Array(
+		[
+			local_pivot + Vector2(0.0, -inner_radius),
+			local_pivot + Vector2(inner_radius, 0.0),
+			local_pivot + Vector2(0.0, inner_radius),
+			local_pivot + Vector2(-inner_radius, 0.0),
+		]
+	)
+	draw_colored_polygon(
+		inner_points,
+		_with_alpha(COLOR_BACKDROP, alpha)
+	)
+
+	var guide_points := PackedVector2Array(
+		[
+			position + Vector2(92.0, -32.0),
+			position + Vector2(126.0, -62.0),
+			position + Vector2(164.0, -80.0),
+		]
+	)
+	draw_polyline(
+		_logical_points_to_local(guide_points, view_rect),
+		_with_alpha(COLOR_CATAPULT_ACCENT, alpha),
+		2.0,
+		true
+	)
+	var arrow := PackedVector2Array(
+		[
+			position + Vector2(164.0, -80.0),
+			position + Vector2(150.0, -78.0),
+			position + Vector2(158.0, -66.0),
+		]
+	)
+	draw_colored_polygon(
+		_logical_points_to_local(arrow, view_rect),
+		_with_alpha(COLOR_CATAPULT_ACCENT, alpha)
+	)
+
+	if show_preview:
+		_draw_catapult_preview(position, view_rect, alpha)
+
+
+func _draw_catapult_preview(
+	position: Vector2,
+	view_rect: Rect2,
+	alpha: float
+) -> void:
+	var launch_area := catapult_launch_area_rect(position)
+	var local_launch_area := _logical_rect_to_local(
+		launch_area,
+		view_rect
+	)
+	draw_rect(
+		local_launch_area,
+		_with_alpha(COLOR_CATAPULT_ZONE, alpha)
+	)
+	draw_rect(
+		local_launch_area,
+		_with_alpha(COLOR_CATAPULT_WARNING, alpha),
+		false,
+		1.5
+	)
+
+	var swing_points := catapult_swing_polygon(position)
+	var closed_swing := swing_points.duplicate()
+	closed_swing.append(swing_points[0])
+	draw_polyline(
+		_logical_points_to_local(closed_swing, view_rect),
+		_with_alpha(COLOR_CATAPULT_WARNING, alpha),
+		2.0,
+		true
+	)
+
+	var preview_targets: Array[Dictionary] = []
+	for object: Variant in _objects():
+		if (
+			typeof(object) != TYPE_DICTIONARY
+			or not ACTOR_OBJECT_TYPES.has(
+				str(object.get("type", ""))
+			)
+		):
+			continue
+		var bounds := _bounds_for_object(object)
+		if not bounds.intersects(launch_area):
+			continue
+		draw_rect(
+			_logical_rect_to_local(bounds, view_rect).grow(2.0),
+			_with_alpha(COLOR_CATAPULT_TARGET, alpha),
+			false,
+			2.0
+		)
+		preview_targets.append(
+			{
+				"origin": _object_anchor(object),
+				"drag": (
+					CATAPULT_PREVIEW_PLAYER_DRAG
+					if object.get("type", "") == TOOL_PLAYER_SPAWN
+					else CATAPULT_PREVIEW_ENEMY_DRAG
+				),
+			}
+		)
+
+	if preview_targets.is_empty():
+		preview_targets.append(
+			{
+				"origin": position + CATAPULT_LAUNCH_ORIGIN_OFFSET,
+				"drag": CATAPULT_PREVIEW_ENEMY_DRAG,
+			}
+		)
+	for target: Dictionary in preview_targets:
+		var origin: Vector2 = target["origin"]
+		_draw_catapult_trajectory(
+			catapult_trajectory_points(
+				origin,
+				float(target["drag"])
+			),
+			view_rect,
+			alpha
+		)
+
+
+func _draw_catapult_trajectory(
+	points: PackedVector2Array,
+	view_rect: Rect2,
+	alpha: float
+) -> void:
+	var local_points := _logical_points_to_local(points, view_rect)
+	for index in local_points.size() - 1:
+		if index % 2 != 0:
+			continue
+		draw_line(
+			local_points[index],
+			local_points[index + 1],
+			_with_alpha(COLOR_CATAPULT_TARGET, alpha),
+			2.0,
+			true
+		)
+	if not local_points.is_empty():
+		draw_circle(
+			local_points[local_points.size() - 1],
+			4.0,
+			_with_alpha(COLOR_CATAPULT_TARGET, alpha)
+		)
+
+
+static func catapult_rest_rect(position: Vector2) -> Rect2:
+	return Rect2(
+		position + Vector2(0.0, -CATAPULT_SIZE.y * 0.5),
+		CATAPULT_SIZE
+	)
+
+
+static func catapult_launch_area_rect(position: Vector2) -> Rect2:
+	return Rect2(
+		position + CATAPULT_LAUNCH_AREA_OFFSET,
+		CATAPULT_LAUNCH_AREA_SIZE
+	)
+
+
+static func catapult_swing_polygon(
+	position: Vector2
+) -> PackedVector2Array:
+	var rotation := deg_to_rad(CATAPULT_SWING_ANGLE_DEGREES)
+	var points := PackedVector2Array()
+	for local_point: Vector2 in [
+		Vector2(0.0, -10.0),
+		Vector2(180.0, -10.0),
+		Vector2(180.0, 10.0),
+		Vector2(0.0, 10.0),
+	]:
+		points.append(position + local_point.rotated(rotation))
+	return points
+
+
+static func catapult_trajectory_points(
+	origin: Vector2,
+	horizontal_drag: float = CATAPULT_PREVIEW_ENEMY_DRAG
+) -> PackedVector2Array:
+	var points := PackedVector2Array()
+	for index in CATAPULT_PREVIEW_SEGMENTS + 1:
+		var time := (
+			CATAPULT_PREVIEW_DURATION
+			* float(index)
+			/ float(CATAPULT_PREVIEW_SEGMENTS)
+		)
+		points.append(
+			origin
+			+ Vector2(
+				(
+					CATAPULT_LAUNCH_IMPULSE.x * time
+					- 0.5 * horizontal_drag * time * time
+				),
+				CATAPULT_LAUNCH_IMPULSE.y * time
+			)
+			+ Vector2(
+				0.0,
+				0.5
+				* CATAPULT_PREVIEW_GRAVITY
+				* time
+				* time
+			)
+		)
+	return points
+
+
+static func clamp_catapult_position(position: Vector2) -> Vector2:
+	return position.clamp(
+		CATAPULT_MIN_POSITION,
+		CATAPULT_MAX_POSITION
+	)
 
 
 func _draw_hinge(
@@ -1103,21 +1426,30 @@ func _shooter_blockers() -> Array[Dictionary]:
 		if typeof(object) != TYPE_DICTIONARY:
 			continue
 		var object_type := str(object.get("type", ""))
-		if (
-			object_type != TOOL_SOLID_RECT
-			and not (
+		var blocker_rect := Rect2()
+		if object_type == TOOL_SOLID_RECT:
+			var values: Variant = object.get("rect")
+			if _is_number_array(values, 4):
+				blocker_rect = _rect_from_payload(values)
+		elif (
 				object_type == TOOL_TOGGLE_PLATFORM
 				and bool(object.get("starts_active", true))
-			)
 		):
-			continue
-		var values: Variant = object.get("rect")
-		if not _is_number_array(values, 4):
+			var values: Variant = object.get("rect")
+			if _is_number_array(values, 4):
+				blocker_rect = _rect_from_payload(values)
+		elif object_type == TOOL_CATAPULT_PLATFORM:
+			var position_values: Variant = object.get("position")
+			if _is_number_array(position_values, 2):
+				blocker_rect = catapult_rest_rect(
+					_point_from_payload(position_values)
+				)
+		if blocker_rect.size == Vector2.ZERO:
 			continue
 		blockers.append(
 			{
 				"id": str(object.get("id", "")),
-				"rect": _rect_from_payload(values),
+				"rect": blocker_rect,
 			}
 		)
 	return blockers
@@ -1269,30 +1601,44 @@ func _draw_drag_preview(view_rect: Rect2) -> void:
 		and _is_number_array(_drag_preview_payload, 2)
 		and (
 			ACTOR_HALF_EXTENTS.has(_drag_object_type)
+			or _drag_object_type == TOOL_CATAPULT_PLATFORM
 			or _drag_object_type == TOOL_HINGE
 		)
 	):
 		var position_values: Array = _drag_preview_payload
-		var position := Vector2(
-			float(position_values[0]),
-			float(position_values[1])
-		)
-		var half_extents := (
-			HINGE_HALF_EXTENTS
-			if _drag_object_type == TOOL_HINGE
-			else Vector2(ACTOR_HALF_EXTENTS[_drag_object_type])
-		)
-		logical_rect = Rect2(
-			position - half_extents,
-			half_extents * 2.0
-		)
-		if _drag_object_type == TOOL_HINGE:
+		var position := _point_from_payload(position_values)
+		if _drag_object_type == TOOL_CATAPULT_PLATFORM:
+			var pivot_bounds := Rect2(
+				position - Vector2.ONE * CATAPULT_PIVOT_RADIUS,
+				Vector2.ONE * CATAPULT_PIVOT_RADIUS * 2.0
+			)
+			logical_rect = catapult_rest_rect(position).merge(
+				pivot_bounds
+			)
+			_draw_catapult(
+				position_values,
+				view_rect,
+				COLOR_GHOST.a,
+				true
+			)
+		elif _drag_object_type == TOOL_HINGE:
+			logical_rect = Rect2(
+				position - HINGE_HALF_EXTENTS,
+				HINGE_HALF_EXTENTS * 2.0
+			)
 			_draw_hinge(
 				position_values,
 				view_rect,
 				COLOR_GHOST.a
 			)
 		else:
+			var half_extents := Vector2(
+				ACTOR_HALF_EXTENTS[_drag_object_type]
+			)
+			logical_rect = Rect2(
+				position - half_extents,
+				half_extents * 2.0
+			)
 			if _drag_object_type == TOOL_SHOVE_ENEMY:
 				_draw_shove_detection(
 					position_values,
@@ -1391,25 +1737,31 @@ func _hit_test(logical_position: Vector2) -> Dictionary:
 	return {}
 
 
-func _hit_test_type(
-	logical_position: Vector2,
-	object_type: String
+func _hit_test_hinge_target(
+	logical_position: Vector2
 ) -> Dictionary:
 	var objects := _objects()
-	for index in range(objects.size() - 1, -1, -1):
-		var object: Variant = objects[index]
-		if (
-			typeof(object) != TYPE_DICTIONARY
-			or object.get("type", "") != object_type
-		):
+	for object_type: String in HIT_ORDER:
+		if not HINGE_TARGET_TYPES.has(object_type):
 			continue
-		var bounds := _bounds_for_object(object)
-		if (
-			bounds.size != Vector2.ZERO
-			and bounds.grow(4.0).has_point(logical_position)
-		):
-			return object
+		for index in range(objects.size() - 1, -1, -1):
+			var object: Variant = objects[index]
+			if (
+				typeof(object) != TYPE_DICTIONARY
+				or object.get("type", "") != object_type
+			):
+				continue
+			var bounds := _bounds_for_object(object)
+			if (
+				bounds.size != Vector2.ZERO
+				and bounds.grow(4.0).has_point(logical_position)
+			):
+				return object
 	return {}
+
+
+func _is_hinge_target_type(object_type: String) -> bool:
+	return HINGE_TARGET_TYPES.has(object_type)
 
 
 func _bounds_for_object(object: Dictionary) -> Rect2:
@@ -1431,6 +1783,17 @@ func _bounds_for_object(object: Dictionary) -> Rect2:
 		)
 		var half_extents: Vector2 = ACTOR_HALF_EXTENTS[object_type]
 		return Rect2(position - half_extents, half_extents * 2.0)
+
+	if object_type == TOOL_CATAPULT_PLATFORM:
+		var position_values: Variant = object.get("position")
+		if not _is_number_array(position_values, 2):
+			return Rect2()
+		var position := _point_from_payload(position_values)
+		var pivot_bounds := Rect2(
+			position - Vector2.ONE * CATAPULT_PIVOT_RADIUS,
+			Vector2.ONE * CATAPULT_PIVOT_RADIUS * 2.0
+		)
+		return catapult_rest_rect(position).merge(pivot_bounds)
 
 	if object_type == TOOL_HINGE:
 		var position_values: Variant = object.get("position")
@@ -1702,6 +2065,18 @@ func _logical_point_to_local(
 	)
 
 
+func _logical_points_to_local(
+	logical_points: PackedVector2Array,
+	view_rect: Rect2
+) -> PackedVector2Array:
+	var local_points := PackedVector2Array()
+	for point: Vector2 in logical_points:
+		local_points.append(
+			_logical_point_to_local(point, view_rect)
+		)
+	return local_points
+
+
 func _rect_from_payload(payload: Array) -> Rect2:
 	return Rect2(
 		float(payload[0]),
@@ -1709,6 +2084,10 @@ func _rect_from_payload(payload: Array) -> Rect2:
 		float(payload[2]),
 		float(payload[3])
 	)
+
+
+func _point_from_payload(payload: Array) -> Vector2:
+	return Vector2(float(payload[0]), float(payload[1]))
 
 
 func _point_payload(point: Vector2) -> Array:

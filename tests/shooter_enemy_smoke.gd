@@ -38,12 +38,13 @@ func _run() -> void:
 
 func _test_builtin_schema_and_preview() -> void:
 	var builtins := LEVEL_STORAGE.list_builtin_levels()
+	var arena_05_index := _dictionary_index_by_id(
+		builtins,
+		"arena_05_data"
+	)
 	_expect(
-		builtins.size() >= 3
-		and builtins[0]["id"] == "arena_01_data"
-		and builtins[1]["id"] == "arena_03_data"
-		and builtins[2]["id"] == "arena_05_data",
-		"Built-in catalog does not expose Arena 05 after 01 and 03."
+		arena_05_index >= 0,
+		"Built-in catalog does not expose Arena 05."
 	)
 
 	var loaded: Dictionary = (
@@ -512,12 +513,15 @@ func _test_editor_vertical_slice() -> void:
 	current_scene = editor
 	await process_frame
 
-	_expect(
-		editor.load_entries.size() >= 3
-		and editor.load_entries[2]["id"] == "arena_05_data",
-		"Editor does not list Arena 05 after the earlier examples."
+	var arena_05_index := _dictionary_index_by_id(
+		editor.load_entries,
+		"arena_05_data"
 	)
-	editor.call("_perform_load_selected_level", 2)
+	_expect(arena_05_index >= 0, "Editor does not list Arena 05.")
+	if arena_05_index < 0:
+		await _cleanup_current_scene()
+		return
+	editor.call("_perform_load_selected_level", arena_05_index)
 	await process_frame
 	var builtin_shooter := (
 		editor.draft.find_first_object_of_type("shooter_enemy")
@@ -812,6 +816,14 @@ func _count_projectiles(node: Node) -> int:
 	for child: Node in node.get_children():
 		count += _count_projectiles(child)
 	return count
+
+
+func _dictionary_index_by_id(entries: Array, entry_id: String) -> int:
+	for index in entries.size():
+		var entry: Dictionary = entries[index]
+		if entry.get("id", "") == entry_id:
+			return index
+	return -1
 
 
 func _object_by_id(data: Dictionary, object_id: String) -> Dictionary:

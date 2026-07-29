@@ -14,6 +14,9 @@ const SHOVE_ENEMY_SCENE := preload(
 const SHOOTER_ENEMY_SCENE := preload(
 	"res://scenes/shooter_enemy.tscn"
 )
+const CATAPULT_PLATFORM_SCENE := preload(
+	"res://scenes/rotating_platform.tscn"
+)
 const TOGGLE_PLATFORM_SCENE := preload(
 	"res://scenes/toggle_platform.tscn"
 )
@@ -168,6 +171,19 @@ static func _create_object(definition: Dictionary) -> Dictionary:
 			enemy.position = _vector_from(definition["position"])
 			return _object_success(enemy, "actors")
 
+		"catapult_platform":
+			var platform := (
+				CATAPULT_PLATFORM_SCENE.instantiate()
+				as RotatingPlatform
+			)
+			if not is_instance_valid(platform):
+				return _object_failure(
+					"Could not instantiate catapult_platform."
+				)
+
+			platform.position = _vector_from(definition["position"])
+			return _object_success(platform, "geometry")
+
 		"toggle_platform":
 			var platform := (
 				TOGGLE_PLATFORM_SCENE.instantiate()
@@ -226,11 +242,14 @@ static func _resolve_links(
 				% source_id
 			)
 			continue
-		if not target is TogglePlatform:
+		if (
+			not target is TogglePlatform
+			and not target is RotatingPlatform
+		):
 			errors.append(
 				(
 					"Hinge '%s' target '%s' is missing or is not "
-					+ "a toggle_platform."
+					+ "a supported mechanism."
 				)
 				% [source_id, target_id]
 			)

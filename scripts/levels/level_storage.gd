@@ -24,6 +24,11 @@ const BUILTIN_LEVELS := [
 		"title": "Arena 03 / Толкач",
 	},
 	{
+		"id": "arena_04_data",
+		"path": "res://levels/arena_04.json",
+		"title": "Arena 04 / Катапульта",
+	},
+	{
 		"id": "arena_05_data",
 		"path": "res://levels/arena_05.json",
 		"title": "Arena 05 / Стрелок",

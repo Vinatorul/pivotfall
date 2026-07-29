@@ -2,6 +2,7 @@ class_name RotatingPlatform
 extends StaticBody2D
 
 signal toggled(is_ready: bool)
+signal launched(body_count: int)
 
 const BODY_COLOR := Color(0.278, 0.345, 0.459, 1.0)
 const EDGE_COLOR := Color(0.392, 0.455, 0.584, 1.0)
@@ -32,6 +33,8 @@ const WARNING_COLOR := Color(0.925, 0.58, 0.267, 0.9)
 @onready var safe_above: Marker2D = $SafeAbove
 
 var is_transitioning := false
+var active_tween: Tween
+var is_cancelling := false
 
 
 func _ready() -> void:
@@ -41,6 +44,11 @@ func _ready() -> void:
 	rest_collision.disabled = false
 	target_preview.visible = false
 	_apply_idle_visual()
+
+
+func _exit_tree() -> void:
+	is_cancelling = true
+	_cancel_active_tween()
 
 
 func request_toggle() -> bool:
@@ -58,13 +66,16 @@ func _run_launch_cycle() -> void:
 	if not is_inside_tree():
 		return
 
-	_apply_impulse(_get_bodies_in(launch_area), _directed(launch_impulse))
+	var launch_bodies := _get_bodies_in(launch_area)
+	_apply_impulse(launch_bodies, _directed(launch_impulse))
+	launched.emit(launch_bodies.size())
 	rest_collision.set_deferred("disabled", true)
 	await get_tree().physics_frame
 	if not is_inside_tree():
 		return
 
 	var swing_tween := create_tween()
+	active_tween = swing_tween
 	swing_tween.set_trans(Tween.TRANS_BACK)
 	swing_tween.set_ease(Tween.EASE_OUT)
 	swing_tween.tween_property(
@@ -74,7 +85,9 @@ func _run_launch_cycle() -> void:
 		swing_out_time
 	)
 	await swing_tween.finished
-	if not is_inside_tree():
+	if active_tween == swing_tween:
+		active_tween = null
+	if is_cancelling or not is_inside_tree():
 		return
 
 	await get_tree().create_timer(swing_hold_time, false).timeout
@@ -82,6 +95,7 @@ func _run_launch_cycle() -> void:
 		return
 
 	var return_tween := create_tween()
+	active_tween = return_tween
 	return_tween.set_trans(Tween.TRANS_SINE)
 	return_tween.set_ease(Tween.EASE_IN_OUT)
 	return_tween.tween_property(
@@ -91,7 +105,9 @@ func _run_launch_cycle() -> void:
 		return_time
 	)
 	await return_tween.finished
-	if not is_inside_tree():
+	if active_tween == return_tween:
+		active_tween = null
+	if is_cancelling or not is_inside_tree():
 		return
 
 	for _attempt in clearance_attempts:
@@ -124,6 +140,16 @@ func _run_launch_cycle() -> void:
 	target_preview.visible = false
 	_apply_idle_visual()
 	toggled.emit(true)
+
+
+func _cancel_active_tween() -> void:
+	if not is_instance_valid(active_tween):
+		return
+	var tween := active_tween
+	active_tween = null
+	# kill() does not resume an await on finished; unwind it before cleanup.
+	tween.finished.emit()
+	tween.kill()
 
 
 func _get_bodies_in(area: Area2D) -> Array[Node2D]:

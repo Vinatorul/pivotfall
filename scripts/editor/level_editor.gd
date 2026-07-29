@@ -23,6 +23,7 @@ const TOOL_PLAYER := "player_spawn"
 const TOOL_PATROL := "patrol_enemy"
 const TOOL_SHOVE := "shove_enemy"
 const TOOL_SHOOTER := "shooter_enemy"
+const TOOL_CATAPULT := "catapult_platform"
 const TOOL_TOGGLE := "toggle_platform"
 const TOOL_HINGE := "hinge"
 
@@ -62,6 +63,9 @@ const TOOL_HINGE := "hinge"
 )
 @onready var toggle_button: Button = (
 	$EditorView/PalettePanel/ToolScroll/ToolList/ToggleButton
+)
+@onready var catapult_button: Button = (
+	$EditorView/PalettePanel/ToolScroll/ToolList/CatapultButton
 )
 @onready var hinge_button: Button = (
 	$EditorView/PalettePanel/ToolScroll/ToolList/HingeButton
@@ -251,6 +255,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_set_tool(TOOL_SHOVE)
 		KEY_7:
 			_set_tool(TOOL_SHOOTER)
+		KEY_8:
+			_set_tool(TOOL_CATAPULT)
 		KEY_DELETE, KEY_BACKSPACE:
 			_delete_selected()
 		KEY_LEFT:
@@ -284,6 +290,7 @@ func _connect_ui() -> void:
 		shove_button,
 		shooter_button,
 		toggle_button,
+		catapult_button,
 		hinge_button,
 	]:
 		button.button_group = tool_group
@@ -295,6 +302,7 @@ func _connect_ui() -> void:
 	shove_button.pressed.connect(_set_tool.bind(TOOL_SHOVE))
 	shooter_button.pressed.connect(_set_tool.bind(TOOL_SHOOTER))
 	toggle_button.pressed.connect(_set_tool.bind(TOOL_TOGGLE))
+	catapult_button.pressed.connect(_set_tool.bind(TOOL_CATAPULT))
 	hinge_button.pressed.connect(_set_tool.bind(TOOL_HINGE))
 	duplicate_button.pressed.connect(_duplicate_selected)
 	delete_button.pressed.connect(_delete_selected)
@@ -448,6 +456,7 @@ func _set_tool(tool: String) -> void:
 	shove_button.set_pressed_no_signal(tool == TOOL_SHOVE)
 	shooter_button.set_pressed_no_signal(tool == TOOL_SHOOTER)
 	toggle_button.set_pressed_no_signal(tool == TOOL_TOGGLE)
+	catapult_button.set_pressed_no_signal(tool == TOOL_CATAPULT)
 	hinge_button.set_pressed_no_signal(tool == TOOL_HINGE)
 	var active_button := _palette_button_for_tool(tool)
 	if is_instance_valid(active_button):
@@ -471,6 +480,8 @@ func _palette_button_for_tool(tool: String) -> Button:
 			return shooter_button
 		TOOL_TOGGLE:
 			return toggle_button
+		TOOL_CATAPULT:
+			return catapult_button
 		TOOL_HINGE:
 			return hinge_button
 	return null
@@ -560,6 +571,16 @@ func _place_object(object_type: String, payload: Variant) -> void:
 					"starts_active": true,
 				}
 			)
+		TOOL_CATAPULT:
+			var object_id := draft.make_unique_id("catapult")
+			selected_id = object_id
+			draft.add_object(
+				{
+					"id": object_id,
+					"type": TOOL_CATAPULT,
+					"position": (payload as Array).duplicate(),
+				}
+			)
 		TOOL_HINGE:
 			var object_id := draft.make_unique_id("hinge")
 			selected_id = object_id
@@ -599,13 +620,13 @@ func _begin_linking(hinge_id: String) -> void:
 	_set_tool(TOOL_SELECT)
 	selected_id = hinge_id
 	canvas.set_selected_id(selected_id)
-	var has_target := not _toggle_platforms().is_empty()
+	var has_target := not _hinge_targets().is_empty()
 	if not has_target:
 		_cancel_linking(false)
 		_rebuild_inspector()
 		_refresh_inspector_hint()
 		_set_notice(
-			"Сначала поставьте включаемую платформу, затем назначьте target.",
+			"Сначала поставьте механизм, затем назначьте target.",
 			true
 		)
 		return
@@ -614,7 +635,7 @@ func _begin_linking(hinge_id: String) -> void:
 	canvas.set_link_source(hinge_id)
 	_refresh_inspector_hint()
 	_set_notice(
-		"Выберите включаемую платформу для шарнира '%s'."
+		"Выберите механизм для шарнира '%s'."
 		% hinge_id
 	)
 
@@ -624,15 +645,23 @@ func _on_link_target_requested(target_id: String) -> void:
 		return
 	if target_id.is_empty():
 		_set_notice(
-			"Нужна включаемая платформа: выберите её на поле.",
+			"Нужен механизм: выберите его на поле.",
 			true
 		)
 		return
 
 	var target := draft.find_object(target_id)
-	if target.is_empty() or target.get("type", "") != TOOL_TOGGLE:
+	if (
+		target.is_empty()
+		or not _is_hinge_target_type(
+			str(target.get("type", ""))
+		)
+	):
 		_set_notice(
-			"Цель шарнира должна быть включаемой платформой.",
+			(
+				"Цель шарнира должна быть "
+				+ "поддерживаемым механизмом."
+			),
 			true
 		)
 		return
@@ -655,12 +684,16 @@ func _cancel_linking(show_notice := true) -> void:
 		_set_notice("Выбор цели отменён.")
 
 
-func _toggle_platforms() -> Array[Dictionary]:
+func _hinge_targets() -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	for object: Dictionary in draft.to_dictionary().get("objects", []):
-		if object.get("type", "") == TOOL_TOGGLE:
+		if _is_hinge_target_type(str(object.get("type", ""))):
 			result.append(object)
 	return result
+
+
+func _is_hinge_target_type(object_type: String) -> bool:
+	return object_type in [TOOL_TOGGLE, TOOL_CATAPULT]
 
 
 func _refresh_inspector_hint() -> void:
@@ -668,7 +701,7 @@ func _refresh_inspector_hint() -> void:
 		return
 	if not linking_hinge_id.is_empty():
 		inspector_hint.text = (
-			"ВЫБЕРИТЕ ПЛАТФОРМУ НА ПОЛЕ\nEsc — отменить связь"
+			"ВЫБЕРИТЕ МЕХАНИЗМ НА ПОЛЕ\nEsc — отменить связь"
 		)
 		inspector_hint.modulate = Color(0.439, 0.878, 0.816)
 		return
@@ -693,17 +726,26 @@ func _refresh_inspector_hint() -> void:
 			)
 			inspector_hint.modulate = Color(0.718, 0.376, 0.925)
 		return
+	if selected.get("type", "") == TOOL_CATAPULT:
+		inspector_hint.text = (
+			"ФИКСИРОВАННЫЙ ЗАПУСК ВПРАВО\n"
+			+ "Выделение показывает зону и начальную дугу."
+		)
+		inspector_hint.modulate = Color(0.439, 0.827, 0.816)
+		return
 	if selected.get("type", "") == TOOL_HINGE:
 		var target_id := str(selected.get("target_id", ""))
 		var target := draft.find_object(target_id)
 		if (
 			target_id.is_empty()
 			or target.is_empty()
-			or target.get("type", "") != TOOL_TOGGLE
+			or not _is_hinge_target_type(
+				str(target.get("type", ""))
+			)
 		):
 			inspector_hint.text = (
 				"TARGET НЕ НАЗНАЧЕН\n"
-				+ "Выберите платформу в свойствах."
+				+ "Выберите механизм в свойствах."
 			)
 			inspector_hint.modulate = Color(0.973, 0.58, 0.267)
 			return
@@ -745,8 +787,14 @@ func _duplicate_selected() -> void:
 		duplicate["rect"] = rect
 	else:
 		var position: Array = duplicate["position"]
-		position[0] = clampi(position[0] + 20, 0, 959)
-		position[1] = clampi(position[1] + 20, 0, 539)
+		if duplicate["type"] == TOOL_CATAPULT:
+			var clamped := LevelEditorCanvas.clamp_catapult_position(
+				Vector2(position[0] + 20, position[1] + 20)
+			)
+			position = [roundi(clamped.x), roundi(clamped.y)]
+		else:
+			position[0] = clampi(position[0] + 20, 0, 959)
+			position[1] = clampi(position[1] + 20, 0, 539)
 		duplicate["position"] = position
 
 	selected_id = new_id
@@ -771,8 +819,17 @@ func _nudge_selected(direction: Vector2i, fine: bool) -> void:
 		draft.update_object(selected_id, {"rect": rect})
 	else:
 		var position: Array = object["position"]
-		position[0] = clampi(position[0] + delta.x, 0, 959)
-		position[1] = clampi(position[1] + delta.y, 0, 539)
+		if object["type"] == TOOL_CATAPULT:
+			var clamped := LevelEditorCanvas.clamp_catapult_position(
+				Vector2(
+					position[0] + delta.x,
+					position[1] + delta.y
+				)
+			)
+			position = [roundi(clamped.x), roundi(clamped.y)]
+		else:
+			position[0] = clampi(position[0] + delta.x, 0, 959)
+			position[1] = clampi(position[1] + delta.y, 0, 539)
 		draft.update_object(selected_id, {"position": position})
 
 
@@ -1280,6 +1337,10 @@ func _rebuild_inspector() -> void:
 			var position: Array = object["position"]
 			_add_numeric_property("X", "position:0", position[0])
 			_add_numeric_property("Y", "position:1", position[1])
+		TOOL_CATAPULT:
+			var position: Array = object["position"]
+			_add_numeric_property("X", "position:0", position[0])
+			_add_numeric_property("Y", "position:1", position[1])
 		TOOL_HINGE:
 			var position: Array = object["position"]
 			_add_numeric_property("X", "position:0", position[0])
@@ -1405,7 +1466,7 @@ func _add_hinge_target_property(current_target_id: String) -> void:
 	options.set_item_tooltip(0, "Цель не назначена")
 	var selected_index := 0
 	var found_current_target := current_target_id.is_empty()
-	for platform: Dictionary in _toggle_platforms():
+	for platform: Dictionary in _hinge_targets():
 		var index := options.item_count
 		var platform_id := str(platform["id"])
 		options.add_item(platform_id)
@@ -1434,7 +1495,7 @@ func _add_hinge_target_property(current_target_id: String) -> void:
 			)
 			if target_id.is_empty():
 				_set_notice(
-					"Target шарнира снят; назначьте платформу.",
+					"Target шарнира снят; назначьте механизм.",
 					true
 				)
 			else:
