@@ -85,7 +85,19 @@ func _run() -> void:
 		and not paused,
 		"First Esc did not close only the F1 debug selector."
 	)
+	_expect(
+		await _wait_for_campaign_playing(runner),
+		"Campaign did not finish its intro before the pause check."
+	)
 	await _press_physical_key(KEY_ESCAPE)
+	await process_frame
+	_expect(
+		current_scene == runner
+		and runner.pause_menu.is_open()
+		and paused,
+		"Second Esc did not open the campaign pause menu."
+	)
+	runner.pause_menu.main_menu_button.pressed.emit()
 	var returned_menu := await _wait_for_scene(MAIN_MENU_PATH)
 	_expect(
 		is_instance_valid(returned_menu)
@@ -158,6 +170,19 @@ func _wait_for_scene(scene_path: String) -> Node:
 		):
 			return current_scene
 	return null
+
+
+func _wait_for_campaign_playing(runner: CampaignRunner) -> bool:
+	for _frame in 180:
+		await process_frame
+		await physics_frame
+		if (
+			is_instance_valid(runner)
+			and runner.phase == CampaignRunner.Phase.PLAYING
+			and not runner.transitioning
+		):
+			return true
+	return false
 
 
 func _press_physical_key(key: Key) -> void:

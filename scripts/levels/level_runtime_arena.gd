@@ -74,7 +74,7 @@ func configure_campaign_snapshot(
 
 func _ready() -> void:
 	if campaign_mode:
-		controls_label.text += "    Esc — меню"
+		controls_label.text += "    Esc — пауза"
 	elif embedded_mode:
 		controls_label.text += "    Esc — в редактор"
 

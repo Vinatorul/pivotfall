@@ -22,6 +22,7 @@ enum Phase {
 	BOOTING,
 	INTRO,
 	PLAYING,
+	PAUSED,
 	REPLACING,
 	COMPLETED,
 	FAILED,
@@ -30,6 +31,7 @@ enum Phase {
 @export_range(0.0, 5.0, 0.05) var intro_duration := 0.9
 
 @onready var runtime_host: Node2D = $RuntimeHost
+@onready var pause_menu: CampaignPauseMenu = $PauseMenu
 @onready var progress_backing: ColorRect = $CampaignUI/ProgressBacking
 @onready var progress_label: Label = $CampaignUI/Progress
 @onready var intro_ui: Control = $CampaignUI/Intro
@@ -56,6 +58,9 @@ var _intro_generation := 0
 
 
 func _ready() -> void:
+	pause_menu.resume_requested.connect(resume_from_pause)
+	pause_menu.restart_requested.connect(restart_current_level)
+	pause_menu.main_menu_requested.connect(return_to_main_menu)
 	_set_debug_selector_suppressed(false)
 	var campaign_result: Dictionary = (
 		CAMPAIGN_STORAGE.load_builtin_campaign()
@@ -127,7 +132,10 @@ func _input(event: InputEvent) -> void:
 	)
 	if key == KEY_ESCAPE:
 		get_viewport().set_input_as_handled()
-		return_to_main_menu()
+		if phase == Phase.PLAYING:
+			open_pause_menu()
+		else:
+			return_to_main_menu()
 		return
 
 	if not campaign_completed or key != KEY_R:
@@ -139,7 +147,11 @@ func _input(event: InputEvent) -> void:
 
 func open_level_by_id(level_id: String) -> bool:
 	var target_index := _entry_index_by_id(level_id)
-	if target_index < 0 or transitioning:
+	if (
+		target_index < 0
+		or transitioning
+		or pause_menu.is_open()
+	):
 		return false
 
 	if (
@@ -187,6 +199,51 @@ func restart_campaign() -> bool:
 	return true
 
 
+func open_pause_menu() -> bool:
+	if (
+		phase != Phase.PLAYING
+		or transitioning
+		or get_tree().paused
+		or not is_instance_valid(current_runtime)
+	):
+		return false
+
+	_set_debug_selector_suppressed(true)
+	var opened := pause_menu.open_menu(_pause_arena_text())
+	if opened:
+		phase = Phase.PAUSED
+		return true
+
+	_set_debug_selector_suppressed(false)
+	return false
+
+
+func resume_from_pause() -> bool:
+	if phase != Phase.PAUSED or not pause_menu.is_open():
+		return false
+
+	pause_menu.close_menu()
+	phase = Phase.PLAYING
+	_set_debug_selector_suppressed(false)
+	return true
+
+
+func restart_current_level() -> bool:
+	if (
+		transitioning
+		or current_level_index < 0
+		or current_level_index >= campaign_entries.size()
+		or phase not in [Phase.PLAYING, Phase.PAUSED]
+	):
+		return false
+
+	if pause_menu.is_open():
+		pause_menu.close_menu()
+	_set_debug_selector_suppressed(false)
+	_replace_runtime(current_level_index, false)
+	return true
+
+
 func return_to_main_menu() -> bool:
 	if transitioning:
 		return false
@@ -197,8 +254,12 @@ func return_to_main_menu() -> bool:
 		)
 		return false
 
-	transitioning = true
 	var previous_phase := phase
+	var pause_was_open := pause_menu.is_open()
+	if pause_was_open:
+		pause_menu.close_menu()
+
+	transitioning = true
 	phase = Phase.REPLACING
 	var change_error := get_tree().change_scene_to_file(
 		MAIN_MENU_SCENE_PATH
@@ -210,11 +271,20 @@ func return_to_main_menu() -> bool:
 
 	transitioning = false
 	phase = previous_phase
+	if pause_was_open:
+		pause_menu.open_menu(_pause_arena_text())
 	push_error(
 		"Could not open main menu '%s' (error %d)."
 		% [MAIN_MENU_SCENE_PATH, change_error]
 	)
 	return false
+
+
+func _pause_arena_text() -> String:
+	return "АРЕНА %d / %d" % [
+		current_level_index + 1,
+		campaign_entries.size(),
+	]
 
 
 func get_entries() -> Array[Dictionary]:
