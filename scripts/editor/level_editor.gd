@@ -1345,7 +1345,7 @@ func _request_return_to_game() -> void:
 
 
 func _perform_return_to_game() -> void:
-	var scene_path := "res://scenes/campaign_runner.tscn"
+	var scene_path := "res://scenes/main_menu.tscn"
 	var selector := get_node_or_null("/root/DebugLevelSelector")
 	if (
 		is_instance_valid(selector)

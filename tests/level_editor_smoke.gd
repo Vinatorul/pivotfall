@@ -1105,9 +1105,17 @@ func _test_editor_workflow() -> void:
 	_expect(
 		is_instance_valid(current_scene)
 		and current_scene.scene_file_path == expected_return_path
-		and not selector.context_suppressed
-		and selector.hint.visible,
-		"Game button did not restore the source arena and debug selector."
+		and selector.context_suppressed
+		== (
+			expected_return_path
+			== "res://scenes/main_menu.tscn"
+		)
+		and selector.hint.visible
+		== (
+			expected_return_path
+			!= "res://scenes/main_menu.tscn"
+		),
+		"Game button did not restore the source scene and selector context."
 	)
 
 

@@ -1,0 +1,247 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/main_menu.gd" id="1_menu"]
+
+[sub_resource type="StyleBoxFlat" id="StyleNormal"]
+content_margin_left = 18.0
+content_margin_right = 18.0
+bg_color = Color(0.075, 0.098, 0.165, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.173, 0.227, 0.337, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleHover"]
+content_margin_left = 18.0
+content_margin_right = 18.0
+bg_color = Color(0.102, 0.137, 0.224, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.439, 0.827, 0.816, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StylePressed"]
+content_margin_left = 18.0
+content_margin_right = 18.0
+bg_color = Color(0.176, 0.118, 0.094, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.973, 0.58, 0.267, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleFocus"]
+content_margin_left = 18.0
+content_margin_right = 18.0
+bg_color = Color(0.075, 0.098, 0.165, 1)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.439, 0.827, 0.816, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[node name="MainMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_menu")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.035, 0.047, 0.082, 1)
+mouse_filter = 2
+
+[node name="LeftBar" type="ColorRect" parent="."]
+layout_mode = 0
+offset_left = 42.0
+offset_top = 42.0
+offset_right = 48.0
+offset_bottom = 498.0
+color = Color(0.439, 0.827, 0.816, 1)
+mouse_filter = 2
+
+[node name="RightBar" type="ColorRect" parent="."]
+layout_mode = 0
+offset_left = 912.0
+offset_top = 42.0
+offset_right = 918.0
+offset_bottom = 498.0
+color = Color(0.973, 0.58, 0.267, 1)
+mouse_filter = 2
+
+[node name="Panel" type="ColorRect" parent="."]
+layout_mode = 0
+offset_left = 190.0
+offset_top = 58.0
+offset_right = 770.0
+offset_bottom = 478.0
+color = Color(0.055, 0.071, 0.122, 1)
+mouse_filter = 2
+
+[node name="Accent" type="ColorRect" parent="Panel"]
+layout_mode = 0
+offset_right = 580.0
+offset_bottom = 6.0
+color = Color(0.439, 0.827, 0.816, 1)
+mouse_filter = 2
+
+[node name="Kicker" type="Label" parent="Panel"]
+layout_mode = 0
+offset_left = 40.0
+offset_top = 34.0
+offset_right = 540.0
+offset_bottom = 58.0
+theme_override_colors/font_color = Color(0.439, 0.827, 0.816, 1)
+theme_override_font_sizes/font_size = 12
+text = "GRAYBOX CAMPAIGN"
+horizontal_alignment = 1
+vertical_alignment = 1
+mouse_filter = 2
+
+[node name="Title" type="Label" parent="Panel"]
+layout_mode = 0
+offset_left = 30.0
+offset_top = 68.0
+offset_right = 550.0
+offset_bottom = 112.0
+theme_override_colors/font_color = Color(0.973, 0.58, 0.267, 1)
+theme_override_font_sizes/font_size = 30
+text = "SINGLE SCREEN ARCADE"
+horizontal_alignment = 1
+vertical_alignment = 1
+mouse_filter = 2
+
+[node name="Subtitle" type="Label" parent="Panel"]
+layout_mode = 0
+offset_left = 40.0
+offset_top = 122.0
+offset_right = 540.0
+offset_bottom = 150.0
+theme_override_colors/font_color = Color(0.651, 0.714, 0.82, 1)
+theme_override_font_sizes/font_size = 13
+text = "ACTION PUZZLE  /  8 АРЕН"
+horizontal_alignment = 1
+vertical_alignment = 1
+mouse_filter = 2
+
+[node name="Divider" type="ColorRect" parent="Panel"]
+layout_mode = 0
+offset_left = 70.0
+offset_top = 170.0
+offset_right = 510.0
+offset_bottom = 172.0
+color = Color(0.173, 0.227, 0.337, 1)
+mouse_filter = 2
+
+[node name="NewGame" type="Button" parent="Panel"]
+layout_mode = 0
+offset_left = 90.0
+offset_top = 196.0
+offset_right = 490.0
+offset_bottom = 244.0
+focus_neighbor_top = NodePath("../Exit")
+focus_neighbor_bottom = NodePath("../Editor")
+mouse_default_cursor_shape = 2
+theme_override_colors/font_color = Color(0.792, 0.835, 0.906, 1)
+theme_override_colors/font_hover_color = Color(0.439, 0.827, 0.816, 1)
+theme_override_colors/font_focus_color = Color(0.439, 0.827, 0.816, 1)
+theme_override_colors/font_pressed_color = Color(0.973, 0.58, 0.267, 1)
+theme_override_font_sizes/font_size = 17
+theme_override_styles/normal = SubResource("StyleNormal")
+theme_override_styles/hover = SubResource("StyleHover")
+theme_override_styles/pressed = SubResource("StylePressed")
+theme_override_styles/focus = SubResource("StyleFocus")
+text = "НОВАЯ ИГРА"
+
+[node name="Editor" type="Button" parent="Panel"]
+layout_mode = 0
+offset_left = 90.0
+offset_top = 258.0
+offset_right = 490.0
+offset_bottom = 306.0
+focus_neighbor_top = NodePath("../NewGame")
+focus_neighbor_bottom = NodePath("../Exit")
+mouse_default_cursor_shape = 2
+theme_override_colors/font_color = Color(0.792, 0.835, 0.906, 1)
+theme_override_colors/font_hover_color = Color(0.439, 0.827, 0.816, 1)
+theme_override_colors/font_focus_color = Color(0.439, 0.827, 0.816, 1)
+theme_override_colors/font_pressed_color = Color(0.973, 0.58, 0.267, 1)
+theme_override_font_sizes/font_size = 17
+theme_override_styles/normal = SubResource("StyleNormal")
+theme_override_styles/hover = SubResource("StyleHover")
+theme_override_styles/pressed = SubResource("StylePressed")
+theme_override_styles/focus = SubResource("StyleFocus")
+text = "РЕДАКТОР УРОВНЕЙ"
+
+[node name="Exit" type="Button" parent="Panel"]
+layout_mode = 0
+offset_left = 90.0
+offset_top = 320.0
+offset_right = 490.0
+offset_bottom = 368.0
+focus_neighbor_top = NodePath("../Editor")
+focus_neighbor_bottom = NodePath("../NewGame")
+mouse_default_cursor_shape = 2
+theme_override_colors/font_color = Color(0.792, 0.835, 0.906, 1)
+theme_override_colors/font_hover_color = Color(0.439, 0.827, 0.816, 1)
+theme_override_colors/font_focus_color = Color(0.439, 0.827, 0.816, 1)
+theme_override_colors/font_pressed_color = Color(0.973, 0.58, 0.267, 1)
+theme_override_font_sizes/font_size = 17
+theme_override_styles/normal = SubResource("StyleNormal")
+theme_override_styles/hover = SubResource("StyleHover")
+theme_override_styles/pressed = SubResource("StylePressed")
+theme_override_styles/focus = SubResource("StyleFocus")
+text = "ВЫХОД"
+
+[node name="Status" type="Label" parent="Panel"]
+visible = false
+layout_mode = 0
+offset_left = 40.0
+offset_top = 378.0
+offset_right = 540.0
+offset_bottom = 410.0
+theme_override_colors/font_color = Color(0.949, 0.427, 0.471, 1)
+theme_override_font_sizes/font_size = 12
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 2
+mouse_filter = 2
+
+[node name="Footer" type="Label" parent="."]
+layout_mode = 0
+offset_left = 160.0
+offset_top = 500.0
+offset_right = 800.0
+offset_bottom = 526.0
+theme_override_colors/font_color = Color(0.502, 0.565, 0.675, 1)
+theme_override_font_sizes/font_size = 12
+text = "↑ ↓ / W S — ВЫБОР    ENTER / SPACE — ПОДТВЕРДИТЬ"
+horizontal_alignment = 1
+vertical_alignment = 1
+mouse_filter = 2

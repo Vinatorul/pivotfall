@@ -13,6 +13,7 @@ const LEVEL_DATA_CODEC := preload(
 const LEVEL_RUNTIME_SCENE := preload(
 	"res://scenes/data_arena_01.tscn"
 )
+const MAIN_MENU_SCENE_PATH := "res://scenes/main_menu.tscn"
 const COMPLETION_CLEAR_MESSAGE := (
 	"КАМПАНИЯ ПРОЙДЕНА  /  ФИНАЛ..."
 )
@@ -55,6 +56,7 @@ var _intro_generation := 0
 
 
 func _ready() -> void:
+	_set_debug_selector_suppressed(false)
 	var campaign_result: Dictionary = (
 		CAMPAIGN_STORAGE.load_builtin_campaign()
 	)
@@ -110,8 +112,7 @@ func _exit_tree() -> void:
 
 func _input(event: InputEvent) -> void:
 	if (
-		not campaign_completed
-		or get_tree().paused
+		get_tree().paused
 		or not event is InputEventKey
 		or not event.pressed
 		or event.echo
@@ -124,7 +125,12 @@ func _input(event: InputEvent) -> void:
 		if key_event.physical_keycode != 0
 		else key_event.keycode
 	)
-	if key != KEY_R:
+	if key == KEY_ESCAPE:
+		get_viewport().set_input_as_handled()
+		return_to_main_menu()
+		return
+
+	if not campaign_completed or key != KEY_R:
 		return
 
 	if restart_campaign():
@@ -179,6 +185,36 @@ func restart_campaign() -> bool:
 
 	_replace_runtime(0, true)
 	return true
+
+
+func return_to_main_menu() -> bool:
+	if transitioning:
+		return false
+	if not ResourceLoader.exists(MAIN_MENU_SCENE_PATH):
+		push_error(
+			"Main menu scene does not exist: %s"
+			% MAIN_MENU_SCENE_PATH
+		)
+		return false
+
+	transitioning = true
+	var previous_phase := phase
+	phase = Phase.REPLACING
+	var change_error := get_tree().change_scene_to_file(
+		MAIN_MENU_SCENE_PATH
+	)
+	if change_error == OK:
+		transition_generation += 1
+		_intro_generation += 1
+		return true
+
+	transitioning = false
+	phase = previous_phase
+	push_error(
+		"Could not open main menu '%s' (error %d)."
+		% [MAIN_MENU_SCENE_PATH, change_error]
+	)
+	return false
 
 
 func get_entries() -> Array[Dictionary]:
@@ -537,6 +573,15 @@ func _remember_campaign_level_id(level_id: String) -> void:
 			"remember_requested_campaign_level_id",
 			level_id
 		)
+
+
+func _set_debug_selector_suppressed(suppressed: bool) -> void:
+	var selector := get_node_or_null("/root/DebugLevelSelector")
+	if (
+		is_instance_valid(selector)
+		and selector.has_method("set_context_suppressed")
+	):
+		selector.call("set_context_suppressed", suppressed)
 
 
 func _show_failure(errors: Array) -> void:

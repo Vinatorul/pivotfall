@@ -4,8 +4,9 @@ const CAMPAIGN_STORAGE := preload(
 	"res://scripts/campaign/campaign_storage.gd"
 )
 const CAMPAIGN_SCENE_PATH := "res://scenes/campaign_runner.tscn"
+const MAIN_MENU_PATH := "res://scenes/main_menu.tscn"
 const LEVEL_EDITOR_PATH := "res://scenes/level_editor.tscn"
-const DEFAULT_EDITOR_RETURN_PATH := CAMPAIGN_SCENE_PATH
+const DEFAULT_EDITOR_RETURN_PATH := MAIN_MENU_PATH
 
 @onready var menu: Control = $Menu
 @onready var arena_list: RichTextLabel = $Menu/Panel/ArenaList
@@ -113,9 +114,11 @@ func _open_menu() -> void:
 
 
 func _close_menu() -> void:
+	var was_visible := menu.visible
 	menu.visible = false
 	hint.visible = OS.is_debug_build() and not context_suppressed
-	get_tree().paused = previous_tree_paused
+	if was_visible:
+		get_tree().paused = previous_tree_paused
 
 
 func _apply_context_availability() -> void:
@@ -170,7 +173,7 @@ func _load_arena(index: int) -> void:
 	_load_scene(CAMPAIGN_SCENE_PATH, "campaign")
 
 
-func _open_level_editor() -> void:
+func _open_level_editor() -> bool:
 	var current_scene := get_tree().current_scene
 	if is_instance_valid(current_scene):
 		var current_level_id := _current_campaign_level_id()
@@ -185,7 +188,11 @@ func _open_level_editor() -> void:
 		):
 			editor_return_scene_path = current_path
 
-	_load_scene(LEVEL_EDITOR_PATH, "level editor")
+	return _load_scene(LEVEL_EDITOR_PATH, "level editor")
+
+
+func open_level_editor_from_current_scene() -> bool:
+	return _open_level_editor()
 
 
 func get_editor_return_scene_path() -> String:
@@ -208,7 +215,7 @@ func get_requested_campaign_level_id() -> String:
 	return requested_campaign_level_id
 
 
-func _load_scene(scene_path: String, description: String) -> void:
+func _load_scene(scene_path: String, description: String) -> bool:
 	_close_menu()
 	var change_error := get_tree().change_scene_to_file(scene_path)
 	if change_error != OK:
@@ -216,6 +223,8 @@ func _load_scene(scene_path: String, description: String) -> void:
 			"Could not open %s '%s' (error %d)."
 			% [description, scene_path, change_error]
 		)
+		return false
+	return true
 
 
 func _current_arena_index() -> int:

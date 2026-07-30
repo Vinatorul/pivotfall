@@ -173,7 +173,7 @@ func _test_runtime_snapshot_and_idle() -> void:
 	foreign_enemy.process_mode = Node.PROCESS_MODE_DISABLED
 	root.add_child(foreign_enemy)
 
-	var arena := await _create_runtime()
+	var arena := await _create_runtime(false)
 	_expect(arena.level_loaded, "Runtime Arena 01 did not load.")
 	_expect(
 		arena.enemies_remaining == 1,
@@ -205,11 +205,13 @@ func _test_runtime_snapshot_and_idle() -> void:
 	)
 	_expect(
 		player.position.is_equal_approx(Vector2(150, 450)),
-		"Player start differs from Arena 01."
+		"Player start differs from Arena 01: %s."
+		% player.position
 	)
 	_expect(
 		enemy.position.is_equal_approx(Vector2(360, 450)),
-		"Patrol start differs from Arena 01."
+		"Patrol start differs from Arena 01: %s."
+		% enemy.position
 	)
 	_expect(
 		is_equal_approx(enemy.patrol_speed, 65.0)
@@ -252,6 +254,7 @@ func _test_runtime_snapshot_and_idle() -> void:
 			"Generated floors unexpectedly share one mutable shape."
 		)
 
+	arena.process_mode = Node.PROCESS_MODE_INHERIT
 	for _frame in range(30):
 		await physics_frame
 	_expect(
@@ -376,8 +379,10 @@ func _test_manual_restart() -> void:
 	await _cleanup_current_scene()
 
 
-func _create_runtime() -> Node:
+func _create_runtime(processing_enabled := true) -> Node:
 	var arena := RUNTIME_SCENE.instantiate()
+	if not processing_enabled:
+		arena.process_mode = Node.PROCESS_MODE_DISABLED
 	root.add_child(arena)
 	current_scene = arena
 	await process_frame

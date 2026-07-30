@@ -560,7 +560,10 @@ func _test_clearance_fallback() -> void:
 		catapult.global_position + Vector2(90, -20)
 	)
 	player.velocity = Vector2.ZERO
-	await physics_frame
+	for _frame in range(3):
+		await physics_frame
+		if player in catapult.launch_area.get_overlapping_bodies():
+			break
 
 	catapult.warning_time = 0.0
 	catapult.swing_out_time = 0.01
@@ -587,7 +590,19 @@ func _test_clearance_fallback() -> void:
 		and player.global_position.distance_to(
 			catapult.safe_above.global_position
 		) < 0.5,
-		"Catapult did not move a trapped body to SafeAbove."
+		(
+			"Catapult did not move a trapped body to SafeAbove: "
+			+ "accepted=%s launches=%s transitioning=%s "
+			+ "collision_disabled=%s player=%s safe=%s."
+		)
+		% [
+			accepted,
+			str(launch_counts),
+			catapult.is_transitioning,
+			catapult.rest_collision.disabled,
+			player.global_position,
+			catapult.safe_above.global_position,
+		]
 	)
 	await _cleanup_current_scene()
 
