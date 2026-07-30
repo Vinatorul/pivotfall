@@ -9,6 +9,11 @@ extends RefCounted
 
 const SCHEMA_VERSION := 1
 const FINAL_BEHAVIOR_RESTART_FINAL_LEVEL := "restart_final_level"
+const FINAL_BEHAVIOR_SHOW_COMPLETION := "show_completion"
+const FINAL_BEHAVIORS := [
+	FINAL_BEHAVIOR_RESTART_FINAL_LEVEL,
+	FINAL_BEHAVIOR_SHOW_COMPLETION,
+]
 
 const MAX_CAMPAIGN_ID_LENGTH := 64
 const MAX_LEVEL_ID_LENGTH := 64
@@ -259,11 +264,15 @@ static func _read_final_behavior(
 		return ""
 
 	var value := String(raw)
-	if value != FINAL_BEHAVIOR_RESTART_FINAL_LEVEL:
+	if not FINAL_BEHAVIORS.has(value):
 		errors.append(
 			(
-				"root.final_behavior must be '%s'; got '%s'."
-				% [FINAL_BEHAVIOR_RESTART_FINAL_LEVEL, value]
+				"root.final_behavior must be '%s' or '%s'; got '%s'."
+				% [
+					FINAL_BEHAVIOR_RESTART_FINAL_LEVEL,
+					FINAL_BEHAVIOR_SHOW_COMPLETION,
+					value,
+				]
 			)
 		)
 		return ""

@@ -75,7 +75,7 @@ func _test_manifest() -> Dictionary:
 		"Campaign advance message is empty."
 	)
 	_expect(
-		data.get("final_behavior") == "restart_final_level",
+		data.get("final_behavior") == "show_completion",
 		"Campaign final behavior drifted."
 	)
 
@@ -94,6 +94,7 @@ func _test_manifest() -> Dictionary:
 	_test_manifest_round_trip(data)
 	_test_manifest_catalog(entries)
 	_test_manifest_atomic_failures(data)
+	_test_final_behavior_compatibility(data)
 	return result
 
 
@@ -167,6 +168,52 @@ func _test_manifest_atomic_failures(data: Dictionary) -> void:
 		"Campaign accepted a manifest/file level ID mismatch."
 	)
 
+	var unknown_final_behavior := data.duplicate(true)
+	unknown_final_behavior["final_behavior"] = "roll_credits"
+	_expect_atomic_failure_contains(
+		CAMPAIGN_STORAGE.resolve_campaign(unknown_final_behavior),
+		"must be 'restart_final_level' or 'show_completion'",
+		"Campaign accepted an unknown final behavior."
+	)
+
+	var non_string_final_behavior := data.duplicate(true)
+	non_string_final_behavior["final_behavior"] = 8
+	_expect_atomic_failure_contains(
+		CAMPAIGN_STORAGE.resolve_campaign(non_string_final_behavior),
+		"must be a string",
+		"Campaign accepted a non-string final behavior."
+	)
+
+	var empty_final_behavior := data.duplicate(true)
+	empty_final_behavior["final_behavior"] = ""
+	_expect_atomic_failure_contains(
+		CAMPAIGN_STORAGE.resolve_campaign(empty_final_behavior),
+		"must be 'restart_final_level' or 'show_completion'",
+		"Campaign accepted an empty final behavior."
+	)
+
+	var missing_final_behavior := data.duplicate(true)
+	missing_final_behavior.erase("final_behavior")
+	_expect_atomic_failure_contains(
+		CAMPAIGN_STORAGE.resolve_campaign(missing_final_behavior),
+		"missing required key 'final_behavior'",
+		"Campaign accepted a missing final behavior."
+	)
+
+
+func _test_final_behavior_compatibility(data: Dictionary) -> void:
+	var restart_final := data.duplicate(true)
+	restart_final["final_behavior"] = "restart_final_level"
+	var resolved: Dictionary = CAMPAIGN_STORAGE.resolve_campaign(
+		restart_final
+	)
+	_expect(
+		bool(resolved.get("ok", false))
+		and (resolved.get("entries", []) as Array).size()
+		== EXPECTED_LEVEL_IDS.size(),
+		"Schema v1 no longer accepts restart_final_level."
+	)
+
 
 func _expect_atomic_failure(result: Dictionary, message: String) -> void:
 	_expect(
@@ -178,27 +225,37 @@ func _expect_atomic_failure(result: Dictionary, message: String) -> void:
 	)
 
 
+func _expect_atomic_failure_contains(
+	result: Dictionary,
+	error_fragment: String,
+	message: String
+) -> void:
+	_expect_atomic_failure(result, message)
+	var errors := PackedStringArray()
+	for error: Variant in result.get("errors", []):
+		errors.append(str(error))
+	_expect(
+		error_fragment in "\n".join(errors),
+		"%s Diagnostic fragment is missing: %s"
+		% [message, error_fragment]
+	)
+
+
 func _test_runner_lifecycle(campaign_result: Dictionary) -> void:
 	var runner := RUNNER_SCENE.instantiate() as CampaignRunner
 	_expect(is_instance_valid(runner), "Could not instantiate campaign runner.")
 	if not is_instance_valid(runner):
 		return
 
+	runner.intro_duration = 0.05
 	root.add_child(runner)
 	current_scene = runner
-	await process_frame
-	await physics_frame
 
 	var advance_message := str(
 		(campaign_result["data"] as Dictionary).get(
 			"advance_message",
 			""
 		)
-	)
-	var entries: Array = campaign_result["entries"]
-	var final_data: Dictionary = entries[entries.size() - 1]["data"]
-	var final_clear_message := str(
-		final_data.get("clear_message", "")
 	)
 
 	_expect(
@@ -215,6 +272,16 @@ func _test_runner_lifecycle(campaign_result: Dictionary) -> void:
 		return
 
 	var controller_id := runner.get_instance_id()
+	_expect_intro(
+		runner,
+		"ARENA 01 / ПАТРУЛЬ",
+		"АРЕНА 1 / 8",
+		"КАМПАНИЯ  1 / 8",
+		"Initial Arena 01 intro is incomplete."
+	)
+	if not await _wait_for_intro_end(runner):
+		_expect(false, "Initial Arena 01 intro did not finish.")
+		return
 	_expect(
 		runner.current_runtime.clear_message == advance_message,
 		"Non-final Arena 01 did not use campaign advance_message."
@@ -249,6 +316,16 @@ func _test_runner_lifecycle(campaign_result: Dictionary) -> void:
 		runner.current_runtime.clear_message == advance_message,
 		"Non-final Arena 02 did not use campaign advance_message."
 	)
+	_expect_intro(
+		runner,
+		"ARENA 02 / ОПОРА",
+		"АРЕНА 2 / 8",
+		"КАМПАНИЯ  2 / 8",
+		"Arena 02 transition intro is incomplete."
+	)
+	if not await _wait_for_intro_end(runner):
+		_expect(false, "Arena 02 transition intro did not finish.")
+		return
 	_expect_selector_id("arena_02_data")
 
 	var arena_02_id := runner.current_runtime.get_instance_id()
@@ -269,6 +346,12 @@ func _test_runner_lifecycle(campaign_result: Dictionary) -> void:
 		runner,
 		"arena_02_data",
 		"Restart did not preserve a single Arena 02 runtime."
+	)
+	_expect(
+		not runner.intro_active
+		and not runner.intro_ui.visible
+		and runner.progress_label.text == "КАМПАНИЯ  2 / 8",
+		"R restart incorrectly replayed the Arena 02 intro."
 	)
 	_expect_selector_id("arena_02_data")
 
@@ -304,6 +387,12 @@ func _test_runner_lifecycle(campaign_result: Dictionary) -> void:
 		"arena_02_data",
 		"Fall restart did not preserve a single Arena 02 runtime."
 	)
+	_expect(
+		not runner.intro_active
+		and not runner.intro_ui.visible
+		and runner.progress_label.text == "КАМПАНИЯ  2 / 8",
+		"Fall restart incorrectly replayed the Arena 02 intro."
+	)
 	_expect_selector_id("arena_02_data")
 
 	_expect(
@@ -326,11 +415,73 @@ func _test_runner_lifecycle(campaign_result: Dictionary) -> void:
 		"arena_08_data",
 		"Direct open did not leave exactly one Arena 08 runtime."
 	)
+	_expect_intro(
+		runner,
+		"ARENA 08 / ЭКЗАМЕН",
+		"АРЕНА 8 / 8",
+		"КАМПАНИЯ  8 / 8",
+		"Direct Arena 08 intro is incomplete."
+	)
+	if not await _wait_for_intro_end(runner):
+		_expect(false, "Direct Arena 08 intro did not finish.")
+		return
 	_expect_selector_id("arena_08_data")
 	_expect(
-		runner.current_runtime.clear_message == final_clear_message
+		runner.current_runtime.clear_message
+		== CampaignRunner.COMPLETION_CLEAR_MESSAGE
 		and runner.current_runtime.clear_message != advance_message,
-		"Final Arena 08 incorrectly uses campaign advance_message."
+		"Final Arena 08 did not receive its campaign completion message."
+	)
+
+	runner.campaign_data["final_behavior"] = "restart_final_level"
+	var legacy_final_id := runner.current_runtime.get_instance_id()
+	runner.current_runtime.clear_restart_delay = 0.01
+	_clear_runtime_enemies(runner.current_runtime)
+	var legacy_final_restarted := await _wait_for_runtime(
+		runner,
+		"arena_08_data",
+		legacy_final_id
+	)
+	_expect(
+		legacy_final_restarted
+		and not runner.is_campaign_complete()
+		and not runner.completion_ui.visible
+		and not runner.intro_active,
+		"restart_final_level no longer restarts the final arena."
+	)
+	if not legacy_final_restarted:
+		return
+	runner.campaign_data["final_behavior"] = "show_completion"
+	runner.current_runtime.clear_message = (
+		CampaignRunner.COMPLETION_CLEAR_MESSAGE
+	)
+
+	var clear_race_runtime_id := (
+		runner.current_runtime.get_instance_id()
+	)
+	runner.current_runtime.clear_restart_delay = 0.2
+	_clear_runtime_enemies(runner.current_runtime)
+	await _press_physical_key(KEY_R)
+	var clear_race_restarted := await _wait_for_runtime(
+		runner,
+		"arena_08_data",
+		clear_race_runtime_id
+	)
+	_expect(
+		clear_race_restarted
+		and not runner.is_campaign_complete()
+		and not runner.intro_active,
+		"R during final clear delay incorrectly completed the campaign."
+	)
+	if not clear_race_restarted:
+		return
+	var restarted_final_id := runner.current_runtime.get_instance_id()
+	await _wait_frames(20)
+	_expect(
+		runner.current_runtime.get_instance_id() == restarted_final_id
+		and not runner.is_campaign_complete()
+		and not runner.completion_ui.visible,
+		"Stale final clear timer affected the restarted Arena 08."
 	)
 
 	var arena_08_id := runner.current_runtime.get_instance_id()
@@ -340,32 +491,140 @@ func _test_runner_lifecycle(campaign_result: Dictionary) -> void:
 	_expect(
 		runner.current_runtime.pending_outcome == Arena.Outcome.CLEAR
 		and runner.current_runtime.status_label.text
-		== final_clear_message,
-		"Final clear did not use Arena 08's own completion message."
+		== CampaignRunner.COMPLETION_CLEAR_MESSAGE,
+		"Final clear did not use the campaign completion message."
 	)
-	var final_restarted := await _wait_for_runtime(
+	var completed := await _wait_for_completion(runner)
+	_expect(
+		completed
+		and runner.get_instance_id() == controller_id
+		and not is_instance_valid(arena_08_ref.get_ref())
+		and not is_instance_valid(runner.current_runtime)
+		and runner.runtime_host.get_child_count() == 0,
+		"Final clear did not retire the Arena 08 runtime cleanly."
+	)
+	if not completed:
+		return
+	_expect(
+		runner.completion_ui.visible
+		and not runner.intro_ui.visible
+		and runner.completion_count.text == "8 / 8"
+		and runner.progress_label.text == "КАМПАНИЯ  8 / 8",
+		"Campaign completion presentation is incomplete."
+	)
+	_expect_selector_id("arena_08_data")
+	await _wait_frames(10)
+	_expect(
+		runner.is_campaign_complete()
+		and not is_instance_valid(runner.current_runtime)
+		and runner.runtime_host.get_child_count() == 0,
+		"Completed campaign did not remain stable."
+	)
+
+	var selector := root.get_node_or_null("DebugLevelSelector")
+	await _press_physical_key(KEY_F1)
+	_expect(
+		is_instance_valid(selector)
+		and selector.get_node("Menu").visible
+		and paused,
+		"F1 menu is unavailable on the campaign completion screen."
+	)
+	await _press_physical_key(KEY_R)
+	_expect(
+		runner.is_campaign_complete()
+		and selector.get_node("Menu").visible
+		and paused,
+		"R escaped the paused F1 menu on the completion screen."
+	)
+	await _press_physical_key(KEY_F1)
+	_expect(
+		is_instance_valid(selector)
+		and not selector.get_node("Menu").visible
+		and not paused,
+		"F1 menu did not close cleanly on the completion screen."
+	)
+
+	await _press_physical_key(KEY_R)
+	var new_run_started := await _wait_for_runtime(
 		runner,
-		"arena_08_data",
+		"arena_01_data",
 		arena_08_id
 	)
 	_expect(
-		final_restarted
+		new_run_started
 		and runner.get_instance_id() == controller_id
-		and not arena_08_ref.get_ref(),
-		"Final clear did not restart Arena 08 inside the same controller."
+		and not runner.is_campaign_complete()
+		and not runner.completion_ui.visible,
+		"R on completion did not start a new campaign."
 	)
-	if not final_restarted:
+	if not new_run_started:
 		return
-	_expect_runtime(
+	_expect_intro(
 		runner,
-		"arena_08_data",
-		"Final restart did not leave exactly one Arena 08 runtime."
+		"ARENA 01 / ПАТРУЛЬ",
+		"АРЕНА 1 / 8",
+		"КАМПАНИЯ  1 / 8",
+		"New campaign did not show the Arena 01 intro."
 	)
+	_expect_selector_id("arena_01_data")
+	if not await _wait_for_intro_end(runner):
+		_expect(false, "New campaign Arena 01 intro did not finish.")
+
+
+func _expect_intro(
+	runner: CampaignRunner,
+	expected_title: String,
+	expected_meta: String,
+	expected_progress: String,
+	message: String
+) -> void:
 	_expect(
-		runner.current_runtime.clear_message == final_clear_message,
-		"Restarted final arena lost its own clear message."
+		runner.intro_active
+		and runner.intro_ui.visible
+		and runner.intro_title.text == expected_title
+		and runner.intro_meta.text == expected_meta
+		and runner.progress_label.text == expected_progress
+		and is_instance_valid(runner.current_runtime)
+		and runner.current_runtime.process_mode
+		== Node.PROCESS_MODE_DISABLED,
+		message
 	)
-	_expect_selector_id("arena_08_data")
+
+
+func _wait_for_intro_end(runner: CampaignRunner) -> bool:
+	for _frame in 180:
+		await process_frame
+		await physics_frame
+		if (
+			not runner.intro_active
+			and not runner.intro_ui.visible
+			and is_instance_valid(runner.current_runtime)
+			and runner.current_runtime.process_mode
+			== Node.PROCESS_MODE_INHERIT
+		):
+			return true
+	return false
+
+
+func _wait_for_completion(runner: CampaignRunner) -> bool:
+	for _frame in 180:
+		await process_frame
+		await physics_frame
+		if (
+			runner.is_campaign_complete()
+			and runner.completion_ui.visible
+			and not runner.transitioning
+			and not is_instance_valid(runner.current_runtime)
+			and runner.runtime_host.get_child_count() == 0
+		):
+			return true
+	return false
+
+
+func _wait_frames(frame_count: int) -> void:
+	for _frame in frame_count:
+		await process_frame
+		await physics_frame
 
 
 func _clear_runtime_enemies(runtime: LevelRuntimeArena) -> void:

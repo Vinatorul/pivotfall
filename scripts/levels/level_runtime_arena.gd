@@ -3,6 +3,7 @@ extends Arena
 
 signal embedded_restart_requested
 signal campaign_advance_requested
+signal campaign_completed_requested
 signal campaign_restart_requested(outcome: int)
 
 const LEVEL_DATA_CODEC := preload(
@@ -117,13 +118,16 @@ func get_level_object(object_id: String) -> Node:
 
 func _should_advance_after_clear() -> bool:
 	if campaign_mode:
-		return _campaign_has_next
+		return true
 	return super._should_advance_after_clear()
 
 
 func _advance_arena() -> bool:
 	if campaign_mode:
-		campaign_advance_requested.emit()
+		if _campaign_has_next:
+			campaign_advance_requested.emit()
+		else:
+			campaign_completed_requested.emit()
 		return true
 	return super._advance_arena()
 

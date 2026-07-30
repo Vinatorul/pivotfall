@@ -2,7 +2,7 @@
 	"schema_version": 1,
 	"campaign_id": "main",
 	"advance_message": "АРЕНА ПРОЙДЕНА  /  ДАЛЬШЕ...",
-	"final_behavior": "restart_final_level",
+	"final_behavior": "show_completion",
 	"levels": [
 		{
 			"level_id": "arena_01_data",

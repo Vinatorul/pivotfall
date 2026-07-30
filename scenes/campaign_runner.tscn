@@ -7,6 +7,184 @@ script = ExtResource("1_runner")
 
 [node name="RuntimeHost" type="Node2D" parent="."]
 
+[node name="CampaignUI" type="CanvasLayer" parent="."]
+layer = 20
+
+[node name="ProgressBacking" type="ColorRect" parent="CampaignUI"]
+visible = false
+offset_left = 754.0
+offset_top = 12.0
+offset_right = 936.0
+offset_bottom = 46.0
+color = Color(0.075, 0.098, 0.165, 0.94)
+mouse_filter = 2
+
+[node name="Progress" type="Label" parent="CampaignUI"]
+visible = false
+offset_left = 766.0
+offset_top = 12.0
+offset_right = 924.0
+offset_bottom = 46.0
+theme_override_colors/font_color = Color(0.439, 0.827, 0.816, 1)
+theme_override_font_sizes/font_size = 13
+text = "КАМПАНИЯ  1 / 8"
+horizontal_alignment = 2
+vertical_alignment = 1
+mouse_filter = 2
+
+[node name="Intro" type="Control" parent="CampaignUI"]
+visible = false
+layout_mode = 3
+anchors_preset = 0
+offset_right = 960.0
+offset_bottom = 540.0
+mouse_filter = 2
+
+[node name="Shade" type="ColorRect" parent="CampaignUI/Intro"]
+layout_mode = 0
+offset_right = 960.0
+offset_bottom = 540.0
+color = Color(0.02, 0.027, 0.051, 0.9)
+mouse_filter = 2
+
+[node name="Panel" type="ColorRect" parent="CampaignUI/Intro"]
+layout_mode = 0
+offset_left = 190.0
+offset_top = 160.0
+offset_right = 770.0
+offset_bottom = 380.0
+color = Color(0.075, 0.098, 0.165, 1)
+mouse_filter = 2
+
+[node name="Accent" type="ColorRect" parent="CampaignUI/Intro/Panel"]
+layout_mode = 0
+offset_right = 6.0
+offset_bottom = 220.0
+color = Color(0.439, 0.827, 0.816, 1)
+mouse_filter = 2
+
+[node name="Title" type="Label" parent="CampaignUI/Intro/Panel"]
+layout_mode = 0
+offset_left = 30.0
+offset_top = 48.0
+offset_right = 552.0
+offset_bottom = 92.0
+theme_override_colors/font_color = Color(0.973, 0.58, 0.267, 1)
+theme_override_font_sizes/font_size = 28
+text = "ARENA 01 / ПАТРУЛЬ"
+horizontal_alignment = 1
+vertical_alignment = 1
+mouse_filter = 2
+
+[node name="Meta" type="Label" parent="CampaignUI/Intro/Panel"]
+layout_mode = 0
+offset_left = 30.0
+offset_top = 108.0
+offset_right = 552.0
+offset_bottom = 134.0
+theme_override_colors/font_color = Color(0.651, 0.714, 0.82, 1)
+theme_override_font_sizes/font_size = 13
+text = "АРЕНА 1 / 8"
+horizontal_alignment = 1
+vertical_alignment = 1
+mouse_filter = 2
+
+[node name="Hint" type="Label" parent="CampaignUI/Intro/Panel"]
+layout_mode = 0
+offset_left = 30.0
+offset_top = 158.0
+offset_right = 552.0
+offset_bottom = 184.0
+theme_override_colors/font_color = Color(0.439, 0.827, 0.816, 1)
+theme_override_font_sizes/font_size = 13
+text = "ПРИГОТОВЬСЯ"
+horizontal_alignment = 1
+vertical_alignment = 1
+mouse_filter = 2
+
+[node name="Completion" type="Control" parent="CampaignUI"]
+visible = false
+layout_mode = 3
+anchors_preset = 0
+offset_right = 960.0
+offset_bottom = 540.0
+mouse_filter = 2
+
+[node name="Shade" type="ColorRect" parent="CampaignUI/Completion"]
+layout_mode = 0
+offset_right = 960.0
+offset_bottom = 540.0
+color = Color(0.02, 0.027, 0.051, 0.94)
+mouse_filter = 2
+
+[node name="Panel" type="ColorRect" parent="CampaignUI/Completion"]
+layout_mode = 0
+offset_left = 150.0
+offset_top = 130.0
+offset_right = 810.0
+offset_bottom = 410.0
+color = Color(0.075, 0.098, 0.165, 1)
+mouse_filter = 2
+
+[node name="Accent" type="ColorRect" parent="CampaignUI/Completion/Panel"]
+layout_mode = 0
+offset_right = 660.0
+offset_bottom = 6.0
+color = Color(0.439, 0.827, 0.816, 1)
+mouse_filter = 2
+
+[node name="Title" type="Label" parent="CampaignUI/Completion/Panel"]
+layout_mode = 0
+offset_left = 30.0
+offset_top = 34.0
+offset_right = 630.0
+offset_bottom = 72.0
+theme_override_colors/font_color = Color(0.439, 0.827, 0.816, 1)
+theme_override_font_sizes/font_size = 22
+text = "КАМПАНИЯ ЗАВЕРШЕНА"
+horizontal_alignment = 1
+vertical_alignment = 1
+mouse_filter = 2
+
+[node name="Count" type="Label" parent="CampaignUI/Completion/Panel"]
+layout_mode = 0
+offset_left = 30.0
+offset_top = 86.0
+offset_right = 630.0
+offset_bottom = 142.0
+theme_override_colors/font_color = Color(0.973, 0.58, 0.267, 1)
+theme_override_font_sizes/font_size = 36
+text = "8 / 8"
+horizontal_alignment = 1
+vertical_alignment = 1
+mouse_filter = 2
+
+[node name="Subtitle" type="Label" parent="CampaignUI/Completion/Panel"]
+layout_mode = 0
+offset_left = 30.0
+offset_top = 152.0
+offset_right = 630.0
+offset_bottom = 180.0
+theme_override_colors/font_color = Color(0.651, 0.714, 0.82, 1)
+theme_override_font_sizes/font_size = 14
+text = "ВСЕ АРЕНЫ ПРОЙДЕНЫ"
+horizontal_alignment = 1
+vertical_alignment = 1
+mouse_filter = 2
+
+[node name="Hint" type="Label" parent="CampaignUI/Completion/Panel"]
+layout_mode = 0
+offset_left = 30.0
+offset_top = 214.0
+offset_right = 630.0
+offset_bottom = 244.0
+theme_override_colors/font_color = Color(0.439, 0.827, 0.816, 1)
+theme_override_font_sizes/font_size = 13
+text = "R — ПРОЙТИ СНАЧАЛА    F1 — ВЫБОР АРЕНЫ"
+horizontal_alignment = 1
+vertical_alignment = 1
+mouse_filter = 2
+
 [node name="FailureUI" type="CanvasLayer" parent="."]
 visible = false
 layer = 100

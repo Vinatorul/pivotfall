@@ -4,15 +4,38 @@ extends Node2D
 const CAMPAIGN_STORAGE := preload(
 	"res://scripts/campaign/campaign_storage.gd"
 )
+const CAMPAIGN_DATA_VALIDATOR := preload(
+	"res://scripts/campaign/campaign_data_validator.gd"
+)
 const LEVEL_DATA_CODEC := preload(
 	"res://scripts/levels/level_data_codec.gd"
 )
 const LEVEL_RUNTIME_SCENE := preload(
 	"res://scenes/data_arena_01.tscn"
 )
-const FINAL_BEHAVIOR_RESTART_FINAL_LEVEL := "restart_final_level"
+const COMPLETION_CLEAR_MESSAGE := (
+	"КАМПАНИЯ ПРОЙДЕНА  /  ФИНАЛ..."
+)
+
+enum Phase {
+	BOOTING,
+	INTRO,
+	PLAYING,
+	REPLACING,
+	COMPLETED,
+	FAILED,
+}
+
+@export_range(0.0, 5.0, 0.05) var intro_duration := 0.9
 
 @onready var runtime_host: Node2D = $RuntimeHost
+@onready var progress_backing: ColorRect = $CampaignUI/ProgressBacking
+@onready var progress_label: Label = $CampaignUI/Progress
+@onready var intro_ui: Control = $CampaignUI/Intro
+@onready var intro_title: Label = $CampaignUI/Intro/Panel/Title
+@onready var intro_meta: Label = $CampaignUI/Intro/Panel/Meta
+@onready var completion_ui: Control = $CampaignUI/Completion
+@onready var completion_count: Label = $CampaignUI/Completion/Panel/Count
 @onready var failure_ui: CanvasLayer = $FailureUI
 @onready var failure_label: Label = $FailureUI/Panel/Message
 
@@ -23,8 +46,12 @@ var current_runtime: LevelRuntimeArena
 var current_level_index := -1
 var transition_generation := 0
 var transitioning := false
+var campaign_completed := false
+var intro_active := false
+var phase := Phase.BOOTING
 
 var _snapshots_by_id: Dictionary = {}
+var _intro_generation := 0
 
 
 func _ready() -> void:
@@ -38,9 +65,8 @@ func _ready() -> void:
 	campaign_data = (
 		campaign_result.get("data", {}) as Dictionary
 	).duplicate(true)
-	if (
+	if not CAMPAIGN_DATA_VALIDATOR.FINAL_BEHAVIORS.has(
 		str(campaign_data.get("final_behavior", ""))
-		!= FINAL_BEHAVIOR_RESTART_FINAL_LEVEL
 	):
 		_show_failure(["Campaign final behavior is not supported."])
 		return
@@ -65,15 +91,44 @@ func _ready() -> void:
 		if requested_index >= 0:
 			start_index = requested_index
 
-	if not _spawn_runtime(start_index, transition_generation):
+	if not _spawn_runtime(
+		start_index,
+		transition_generation,
+		true
+	):
 		return
 	_remember_campaign_level_id(get_current_level_id())
 
 
 func _exit_tree() -> void:
 	transition_generation += 1
+	_intro_generation += 1
 	transitioning = false
+	intro_active = false
 	current_runtime = null
+
+
+func _input(event: InputEvent) -> void:
+	if (
+		not campaign_completed
+		or get_tree().paused
+		or not event is InputEventKey
+		or not event.pressed
+		or event.echo
+	):
+		return
+
+	var key_event := event as InputEventKey
+	var key := (
+		key_event.physical_keycode
+		if key_event.physical_keycode != 0
+		else key_event.keycode
+	)
+	if key != KEY_R:
+		return
+
+	if restart_campaign():
+		get_viewport().set_input_as_handled()
 
 
 func open_level_by_id(level_id: String) -> bool:
@@ -84,11 +139,12 @@ func open_level_by_id(level_id: String) -> bool:
 	if (
 		target_index == current_level_index
 		and is_instance_valid(current_runtime)
+		and not campaign_completed
 	):
 		_remember_campaign_level_id(level_id)
 		return true
 
-	_replace_runtime(target_index)
+	_replace_runtime(target_index, true)
 	return true
 
 
@@ -107,6 +163,22 @@ func get_current_level_index() -> int:
 
 func get_level_count() -> int:
 	return campaign_entries.size()
+
+
+func is_campaign_complete() -> bool:
+	return campaign_completed
+
+
+func restart_campaign() -> bool:
+	if (
+		not campaign_completed
+		or transitioning
+		or campaign_entries.is_empty()
+	):
+		return false
+
+	_replace_runtime(0, true)
+	return true
 
 
 func get_entries() -> Array[Dictionary]:
@@ -157,7 +229,11 @@ func _prepare_snapshots() -> Array[String]:
 	return errors
 
 
-func _spawn_runtime(index: int, generation: int) -> bool:
+func _spawn_runtime(
+	index: int,
+	generation: int,
+	show_intro: bool
+) -> bool:
 	if (
 		generation != transition_generation
 		or index < 0
@@ -192,6 +268,9 @@ func _spawn_runtime(index: int, generation: int) -> bool:
 	runtime.campaign_advance_requested.connect(
 		_on_advance_requested.bind(runtime, generation)
 	)
+	runtime.campaign_completed_requested.connect(
+		_on_completed_requested.bind(runtime, generation)
+	)
 	runtime.campaign_restart_requested.connect(
 		_on_restart_requested.bind(runtime, generation)
 	)
@@ -200,7 +279,15 @@ func _spawn_runtime(index: int, generation: int) -> bool:
 	current_runtime = runtime
 	runtime_host.add_child(runtime)
 	if runtime.level_loaded:
+		if _is_completion_final_index(index):
+			runtime.clear_message = COMPLETION_CLEAR_MESSAGE
 		failure_ui.visible = false
+		_update_progress(index)
+		if show_intro:
+			_begin_intro(index, generation)
+		else:
+			phase = Phase.PLAYING
+			_set_runtime_active(true)
 		return true
 
 	var runtime_errors: Array = runtime.load_errors
@@ -211,7 +298,10 @@ func _spawn_runtime(index: int, generation: int) -> bool:
 	return false
 
 
-func _replace_runtime(target_index: int) -> void:
+func _replace_runtime(
+	target_index: int,
+	show_intro: bool
+) -> void:
 	if (
 		transitioning
 		or target_index < 0
@@ -220,6 +310,9 @@ func _replace_runtime(target_index: int) -> void:
 		return
 
 	transitioning = true
+	phase = Phase.REPLACING
+	_hide_completion()
+	_cancel_intro()
 	transition_generation += 1
 	var generation := transition_generation
 	var previous_runtime := current_runtime
@@ -233,7 +326,11 @@ func _replace_runtime(target_index: int) -> void:
 	if generation != transition_generation or not is_inside_tree():
 		return
 
-	var spawned := _spawn_runtime(target_index, generation)
+	var spawned := _spawn_runtime(
+		target_index,
+		generation,
+		show_intro
+	)
 	transitioning = false
 	if spawned:
 		_remember_campaign_level_id(get_current_level_id())
@@ -249,7 +346,24 @@ func _on_advance_requested(
 	var next_index := current_level_index + 1
 	if next_index >= campaign_entries.size():
 		next_index = current_level_index
-	_replace_runtime(next_index)
+	_replace_runtime(next_index, true)
+
+
+func _on_completed_requested(
+	runtime: LevelRuntimeArena,
+	generation: int
+) -> void:
+	if not _is_current_request(runtime, generation):
+		return
+
+	if (
+		str(campaign_data.get("final_behavior", ""))
+		== CAMPAIGN_DATA_VALIDATOR.FINAL_BEHAVIOR_SHOW_COMPLETION
+	):
+		_show_completion()
+		return
+
+	_replace_runtime(current_level_index, false)
 
 
 func _on_restart_requested(
@@ -259,7 +373,122 @@ func _on_restart_requested(
 ) -> void:
 	if not _is_current_request(runtime, generation):
 		return
-	_replace_runtime(current_level_index)
+	_replace_runtime(current_level_index, false)
+
+
+func _begin_intro(index: int, generation: int) -> void:
+	_intro_generation += 1
+	var intro_generation := _intro_generation
+	intro_active = true
+	phase = Phase.INTRO
+	intro_title.text = str(
+		campaign_entries[index].get("title", "ARENA")
+	).to_upper()
+	intro_meta.text = "АРЕНА %d / %d" % [
+		index + 1,
+		campaign_entries.size(),
+	]
+	intro_ui.visible = true
+	_set_runtime_active(false)
+
+	if intro_duration <= 0.0:
+		call_deferred(
+			"_finish_intro",
+			generation,
+			intro_generation
+		)
+		return
+
+	get_tree().create_timer(
+		intro_duration,
+		true
+	).timeout.connect(
+		_finish_intro.bind(generation, intro_generation)
+	)
+
+
+func _finish_intro(
+	generation: int,
+	intro_generation: int
+) -> void:
+	if (
+		generation != transition_generation
+		or intro_generation != _intro_generation
+		or campaign_completed
+		or not is_instance_valid(current_runtime)
+	):
+		return
+
+	intro_active = false
+	intro_ui.visible = false
+	phase = Phase.PLAYING
+	_set_runtime_active(true)
+
+
+func _cancel_intro() -> void:
+	_intro_generation += 1
+	intro_active = false
+	intro_ui.visible = false
+
+
+func _update_progress(index: int) -> void:
+	var progress_text := "КАМПАНИЯ  %d / %d" % [
+		index + 1,
+		campaign_entries.size(),
+	]
+	progress_label.text = progress_text
+	progress_backing.visible = true
+	progress_label.visible = true
+
+
+func _show_completion() -> void:
+	_cancel_intro()
+	transitioning = true
+	campaign_completed = true
+	phase = Phase.REPLACING
+	completion_count.text = "%d / %d" % [
+		campaign_entries.size(),
+		campaign_entries.size(),
+	]
+	completion_ui.visible = true
+	_set_runtime_active(false)
+	transition_generation += 1
+	var generation := transition_generation
+	var completed_runtime := current_runtime
+	current_runtime = null
+
+	if is_instance_valid(completed_runtime):
+		completed_runtime.queue_free()
+		await completed_runtime.tree_exited
+
+	if generation != transition_generation or not is_inside_tree():
+		return
+
+	transitioning = false
+	phase = Phase.COMPLETED
+
+
+func _hide_completion() -> void:
+	campaign_completed = false
+	completion_ui.visible = false
+
+
+func _set_runtime_active(active: bool) -> void:
+	if not is_instance_valid(current_runtime):
+		return
+	current_runtime.process_mode = (
+		Node.PROCESS_MODE_INHERIT
+		if active
+		else Node.PROCESS_MODE_DISABLED
+	)
+
+
+func _is_completion_final_index(index: int) -> bool:
+	return (
+		index == campaign_entries.size() - 1
+		and str(campaign_data.get("final_behavior", ""))
+		== CAMPAIGN_DATA_VALIDATOR.FINAL_BEHAVIOR_SHOW_COMPLETION
+	)
 
 
 func _is_current_request(
@@ -311,6 +540,12 @@ func _remember_campaign_level_id(level_id: String) -> void:
 
 
 func _show_failure(errors: Array) -> void:
+	_cancel_intro()
+	_hide_completion()
+	phase = Phase.FAILED
+	progress_backing.visible = false
+	progress_label.visible = false
+	_set_runtime_active(false)
 	load_errors.clear()
 	for error: Variant in errors:
 		load_errors.append(str(error))
