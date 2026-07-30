@@ -4,9 +4,6 @@ const RUNTIME_SCENE := preload(
 	"res://scenes/data_arena_01.tscn"
 )
 const EDITOR_SCENE := preload("res://scenes/level_editor.tscn")
-const LEGACY_ARENA_02_SCENE := preload(
-	"res://scenes/arena_02.tscn"
-)
 const TOGGLE_PLATFORM_SCENE := preload(
 	"res://scenes/toggle_platform.tscn"
 )
@@ -38,7 +35,6 @@ func _run() -> void:
 	_test_link_warnings_and_fan_in()
 	_test_builder_rolls_back_invalid_links()
 	await _test_toggle_lifecycle()
-	await _test_legacy_target_path()
 	await _test_arena_02_builder_and_real_clear()
 	await _test_arena_02_editor_lifecycle()
 
@@ -525,46 +521,6 @@ func _test_toggle_lifecycle() -> void:
 
 	hinge.queue_free()
 	bridge.queue_free()
-	await process_frame
-
-
-func _test_legacy_target_path() -> void:
-	var arena := LEGACY_ARENA_02_SCENE.instantiate()
-	var left_floor := arena.get_node("Geometry/LeftFloor") as StaticBody2D
-	var right_floor := arena.get_node("Geometry/RightFloor") as StaticBody2D
-	var player := arena.get_node("Player") as Player
-	var enemy := arena.get_node("PatrolEnemy") as PatrolEnemy
-	var hinge := arena.get_node("Hinge") as Hinge
-	var bridge := arena.get_node("TogglePlatform") as TogglePlatform
-	var legacy_player_position := player.position
-	var legacy_enemy_position := enemy.position
-	root.add_child(arena)
-	await process_frame
-	var left_shape := (
-		left_floor.get_node("CollisionShape2D") as CollisionShape2D
-	).shape as RectangleShape2D
-	var right_shape := (
-		right_floor.get_node("CollisionShape2D") as CollisionShape2D
-	).shape as RectangleShape2D
-	var bridge_shape := (
-		bridge.get_node("CollisionShape2D") as CollisionShape2D
-	).shape as RectangleShape2D
-	_expect(
-		left_floor.position.is_equal_approx(Vector2(216, 518))
-		and left_shape.size.is_equal_approx(Vector2(368, 44))
-		and right_floor.position.is_equal_approx(Vector2(744, 518))
-		and right_shape.size.is_equal_approx(Vector2(368, 44))
-		and legacy_player_position.is_equal_approx(Vector2(150, 450))
-		and legacy_enemy_position.is_equal_approx(Vector2(480, 450))
-		and is_equal_approx(enemy.patrol_speed, 65.0)
-		and is_equal_approx(enemy.patrol_direction, 1.0)
-		and bridge.position.is_equal_approx(Vector2(480, 506))
-		and bridge_shape.size.is_equal_approx(Vector2(160, 20))
-		and hinge.position.is_equal_approx(Vector2(300, 468))
-		and hinge.target == bridge,
-		"Legacy Arena 02 drifted from the migrated fixture."
-	)
-	arena.queue_free()
 	await process_frame
 
 
