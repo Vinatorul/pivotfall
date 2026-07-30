@@ -6,6 +6,8 @@ const RUNNER_SCENE := preload(
 const MAIN_MENU_PATH := "res://scenes/main_menu.tscn"
 
 var failures: Array[String] = []
+var progress_store: CampaignProgressStore
+var progress_path_configured := false
 
 
 func _initialize() -> void:
@@ -13,6 +15,34 @@ func _initialize() -> void:
 
 
 func _run() -> void:
+	progress_store = root.get_node_or_null(
+		"CampaignProgress"
+	) as CampaignProgressStore
+	_expect(
+		is_instance_valid(progress_store),
+		"Campaign progress autoload is unavailable."
+	)
+	if not is_instance_valid(progress_store):
+		_finish()
+		return
+	var test_progress_path := (
+		"user://campaign_progress_test_pause_%d_%d.json"
+		% [OS.get_process_id(), Time.get_ticks_usec()]
+	)
+	progress_path_configured = (
+		progress_store.configure_storage_path_for_tests(
+			test_progress_path
+		)
+	)
+	_expect(
+		progress_path_configured,
+		"Could not isolate pause campaign progress."
+	)
+	if not progress_path_configured:
+		_finish()
+		return
+	progress_store.clear_progress()
+
 	var selector := root.get_node_or_null("DebugLevelSelector")
 	_expect(
 		is_instance_valid(selector),
@@ -283,6 +313,14 @@ func _finish() -> void:
 	if is_instance_valid(scene):
 		scene.queue_free()
 		await scene.tree_exited
+
+	if progress_path_configured and is_instance_valid(progress_store):
+		var clear_result := progress_store.clear_progress()
+		if not bool(clear_result["ok"]):
+			failures.append(
+				"Could not clean isolated campaign progress."
+			)
+		progress_store.restore_default_storage_path()
 
 	if failures.is_empty():
 		print("PAUSE_MENU_SMOKE_OK")

@@ -17,6 +17,7 @@ config/features=PackedStringArray("4.6")
 [autoload]
 
 DebugLevelSelector="*res://scenes/debug_level_selector.tscn"
+CampaignProgress="*res://scripts/campaign/campaign_progress.gd"
 
 [display]
 

@@ -19,6 +19,8 @@ var temporary_level_id := ""
 var temporary_editor_level_id := ""
 var temporary_broken_level_id := ""
 var temporary_conflict_path := ""
+var progress_store: CampaignProgressStore
+var progress_path_configured := false
 
 
 func _initialize() -> void:
@@ -27,14 +29,23 @@ func _initialize() -> void:
 
 func _finalize() -> void:
 	_cleanup_temporary_level()
+	_cleanup_campaign_progress()
 
 
 func _run() -> void:
+	if not _setup_campaign_progress():
+		failures.append("Could not isolate campaign progress.")
+		for failure: String in failures:
+			push_error(failure)
+		quit(1)
+		return
+
 	_test_draft_history()
 	_test_storage_round_trip()
 	await _test_editor_workflow()
 
 	_cleanup_temporary_level()
+	_cleanup_campaign_progress()
 	if failures.is_empty():
 		print("LEVEL_EDITOR_SMOKE_OK")
 		quit(0)
@@ -1201,6 +1212,35 @@ func _cleanup_temporary_level() -> void:
 						"user://levels/%s" % file_name
 					)
 				)
+
+
+func _setup_campaign_progress() -> bool:
+	progress_store = root.get_node_or_null(
+		"CampaignProgress"
+	) as CampaignProgressStore
+	if not is_instance_valid(progress_store):
+		return false
+	var test_progress_path := (
+		"user://campaign_progress_test_editor_%d_%d.json"
+		% [OS.get_process_id(), Time.get_ticks_usec()]
+	)
+	progress_path_configured = (
+		progress_store.configure_storage_path_for_tests(
+			test_progress_path
+		)
+	)
+	if not progress_path_configured:
+		return false
+	var clear_result := progress_store.clear_progress()
+	return bool(clear_result["ok"])
+
+
+func _cleanup_campaign_progress() -> void:
+	if not progress_path_configured or not is_instance_valid(progress_store):
+		return
+	progress_store.clear_progress()
+	progress_store.restore_default_storage_path()
+	progress_path_configured = false
 
 
 func _expect(condition: bool, message: String) -> void:

@@ -25,18 +25,31 @@ const EXPECTED_LEVEL_IDS: Array[String] = [
 ]
 
 var failures: Array[String] = []
+var progress_store: CampaignProgressStore
+var progress_path_configured := false
 
 
 func _initialize() -> void:
 	call_deferred("_run")
 
 
+func _finalize() -> void:
+	_cleanup_campaign_progress()
+
+
 func _run() -> void:
+	if not _setup_campaign_progress():
+		failures.append("Could not isolate campaign progress.")
+
 	var campaign_result := _test_manifest()
-	if bool(campaign_result.get("ok", false)):
+	if (
+		progress_path_configured
+		and bool(campaign_result.get("ok", false))
+	):
 		await _test_runner_lifecycle(campaign_result)
 
 	await _cleanup_current_scene()
+	_cleanup_campaign_progress()
 	if failures.is_empty():
 		print("CAMPAIGN_SMOKE_OK")
 		quit(0)
@@ -717,6 +730,35 @@ func _cleanup_current_scene() -> void:
 	if is_instance_valid(scene):
 		scene.queue_free()
 		await scene.tree_exited
+
+
+func _setup_campaign_progress() -> bool:
+	progress_store = root.get_node_or_null(
+		"CampaignProgress"
+	) as CampaignProgressStore
+	if not is_instance_valid(progress_store):
+		return false
+	var test_progress_path := (
+		"user://campaign_progress_test_campaign_%d_%d.json"
+		% [OS.get_process_id(), Time.get_ticks_usec()]
+	)
+	progress_path_configured = (
+		progress_store.configure_storage_path_for_tests(
+			test_progress_path
+		)
+	)
+	if not progress_path_configured:
+		return false
+	var clear_result := progress_store.clear_progress()
+	return bool(clear_result["ok"])
+
+
+func _cleanup_campaign_progress() -> void:
+	if not progress_path_configured or not is_instance_valid(progress_store):
+		return
+	progress_store.clear_progress()
+	progress_store.restore_default_storage_path()
+	progress_path_configured = false
 
 
 func _expect(condition: bool, message: String) -> void:

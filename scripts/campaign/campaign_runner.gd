@@ -55,6 +55,7 @@ var phase := Phase.BOOTING
 
 var _snapshots_by_id: Dictionary = {}
 var _intro_generation := 0
+var _tracks_progress := false
 
 
 func _ready() -> void:
@@ -92,11 +93,28 @@ func _ready() -> void:
 		return
 
 	var start_index := 0
-	var requested_id := _requested_campaign_level_id()
-	if not requested_id.is_empty():
-		var requested_index := _entry_index_by_id(requested_id)
-		if requested_index >= 0:
-			start_index = requested_index
+	var launch_request := _consume_progress_launch_request()
+	var tracked_level_id := str(
+		launch_request.get("level_id", "")
+	)
+	if bool(launch_request.get("track_progress", false)):
+		var tracked_index := _entry_index_by_id(tracked_level_id)
+		if tracked_index < 0:
+			_show_failure(
+				[
+					"Saved campaign level '%s' is unavailable."
+					% tracked_level_id
+				]
+			)
+			return
+		start_index = tracked_index
+		_tracks_progress = true
+	else:
+		var requested_id := _requested_campaign_level_id()
+		if not requested_id.is_empty():
+			var requested_index := _entry_index_by_id(requested_id)
+			if requested_index >= 0:
+				start_index = requested_index
 
 	if not _spawn_runtime(
 		start_index,
@@ -154,6 +172,7 @@ func open_level_by_id(level_id: String) -> bool:
 	):
 		return false
 
+	_tracks_progress = false
 	if (
 		target_index == current_level_index
 		and is_instance_valid(current_runtime)
@@ -187,6 +206,10 @@ func is_campaign_complete() -> bool:
 	return campaign_completed
 
 
+func is_tracking_progress() -> bool:
+	return _tracks_progress
+
+
 func restart_campaign() -> bool:
 	if (
 		not campaign_completed
@@ -195,6 +218,19 @@ func restart_campaign() -> bool:
 	):
 		return false
 
+	if _tracks_progress:
+		var progress_store := _progress_store()
+		if not is_instance_valid(progress_store):
+			return false
+		var reset := progress_store.reset_progress(
+			campaign_entries
+		)
+		if not bool(reset["ok"]):
+			_report_progress_error(
+				"Could not reset completed campaign progress.",
+				reset
+			)
+			return false
 	_replace_runtime(0, true)
 	return true
 
@@ -406,7 +442,8 @@ func _spawn_runtime(
 
 func _replace_runtime(
 	target_index: int,
-	show_intro: bool
+	show_intro: bool,
+	record_progress: bool = false
 ) -> void:
 	if (
 		transitioning
@@ -440,6 +477,21 @@ func _replace_runtime(
 	transitioning = false
 	if spawned:
 		_remember_campaign_level_id(get_current_level_id())
+		if record_progress and _tracks_progress:
+			var progress_store := _progress_store()
+			var saved := (
+				progress_store.record_level_started(
+					campaign_entries,
+					get_current_level_id()
+				)
+				if is_instance_valid(progress_store)
+				else {"ok": false, "errors": ["Progress store missing."]}
+			)
+			if not bool(saved["ok"]):
+				_report_progress_error(
+					"Could not save campaign advancement.",
+					saved
+				)
 
 
 func _on_advance_requested(
@@ -452,7 +504,7 @@ func _on_advance_requested(
 	var next_index := current_level_index + 1
 	if next_index >= campaign_entries.size():
 		next_index = current_level_index
-	_replace_runtime(next_index, true)
+	_replace_runtime(next_index, true, true)
 
 
 func _on_completed_requested(
@@ -466,6 +518,18 @@ func _on_completed_requested(
 		str(campaign_data.get("final_behavior", ""))
 		== CAMPAIGN_DATA_VALIDATOR.FINAL_BEHAVIOR_SHOW_COMPLETION
 	):
+		if _tracks_progress:
+			var progress_store := _progress_store()
+			var saved := (
+				progress_store.mark_completed(campaign_entries)
+				if is_instance_valid(progress_store)
+				else {"ok": false, "errors": ["Progress store missing."]}
+			)
+			if not bool(saved["ok"]):
+				_report_progress_error(
+					"Could not save campaign completion.",
+					saved
+				)
 		_show_completion()
 		return
 
@@ -614,6 +678,35 @@ func _entry_index_by_id(level_id: String) -> int:
 		if str(campaign_entries[index].get("id", "")) == level_id:
 			return index
 	return -1
+
+
+func _progress_store() -> CampaignProgressStore:
+	return get_node_or_null(
+		"/root/CampaignProgress"
+	) as CampaignProgressStore
+
+
+func _consume_progress_launch_request() -> Dictionary:
+	var progress_store := _progress_store()
+	if not is_instance_valid(progress_store):
+		return {
+			"level_id": "",
+			"track_progress": false,
+		}
+	return progress_store.consume_launch_request()
+
+
+func _report_progress_error(
+	context: String,
+	result: Dictionary
+) -> void:
+	var errors: Array = result.get("errors", [])
+	var detail := (
+		str(errors[0])
+		if not errors.is_empty()
+		else "Unknown storage error."
+	)
+	push_warning("%s %s" % [context, detail])
 
 
 func _requested_campaign_level_id() -> String:

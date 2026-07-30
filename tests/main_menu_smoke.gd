@@ -8,6 +8,8 @@ const CAMPAIGN_PATH := "res://scenes/campaign_runner.tscn"
 const LEVEL_EDITOR_PATH := "res://scenes/level_editor.tscn"
 
 var failures: Array[String] = []
+var progress_store: CampaignProgressStore
+var progress_path_configured := false
 
 
 func _initialize() -> void:
@@ -15,6 +17,34 @@ func _initialize() -> void:
 
 
 func _run() -> void:
+	progress_store = root.get_node_or_null(
+		"CampaignProgress"
+	) as CampaignProgressStore
+	_expect(
+		is_instance_valid(progress_store),
+		"Campaign progress autoload is unavailable."
+	)
+	if not is_instance_valid(progress_store):
+		_finish()
+		return
+	var test_progress_path := (
+		"user://campaign_progress_test_main_menu_%d_%d.json"
+		% [OS.get_process_id(), Time.get_ticks_usec()]
+	)
+	progress_path_configured = (
+		progress_store.configure_storage_path_for_tests(
+			test_progress_path
+		)
+	)
+	_expect(
+		progress_path_configured,
+		"Could not isolate main-menu campaign progress."
+	)
+	if not progress_path_configured:
+		_finish()
+		return
+	progress_store.clear_progress()
+
 	var selector := root.get_node_or_null("DebugLevelSelector")
 	_expect(
 		is_instance_valid(selector),
@@ -139,7 +169,8 @@ func _run() -> void:
 
 func _expect_menu_ready(menu: Node, selector: Node) -> void:
 	_expect(
-		menu.new_game_button.text == "НОВАЯ ИГРА"
+		menu.continue_button.text.begins_with("ПРОДОЛЖИТЬ")
+		and menu.new_game_button.text == "НОВАЯ ИГРА"
 		and menu.editor_button.text == "РЕДАКТОР УРОВНЕЙ"
 		and menu.exit_button.text == "ВЫХОД"
 		and menu.exit_button.visible != OS.has_feature("web")
@@ -149,8 +180,12 @@ func _expect_menu_ready(menu: Node, selector: Node) -> void:
 	)
 	_expect(
 		root.get_viewport().gui_get_focus_owner()
-		== menu.new_game_button,
-		"Main menu did not focus New Game."
+		== (
+			menu.continue_button
+			if not menu.continue_button.disabled
+			else menu.new_game_button
+		),
+		"Main menu did not focus its first available campaign action."
 	)
 	_expect(
 		selector.context_suppressed
@@ -208,6 +243,14 @@ func _finish() -> void:
 	if is_instance_valid(scene):
 		scene.queue_free()
 		await scene.tree_exited
+
+	if progress_path_configured and is_instance_valid(progress_store):
+		var clear_result := progress_store.clear_progress()
+		if not bool(clear_result["ok"]):
+			failures.append(
+				"Could not clean isolated campaign progress."
+			)
+		progress_store.restore_default_storage_path()
 
 	if failures.is_empty():
 		print("MAIN_MENU_SMOKE_OK")
