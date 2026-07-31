@@ -1,6 +1,12 @@
 class_name Player
 extends CharacterBody2D
 
+signal attack_landed(target: Node2D, impact_position: Vector2)
+
+const IMPACT_BURST_SCRIPT := preload(
+	"res://scripts/effects/impact_burst.gd"
+)
+
 @export_category("Movement")
 @export var move_speed := 260.0
 @export var ground_acceleration := 1900.0
@@ -14,6 +20,9 @@ extends CharacterBody2D
 @export var attack_vertical_impulse := -170.0
 @export var attack_active_time := 0.12
 @export var attack_cooldown := 0.3
+
+@export_category("Impact feedback")
+@export_range(1, 6, 1) var attack_hit_stop_frames := 3
 
 @export_category("Knockback")
 @export var knockback_lock_time := 0.22
@@ -33,6 +42,7 @@ var facing_direction := 1.0
 var attack_time_remaining := 0.0
 var attack_cooldown_remaining := 0.0
 var knockback_time_remaining := 0.0
+var impact_freeze_frames_remaining := 0
 var struck_targets: Dictionary[int, bool] = {}
 
 
@@ -52,6 +62,9 @@ func _input(event: InputEvent) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if _consume_impact_freeze_frame():
+		return
+
 	_update_attack_timers(delta)
 
 	var direction := Input.get_axis("ui_left", "ui_right")
@@ -112,6 +125,17 @@ func receive_impulse(impulse: Vector2) -> void:
 	attack_requested = false
 
 
+func begin_impact_freeze(frames: int = 3) -> void:
+	impact_freeze_frames_remaining = maxi(
+		impact_freeze_frames_remaining,
+		frames
+	)
+
+
+func is_impact_frozen() -> bool:
+	return impact_freeze_frames_remaining > 0
+
+
 func _start_attack() -> void:
 	attack_time_remaining = attack_active_time
 	attack_cooldown_remaining = attack_cooldown
@@ -157,10 +181,44 @@ func _try_apply_impulse(target: Node2D) -> void:
 		return
 
 	struck_targets[target_id] = true
-	target.call(
-		"receive_impulse",
-		Vector2(
-			facing_direction * attack_horizontal_impulse,
-			attack_vertical_impulse
-		)
+	var impulse := Vector2(
+		facing_direction * attack_horizontal_impulse,
+		attack_vertical_impulse
 	)
+	var impact_position := target.global_position
+	target.call("receive_impulse", impulse)
+	_show_attack_impact(target, impact_position, impulse)
+
+
+func _show_attack_impact(
+	target: Node2D,
+	impact_position: Vector2,
+	impulse: Vector2
+) -> void:
+	var effect_parent := get_parent()
+	if is_instance_valid(effect_parent):
+		var burst := IMPACT_BURST_SCRIPT.new() as ImpactBurst
+		burst.configure(impulse)
+		effect_parent.add_child(burst)
+		burst.global_position = (
+			impact_position - impulse.normalized() * 12.0
+		)
+
+	if (
+		target.is_in_group("enemies")
+		and target.has_method("begin_impact_freeze")
+	):
+		begin_impact_freeze(attack_hit_stop_frames)
+		target.call(
+			"begin_impact_freeze",
+			attack_hit_stop_frames
+		)
+
+	attack_landed.emit(target, impact_position)
+
+
+func _consume_impact_freeze_frame() -> bool:
+	if impact_freeze_frames_remaining <= 0:
+		return false
+	impact_freeze_frames_remaining -= 1
+	return true

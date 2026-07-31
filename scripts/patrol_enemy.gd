@@ -6,6 +6,10 @@ extends CharacterBody2D
 @export var knockback_drag := 420.0
 @export var maximum_fall_speed := 900.0
 
+@export_category("Impact feedback")
+@export_range(0.01, 0.5, 0.01) var hit_flash_duration := 0.12
+@export_range(0.0, 0.4, 0.01) var hit_squash_y := 0.14
+
 @onready var visual: Node2D = $Visual
 @onready var edge_probe: RayCast2D = $EdgeProbe
 
@@ -15,13 +19,21 @@ var gravity: float = float(
 @export_range(-1.0, 1.0, 2.0) var patrol_direction := -1.0
 var knockback_time_remaining := 0.0
 var hit_flash_time_remaining := 0.0
+var impact_freeze_frames_remaining := 0
+var base_visual_modulate := Color.WHITE
+var base_visual_scale_y := 1.0
 
 
 func _ready() -> void:
+	base_visual_modulate = visual.modulate
+	base_visual_scale_y = visual.scale.y
 	_sync_direction()
 
 
 func _physics_process(delta: float) -> void:
+	if _consume_impact_freeze_frame():
+		return
+
 	_update_hit_flash(delta)
 
 	if not is_on_floor():
@@ -44,11 +56,23 @@ func _physics_process(delta: float) -> void:
 func receive_impulse(impulse: Vector2) -> void:
 	velocity = impulse
 	knockback_time_remaining = knockback_lock_time
-	hit_flash_time_remaining = 0.12
+	hit_flash_time_remaining = hit_flash_duration
+	_apply_hit_visual()
 
 	if not is_zero_approx(impulse.x):
 		patrol_direction = signf(impulse.x)
 		_sync_direction()
+
+
+func begin_impact_freeze(frames: int = 3) -> void:
+	impact_freeze_frames_remaining = maxi(
+		impact_freeze_frames_remaining,
+		frames
+	)
+
+
+func is_impact_frozen() -> bool:
+	return impact_freeze_frames_remaining > 0
 
 
 func _turn_around() -> void:
@@ -63,8 +87,26 @@ func _sync_direction() -> void:
 
 func _update_hit_flash(delta: float) -> void:
 	hit_flash_time_remaining = maxf(hit_flash_time_remaining - delta, 0.0)
-	visual.modulate = (
-		Color(1.0, 0.82, 0.62)
-		if hit_flash_time_remaining > 0.0
-		else Color.WHITE
+	_apply_hit_visual()
+
+
+func _apply_hit_visual() -> void:
+	var intensity := clampf(
+		hit_flash_time_remaining / maxf(hit_flash_duration, 0.001),
+		0.0,
+		1.0
 	)
+	visual.modulate = base_visual_modulate.lerp(
+		Color(1.0, 0.82, 0.62, 1.0),
+		intensity
+	)
+	visual.scale.y = base_visual_scale_y * (
+		1.0 - hit_squash_y * intensity
+	)
+
+
+func _consume_impact_freeze_frame() -> bool:
+	if impact_freeze_frames_remaining <= 0:
+		return false
+	impact_freeze_frames_remaining -= 1
+	return true

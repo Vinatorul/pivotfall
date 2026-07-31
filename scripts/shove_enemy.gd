@@ -40,6 +40,9 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if _consume_impact_freeze_frame():
+		return
+
 	_update_hit_flash(delta)
 
 	if not is_on_floor():

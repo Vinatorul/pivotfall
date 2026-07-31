@@ -47,6 +47,9 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if _consume_impact_freeze_frame():
+		return
+
 	_update_hit_flash(delta)
 	_update_muzzle_flash(delta)
 
