@@ -1,7 +1,7 @@
 extends SceneTree
 
 const RUNTIME_SCENE := preload(
-	"res://scenes/data_arena_01.tscn"
+	"res://scenes/level_runtime_arena.tscn"
 )
 const EDITOR_SCENE := preload("res://scenes/level_editor.tscn")
 const TOGGLE_PLATFORM_SCENE := preload(

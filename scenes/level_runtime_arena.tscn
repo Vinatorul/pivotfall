@@ -11,7 +11,7 @@ size = Vector2(960, 32)
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_death_zone"]
 size = Vector2(960, 120)
 
-[node name="DataArena" type="Node2D"]
+[node name="LevelRuntimeArena" type="Node2D"]
 script = ExtResource("1_runtime")
 level_path = "res://levels/arena_01.json"
 

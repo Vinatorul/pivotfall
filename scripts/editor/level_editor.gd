@@ -17,7 +17,7 @@ const LEVEL_BEHAVIOR_PRESETS := preload(
 	"res://scripts/levels/level_behavior_presets.gd"
 )
 const PLAYTEST_SCENE := preload(
-	"res://scenes/data_arena_01.tscn"
+	"res://scenes/level_runtime_arena.tscn"
 )
 
 const TOOL_SELECT := "select"

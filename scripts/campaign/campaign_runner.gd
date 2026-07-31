@@ -11,7 +11,7 @@ const LEVEL_DATA_CODEC := preload(
 	"res://scripts/levels/level_data_codec.gd"
 )
 const LEVEL_RUNTIME_SCENE := preload(
-	"res://scenes/data_arena_01.tscn"
+	"res://scenes/level_runtime_arena.tscn"
 )
 const MAIN_MENU_SCENE_PATH := "res://scenes/main_menu.tscn"
 const COMPLETION_CLEAR_MESSAGE := (

@@ -2,7 +2,7 @@ extends SceneTree
 
 const LEVEL_PATH := "res://levels/arena_01.json"
 const RUNTIME_SCENE := preload(
-	"res://scenes/data_arena_01.tscn"
+	"res://scenes/level_runtime_arena.tscn"
 )
 const PATROL_SCENE := preload(
 	"res://scenes/patrol_enemy.tscn"
@@ -341,7 +341,7 @@ func _test_player_fall_reloads_level() -> void:
 		is_instance_valid(current_scene)
 		and current_scene.get_instance_id() != original_id
 		and current_scene.scene_file_path
-		== "res://scenes/data_arena_01.tscn",
+		== "res://scenes/level_runtime_arena.tscn",
 		"Player fall did not reload the data-driven scene."
 	)
 	if (
@@ -373,7 +373,7 @@ func _test_manual_restart() -> void:
 		is_instance_valid(current_scene)
 		and current_scene.get_instance_id() != original_id
 		and current_scene.scene_file_path
-		== "res://scenes/data_arena_01.tscn",
+		== "res://scenes/level_runtime_arena.tscn",
 		"Physical R did not reload the data-driven scene."
 	)
 	await _cleanup_current_scene()

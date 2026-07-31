@@ -72,6 +72,15 @@ func _run() -> void:
 		) == MAIN_MENU_PATH,
 		"Project main scene is not the main menu."
 	)
+	_expect(
+		str(
+			ProjectSettings.get_setting(
+				"application/config/name",
+				""
+			)
+		) == "Pivotfall",
+		"Project display name is not Pivotfall."
+	)
 	_expect_menu_ready(menu, selector)
 
 	await _press_physical_key(KEY_S)
@@ -168,6 +177,19 @@ func _run() -> void:
 
 
 func _expect_menu_ready(menu: Node, selector: Node) -> void:
+	var brand_kicker := menu.get_node_or_null(
+		"Panel/Kicker"
+	) as Label
+	var brand_title := menu.get_node_or_null(
+		"Panel/Title"
+	) as Label
+	_expect(
+		is_instance_valid(brand_kicker)
+		and brand_kicker.text == "PUSH  /  PIVOT  /  SURVIVE"
+		and is_instance_valid(brand_title)
+		and brand_title.text == "PIVOTFALL",
+		"Main menu does not show the Pivotfall brand."
+	)
 	_expect(
 		menu.continue_button.text.begins_with("ПРОДОЛЖИТЬ")
 		and menu.new_game_button.text == "НОВАЯ ИГРА"

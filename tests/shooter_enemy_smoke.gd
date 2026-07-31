@@ -1,7 +1,7 @@
 extends SceneTree
 
 const EDITOR_SCENE := preload("res://scenes/level_editor.tscn")
-const RUNTIME_SCENE := preload("res://scenes/data_arena_01.tscn")
+const RUNTIME_SCENE := preload("res://scenes/level_runtime_arena.tscn")
 const LEVEL_DATA_CODEC := preload(
 	"res://scripts/levels/level_data_codec.gd"
 )
