@@ -17,6 +17,7 @@ const LEVEL_BUILDER := preload(
 
 @onready var title_label: Label = $UI/Title
 @onready var controls_label: Label = $UI/Controls
+@onready var impact_feedback: ArenaImpactFeedback = $ImpactFeedback
 
 var level_loaded := false
 var level_data: Dictionary = {}
@@ -103,6 +104,9 @@ func _ready() -> void:
 		return
 
 	level_objects = build_result["objects"]
+	var player := _find_runtime_player()
+	if is_instance_valid(player):
+		player.attack_landed.connect(_on_player_attack_landed)
 	title_label.text = level_data["title"]
 	status_label.text = level_data["objective"]
 	clear_message = (
@@ -116,6 +120,24 @@ func _ready() -> void:
 
 func get_level_object(object_id: String) -> Node:
 	return level_objects.get(object_id) as Node
+
+
+func _find_runtime_player() -> Player:
+	for level_object: Node in level_objects.values():
+		if level_object is Player:
+			return level_object as Player
+	return null
+
+
+func _on_player_attack_landed(
+	target: Node2D,
+	_impact_position: Vector2,
+	impulse: Vector2
+) -> void:
+	impact_feedback.play_impact(
+		impulse,
+		target.is_in_group("enemies")
+	)
 
 
 func _should_advance_after_clear() -> bool:

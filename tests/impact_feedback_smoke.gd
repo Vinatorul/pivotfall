@@ -5,6 +5,15 @@ const PATROL_ENEMY_SCENE := preload(
 	"res://scenes/patrol_enemy.tscn"
 )
 const HINGE_SCENE := preload("res://scenes/hinge.tscn")
+const RUNTIME_SCENE := preload(
+	"res://scenes/level_runtime_arena.tscn"
+)
+const LEVEL_DATA_CODEC := preload(
+	"res://scripts/levels/level_data_codec.gd"
+)
+const LEVEL_STORAGE := preload(
+	"res://scripts/levels/level_storage.gd"
+)
 
 var failures: Array[String] = []
 var landed_target_ids: Array[int] = []
@@ -16,6 +25,9 @@ func _initialize() -> void:
 
 func _run() -> void:
 	await _test_enemy_hit_feedback()
+	await _test_runtime_camera_and_sound()
+	for _frame in 3:
+		await process_frame
 
 	if failures.is_empty():
 		print("IMPACT_FEEDBACK_SMOKE_OK")
@@ -166,11 +178,242 @@ func _test_enemy_hit_feedback() -> void:
 	await process_frame
 
 
+func _test_runtime_camera_and_sound() -> void:
+	var loaded: Dictionary = (
+		LEVEL_STORAGE.load_builtin_level("arena_01_data")
+	)
+	_expect(
+		bool(loaded.get("ok", false)),
+		"Could not load the Arena 01 feedback fixture."
+	)
+	if not bool(loaded.get("ok", false)):
+		return
+
+	var level_data: Dictionary = loaded["data"].duplicate(true)
+	for object: Dictionary in level_data.get("objects", []):
+		if object.get("type", "") == "player_spawn":
+			object["id"] = "custom_player"
+	var encoded: Dictionary = LEVEL_DATA_CODEC.encode(level_data)
+	_expect(
+		bool(encoded.get("ok", false)),
+		"Could not encode the custom-player feedback fixture."
+	)
+	if not bool(encoded.get("ok", false)):
+		return
+
+	var runtime := RUNTIME_SCENE.instantiate() as LevelRuntimeArena
+	runtime.process_mode = Node.PROCESS_MODE_DISABLED
+	runtime.configure_embedded_snapshot(str(encoded["text"]))
+	root.add_child(runtime)
+	await process_frame
+	_expect(runtime.level_loaded, "Feedback runtime did not load.")
+	if not runtime.level_loaded:
+		runtime.queue_free()
+		await process_frame
+		return
+
+	var player := runtime.get_level_object("custom_player") as Player
+	var enemy := runtime.get_level_object("patrol_1") as PatrolEnemy
+	var feedback := runtime.impact_feedback
+	_expect(
+		is_instance_valid(player)
+		and is_instance_valid(enemy)
+		and is_instance_valid(feedback),
+		"Runtime did not expose actors or impact feedback."
+	)
+	if (
+		not is_instance_valid(player)
+		or not is_instance_valid(enemy)
+		or not is_instance_valid(feedback)
+	):
+		runtime.queue_free()
+		await process_frame
+		return
+
+	player.set_physics_process(false)
+	enemy.set_physics_process(false)
+	feedback.play_audio_in_headless = true
+	var world_anchor := runtime.get_node("Geometry/LeftWall") as Node2D
+	var title := runtime.get_node("UI/Title") as Label
+	var background := runtime.get_node("Background") as Polygon2D
+	var pit_band := runtime.get_node("PitBand") as Polygon2D
+	var world_position_before := world_anchor.global_position
+	var title_position_before := title.global_position
+	var player_position_before := player.global_position
+	var enemy_position_before := enemy.global_position
+	var expected_impulse := Vector2(
+		player.attack_horizontal_impulse,
+		player.attack_vertical_impulse
+	)
+	player.facing_direction = 1.0
+	player.attack_time_remaining = player.attack_active_time
+	player.call("_try_apply_impulse", enemy)
+
+	var stream := feedback.audio_player.stream as AudioStreamWAV
+	var expected_sample_count := roundi(
+		feedback.sound_duration * float(feedback.sound_mix_rate)
+	)
+	_expect(
+		feedback.impact_count == 1
+		and feedback.sound_play_count == 1
+		and feedback.last_impact_was_enemy
+		and feedback.last_impact_direction.dot(
+			expected_impulse.normalized()
+		) > 0.999,
+		"Runtime did not receive the directional enemy impact."
+	)
+	_expect(
+		feedback.is_shaking()
+		and root.get_camera_2d() == feedback.camera
+		and feedback.camera.position.is_equal_approx(
+			Vector2(480.0, 270.0)
+		)
+		and feedback.camera.offset.is_equal_approx(
+			-expected_impulse.normalized()
+			* feedback.enemy_shake_strength
+		),
+		"Enemy hit did not start the expected camera kick."
+	)
+	_expect(
+		background.polygon[0].is_equal_approx(Vector2(-8.0, -8.0))
+		and background.polygon[2].is_equal_approx(
+			Vector2(968.0, 548.0)
+		)
+		and is_equal_approx(pit_band.polygon[2].y, 548.0),
+		"Arena visuals do not cover the camera shake overscan."
+	)
+	_expect(
+		is_instance_valid(stream)
+		and stream.format == AudioStreamWAV.FORMAT_16_BITS
+		and stream.mix_rate == feedback.sound_mix_rate
+		and not stream.stereo
+		and stream.loop_mode == AudioStreamWAV.LOOP_DISABLED
+		and stream.data.size() == expected_sample_count * 2
+		and _has_non_zero_byte(stream.data)
+		and feedback.audio_player.playing
+		and is_equal_approx(
+			feedback.audio_player.volume_db,
+			feedback.enemy_volume_db
+		)
+		and is_equal_approx(
+			feedback.audio_player.pitch_scale,
+			feedback.enemy_pitch_scale
+		),
+		"Procedural enemy impact sound is missing or malformed."
+	)
+	_expect(
+		world_anchor.global_position.is_equal_approx(
+			world_position_before
+		)
+		and title.global_position.is_equal_approx(
+			title_position_before
+		)
+		and player.global_position.is_equal_approx(
+			player_position_before
+		)
+		and enemy.global_position.is_equal_approx(
+			enemy_position_before
+		),
+		"Camera feedback changed world, UI, or actor transforms."
+	)
+
+	player.call("_try_apply_impulse", enemy)
+	_expect(
+		feedback.impact_count == 1
+		and feedback.sound_play_count == 1,
+		"One swing triggered duplicate camera or sound feedback."
+	)
+
+	var shake_time_before_pause := feedback.shake_time_remaining
+	paused = true
+	await process_frame
+	_expect(
+		feedback.shake_time_remaining < shake_time_before_pause
+		and feedback.audio_player.stream_paused,
+		"Pause did not settle the camera while pausing impact audio."
+	)
+	for _frame in 12:
+		await process_frame
+	paused = false
+	_expect(
+		not feedback.is_shaking()
+		and feedback.camera.offset.is_zero_approx(),
+		"Camera shake did not restore its zero offset during pause."
+	)
+
+	feedback.cancel_feedback()
+	await _wait_real_milliseconds(80)
+	player.impact_freeze_frames_remaining = 0
+	var hinge := HINGE_SCENE.instantiate() as Hinge
+	hinge.position = Vector2(400.0, 300.0)
+	runtime.get_node("Actors").add_child(hinge)
+	player.call("_start_attack")
+	player.call("_try_apply_impulse", hinge)
+	_expect(
+		feedback.impact_count == 2
+		and feedback.sound_play_count == 2
+		and not feedback.last_impact_was_enemy
+		and not player.is_impact_frozen()
+		and is_equal_approx(
+			feedback.camera.offset.length(),
+			feedback.mechanism_shake_strength
+		)
+		and is_equal_approx(
+			feedback.audio_player.volume_db,
+			feedback.mechanism_volume_db
+		)
+		and is_equal_approx(
+			feedback.audio_player.pitch_scale,
+			feedback.mechanism_pitch_scale
+		),
+		"Mechanism hit did not use its lighter feedback preset."
+	)
+
+	await _wait_for_audio_stop(feedback.audio_player, 500)
+	_expect(
+		not feedback.audio_player.playing,
+		"Procedural impact sound did not finish within its budget."
+	)
+	feedback.cancel_feedback()
+	await _wait_real_milliseconds(80)
+	stream = null
+	runtime.free()
+	for _frame in 3:
+		await process_frame
+	_expect(
+		root.get_camera_2d() == null,
+		"Runtime camera remained active after feedback cleanup."
+	)
+
+
 func _on_attack_landed(
 	target: Node2D,
-	_impact_position: Vector2
+	_impact_position: Vector2,
+	_impulse: Vector2
 ) -> void:
 	landed_target_ids.append(target.get_instance_id())
+
+
+func _has_non_zero_byte(data: PackedByteArray) -> bool:
+	for byte: int in data:
+		if byte != 0:
+			return true
+	return false
+
+
+func _wait_for_audio_stop(
+	player: AudioStreamPlayer,
+	timeout_msec: int
+) -> void:
+	var deadline := Time.get_ticks_msec() + timeout_msec
+	while player.playing and Time.get_ticks_msec() < deadline:
+		await process_frame
+
+
+func _wait_real_milliseconds(duration_msec: int) -> void:
+	var deadline := Time.get_ticks_msec() + duration_msec
+	while Time.get_ticks_msec() < deadline:
+		await process_frame
 
 
 func _expect(condition: bool, message: String) -> void:

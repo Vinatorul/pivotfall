@@ -1,7 +1,11 @@
 class_name Player
 extends CharacterBody2D
 
-signal attack_landed(target: Node2D, impact_position: Vector2)
+signal attack_landed(
+	target: Node2D,
+	impact_position: Vector2,
+	impulse: Vector2
+)
 
 const IMPACT_BURST_SCRIPT := preload(
 	"res://scripts/effects/impact_burst.gd"
@@ -214,7 +218,7 @@ func _show_attack_impact(
 			attack_hit_stop_frames
 		)
 
-	attack_landed.emit(target, impact_position)
+	attack_landed.emit(target, impact_position, impulse)
 
 
 func _consume_impact_freeze_frame() -> bool:
