@@ -18,17 +18,19 @@ script = ExtResource("1_player")
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("RectangleShape2D_player")
 
-[node name="Visual" type="Node2D" parent="."]
+[node name="FallVisualPivot" type="Node2D" parent="."]
 
-[node name="Body" type="Polygon2D" parent="Visual"]
+[node name="Visual" type="Node2D" parent="FallVisualPivot"]
+
+[node name="Body" type="Polygon2D" parent="FallVisualPivot/Visual"]
 polygon = PackedVector2Array(-14, -20, 14, -20, 14, 20, -14, 20)
 color = Color(0.251, 0.878, 0.816, 1)
 
-[node name="FacePanel" type="Polygon2D" parent="Visual"]
+[node name="FacePanel" type="Polygon2D" parent="FallVisualPivot/Visual"]
 polygon = PackedVector2Array(2, -10, 14, -10, 14, 8, 2, 8)
 color = Color(0.071, 0.204, 0.251, 1)
 
-[node name="Eye" type="Polygon2D" parent="Visual"]
+[node name="Eye" type="Polygon2D" parent="FallVisualPivot/Visual"]
 polygon = PackedVector2Array(7, -6, 11, -6, 11, -2, 7, -2)
 color = Color(0.941, 0.984, 0.984, 1)
 

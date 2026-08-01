@@ -56,11 +56,19 @@ enum LocomotionPose {
 @export_category("Impact feedback")
 @export_range(1, 6, 1) var attack_hit_stop_frames := 3
 
+@export_category("Fall feedback")
+@export_range(0.0, 2.5, 0.01) var fall_spin_radians := 0.32
+@export_range(0.0, 64.0, 1.0) var fall_drop_distance := 40.0
+@export_range(0.01, 1.0, 0.01) var fall_end_scale := 0.08
+@export_range(0.0, 1.0, 0.01) var fall_end_alpha := 0.0
+@export_range(0.0, 0.3, 0.01) var fall_entry_squash := 0.1
+
 @export_category("Knockback")
 @export var knockback_lock_time := 0.22
 @export var knockback_drag := 520.0
 
-@onready var visual: Node2D = $Visual
+@onready var fall_visual_pivot: Node2D = $FallVisualPivot
+@onready var visual: Node2D = $FallVisualPivot/Visual
 @onready var attack_pivot: Node2D = $AttackPivot
 @onready var attack_area: Area2D = $AttackPivot/AttackArea
 @onready var attack_visual: Polygon2D = $AttackPivot/AttackVisual
@@ -87,6 +95,18 @@ var base_visual_rotation := 0.0
 var base_visual_scale_y := 1.0
 var base_attack_visual_scale := Vector2.ONE
 var base_attack_visual_color := Color.WHITE
+var base_fall_pivot_position := Vector2.ZERO
+var base_fall_pivot_rotation := 0.0
+var base_fall_pivot_scale := Vector2.ONE
+var base_fall_pivot_modulate := Color.WHITE
+var fall_out_duration := 0.001
+var fall_out_elapsed := 0.0
+var fall_out_direction := 1.0
+var is_falling_out := false
+var fall_out_origin_position := Vector2.ZERO
+var fall_out_origin_rotation := 0.0
+var fall_out_origin_scale := Vector2.ONE
+var fall_out_origin_modulate := Color.WHITE
 
 
 func _ready() -> void:
@@ -97,6 +117,11 @@ func _ready() -> void:
 	base_visual_scale_y = visual.scale.y
 	base_attack_visual_scale = attack_visual.scale
 	base_attack_visual_color = attack_visual.color
+	base_fall_pivot_position = fall_visual_pivot.position
+	base_fall_pivot_rotation = fall_visual_pivot.rotation
+	base_fall_pivot_scale = fall_visual_pivot.scale
+	base_fall_pivot_modulate = fall_visual_pivot.modulate
+	_reset_fall_out_visual()
 	_reset_attack_pose()
 
 
@@ -111,6 +136,7 @@ func _input(event: InputEvent) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	_update_fall_out_animation(delta)
 	if _consume_impact_freeze_frame():
 		return
 
@@ -190,6 +216,29 @@ func begin_impact_freeze(frames: int = 3) -> void:
 		impact_freeze_frames_remaining,
 		frames
 	)
+
+
+func begin_fall_out(duration: float) -> bool:
+	if is_falling_out:
+		return false
+
+	fall_out_duration = maxf(duration, 0.001)
+	fall_out_elapsed = 0.0
+	fall_out_direction = signf(velocity.x)
+	if is_zero_approx(fall_out_direction):
+		fall_out_direction = facing_direction
+	if is_zero_approx(fall_out_direction):
+		fall_out_direction = 1.0
+	var visual_global_transform := fall_visual_pivot.global_transform
+	fall_visual_pivot.set_as_top_level(true)
+	fall_visual_pivot.global_transform = visual_global_transform
+	fall_out_origin_position = fall_visual_pivot.position
+	fall_out_origin_rotation = fall_visual_pivot.rotation
+	fall_out_origin_scale = fall_visual_pivot.scale
+	fall_out_origin_modulate = fall_visual_pivot.modulate
+	is_falling_out = true
+	_apply_fall_out_visual()
+	return true
 
 
 func is_impact_frozen() -> bool:
@@ -510,6 +559,68 @@ func _apply_locomotion_pose() -> void:
 		base_visual_rotation + facing_direction * lean
 	)
 	visual.scale.y = base_visual_scale_y * body_scale_y
+
+
+func _update_fall_out_animation(delta: float) -> void:
+	if not is_falling_out:
+		return
+	fall_out_elapsed = minf(
+		fall_out_elapsed + maxf(delta, 0.0),
+		fall_out_duration
+	)
+	_apply_fall_out_visual()
+
+
+func _apply_fall_out_visual() -> void:
+	var progress := clampf(
+		fall_out_elapsed / maxf(fall_out_duration, 0.001),
+		0.0,
+		1.0
+	)
+	var scale_progress := smoothstep(0.08, 1.0, progress)
+	var rotation_progress := smoothstep(0.1, 0.8, progress)
+	var fade_progress := smoothstep(0.46, 1.0, progress)
+	var entry_strength := 1.0 - smoothstep(
+		0.0,
+		0.14,
+		progress
+	)
+	var uniform_scale := lerpf(
+		1.0,
+		fall_end_scale,
+		scale_progress
+	)
+	fall_visual_pivot.position = fall_out_origin_position + Vector2(
+		0.0,
+		fall_drop_distance * pow(progress, 1.55)
+	)
+	fall_visual_pivot.rotation = (
+		fall_out_origin_rotation
+		+ fall_spin_radians * fall_out_direction * rotation_progress
+	)
+	fall_visual_pivot.scale = fall_out_origin_scale * Vector2(
+		uniform_scale * (1.0 + fall_entry_squash * entry_strength),
+		uniform_scale * (1.0 - fall_entry_squash * entry_strength)
+	)
+	var alpha := fall_out_origin_modulate.a * lerpf(
+		1.0,
+		fall_end_alpha,
+		fade_progress
+	)
+	fall_visual_pivot.modulate = Color(
+		fall_out_origin_modulate.r,
+		fall_out_origin_modulate.g,
+		fall_out_origin_modulate.b,
+		alpha
+	)
+
+
+func _reset_fall_out_visual() -> void:
+	fall_visual_pivot.set_as_top_level(false)
+	fall_visual_pivot.position = base_fall_pivot_position
+	fall_visual_pivot.rotation = base_fall_pivot_rotation
+	fall_visual_pivot.scale = base_fall_pivot_scale
+	fall_visual_pivot.modulate = base_fall_pivot_modulate
 
 
 func _air_lean() -> float:

@@ -14,6 +14,7 @@ enum Outcome {
 
 @onready var death_zone: Area2D = $DeathZone
 @onready var status_label: Label = $UI/Status
+@onready var hazard_feedback: Node = get_node_or_null("HazardFeedback")
 
 var enemies_remaining := 0
 var restart_scheduled := false
@@ -44,6 +45,12 @@ func _on_death_zone_body_entered(body: Node2D) -> void:
 
 		status_label.text = "ПАДЕНИЕ  /  ПЕРЕЗАПУСК..."
 		_schedule_outcome(fall_restart_delay, false, Outcome.FALL)
+		body.begin_fall_out(fall_restart_delay)
+		if (
+			is_instance_valid(hazard_feedback)
+			and hazard_feedback.has_method("play_fall")
+		):
+			hazard_feedback.call("play_fall")
 		return
 
 	if restart_scheduled:

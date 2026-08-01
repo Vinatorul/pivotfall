@@ -204,6 +204,15 @@ godot --headless --fixed-fps 60 --path . \
   --script res://tests/mechanism_animation_smoke.gd
 ```
 
+Smoke-тест опасной зоны проверяет спокойный сигнал кромки ямы, короткий flash
+при падении, отделённую от физики fall-out позу игрока и неизменность
+`DeathZone`, таймера рестарта, скорости и коллайдера:
+
+```sh
+godot --headless --fixed-fps 60 --path . \
+  --script res://tests/hazard_feedback_smoke.gd
+```
+
 Smoke-тест обратной связи удара проверяет направленный всплеск, мгновенную
 реакцию врага, локальную остановку игрока и цели на три physics-кадра,
 процедурный звук, безопасный camera shake, возобновление отбрасывания и более

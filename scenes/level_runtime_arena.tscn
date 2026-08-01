@@ -1,7 +1,8 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/levels/level_runtime_arena.gd" id="1_runtime"]
 [ext_resource type="Script" path="res://scripts/effects/arena_impact_feedback.gd" id="2_feedback"]
+[ext_resource type="Script" path="res://scripts/effects/arena_hazard_feedback.gd" id="3_hazard"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_wall"]
 size = Vector2(32, 540)
@@ -30,6 +31,13 @@ color = Color(0.075, 0.098, 0.165, 1)
 z_index = -8
 polygon = PackedVector2Array(32, 496, 928, 496, 928, 548, 32, 548)
 color = Color(0.02, 0.024, 0.043, 1)
+
+[node name="PitEdge" type="Line2D" parent="."]
+z_index = -7
+points = PackedVector2Array(32, 496, 928, 496)
+width = 2.0
+default_color = Color(0.925, 0.58, 0.267, 0.28)
+antialiased = true
 
 [node name="Geometry" type="Node2D" parent="."]
 
@@ -75,6 +83,11 @@ position = Vector2(480, 270)
 enabled = true
 
 [node name="AudioPlayer" type="AudioStreamPlayer" parent="ImpactFeedback"]
+
+[node name="HazardFeedback" type="Node" parent="."]
+script = ExtResource("3_hazard")
+pit_band_path = NodePath("../PitBand")
+pit_edge_path = NodePath("../PitEdge")
 
 [node name="DeathZone" type="Area2D" parent="."]
 position = Vector2(480, 600)
