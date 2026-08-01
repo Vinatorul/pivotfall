@@ -25,6 +25,13 @@ const IMPACT_BURST_SCRIPT := preload(
 @export var attack_active_time := 0.12
 @export var attack_cooldown := 0.3
 
+@export_category("Attack animation")
+@export_range(0.1, 0.4, 0.01) var attack_anticipation_ratio := 0.22
+@export_range(0.35, 0.75, 0.01) var attack_contact_ratio := 0.52
+@export_range(0.0, 12.0, 0.5) var attack_anticipation_offset := 4.0
+@export_range(0.0, 16.0, 0.5) var attack_strike_offset := 8.0
+@export_range(0.0, 0.35, 0.01) var attack_lean_radians := 0.14
+
 @export_category("Impact feedback")
 @export_range(1, 6, 1) var attack_hit_stop_frames := 3
 
@@ -48,11 +55,23 @@ var attack_cooldown_remaining := 0.0
 var knockback_time_remaining := 0.0
 var impact_freeze_frames_remaining := 0
 var struck_targets: Dictionary[int, bool] = {}
+var attack_pose_progress := 0.0
+var base_visual_position := Vector2.ZERO
+var base_visual_rotation := 0.0
+var base_visual_scale_y := 1.0
+var base_attack_visual_scale := Vector2.ONE
+var base_attack_visual_color := Color.WHITE
 
 
 func _ready() -> void:
 	attack_area.body_entered.connect(_on_attack_area_body_entered)
 	attack_area.area_entered.connect(_on_attack_area_area_entered)
+	base_visual_position = visual.position
+	base_visual_rotation = visual.rotation
+	base_visual_scale_y = visual.scale.y
+	base_attack_visual_scale = attack_visual.scale
+	base_attack_visual_color = attack_visual.color
+	_reset_attack_pose()
 
 
 func _input(event: InputEvent) -> void:
@@ -97,6 +116,8 @@ func _physics_process(delta: float) -> void:
 			facing_direction = signf(direction)
 			visual.scale.x = facing_direction
 			attack_pivot.scale.x = facing_direction
+			if not is_zero_approx(attack_time_remaining):
+				_apply_attack_pose(attack_pose_progress)
 
 	var wants_to_jump := (
 		Input.is_action_just_pressed("ui_accept")
@@ -146,12 +167,15 @@ func _start_attack() -> void:
 	struck_targets.clear()
 	attack_visual.visible = true
 	attack_area.monitoring = true
+	attack_pose_progress = 0.0
+	_apply_attack_pose(attack_pose_progress)
 
 
 func _finish_attack() -> void:
 	attack_time_remaining = 0.0
 	attack_visual.visible = false
 	attack_area.monitoring = false
+	_reset_attack_pose()
 
 
 func _update_attack_timers(delta: float) -> void:
@@ -163,6 +187,16 @@ func _update_attack_timers(delta: float) -> void:
 	attack_time_remaining = maxf(attack_time_remaining - delta, 0.0)
 	if is_zero_approx(attack_time_remaining):
 		_finish_attack()
+		return
+
+	var timer_progress := 1.0 - (
+		attack_time_remaining / maxf(attack_active_time, 0.001)
+	)
+	attack_pose_progress = maxf(
+		attack_pose_progress,
+		clampf(timer_progress, 0.0, 1.0)
+	)
+	_apply_attack_pose(attack_pose_progress)
 
 
 func _on_attack_area_body_entered(body: Node2D) -> void:
@@ -199,6 +233,8 @@ func _show_attack_impact(
 	impact_position: Vector2,
 	impulse: Vector2
 ) -> void:
+	_snap_attack_pose_to_contact()
+
 	var effect_parent := get_parent()
 	if is_instance_valid(effect_parent):
 		var burst := IMPACT_BURST_SCRIPT.new() as ImpactBurst
@@ -219,6 +255,108 @@ func _show_attack_impact(
 		)
 
 	attack_landed.emit(target, impact_position, impulse)
+
+
+func _snap_attack_pose_to_contact() -> void:
+	attack_pose_progress = _attack_contact_point()
+	_apply_attack_pose(attack_pose_progress)
+
+
+func _apply_attack_pose(progress: float) -> void:
+	var anticipation_end := _attack_anticipation_end()
+	var contact := _attack_contact_point()
+	var pose_progress := clampf(progress, 0.0, 1.0)
+	var offset := 0.0
+	var lean := 0.0
+	var body_scale_y := 1.0
+	var strike_scale := Vector2.ONE
+	var strike_alpha := 1.0
+
+	if pose_progress <= anticipation_end:
+		var phase := _smoothstep01(pose_progress / anticipation_end)
+		offset = lerpf(0.0, -attack_anticipation_offset, phase)
+		lean = lerpf(0.0, -attack_lean_radians * 0.7, phase)
+		body_scale_y = lerpf(1.0, 0.92, phase)
+		strike_scale = Vector2(
+			lerpf(0.28, 0.48, phase),
+			lerpf(0.72, 0.82, phase)
+		)
+		strike_alpha = lerpf(0.18, 0.38, phase)
+	elif pose_progress <= contact:
+		var phase := _smoothstep01(
+			(pose_progress - anticipation_end)
+			/ (contact - anticipation_end)
+		)
+		offset = lerpf(
+			-attack_anticipation_offset,
+			attack_strike_offset,
+			phase
+		)
+		lean = lerpf(
+			-attack_lean_radians * 0.7,
+			attack_lean_radians,
+			phase
+		)
+		body_scale_y = lerpf(0.92, 1.06, phase)
+		strike_scale = Vector2(
+			lerpf(0.48, 1.18, phase),
+			lerpf(0.82, 1.08, phase)
+		)
+		strike_alpha = lerpf(0.38, 1.0, phase)
+	else:
+		var phase := _smoothstep01(
+			(pose_progress - contact) / (1.0 - contact)
+		)
+		offset = lerpf(attack_strike_offset, 0.0, phase)
+		lean = lerpf(attack_lean_radians, 0.0, phase)
+		body_scale_y = lerpf(1.06, 1.0, phase)
+		strike_scale = Vector2(
+			lerpf(1.18, 0.88, phase),
+			lerpf(1.08, 0.9, phase)
+		)
+		strike_alpha = lerpf(1.0, 0.0, phase)
+
+	visual.position = base_visual_position + Vector2(
+		facing_direction * offset,
+		0.0
+	)
+	visual.rotation = (
+		base_visual_rotation + facing_direction * lean
+	)
+	visual.scale.y = base_visual_scale_y * body_scale_y
+	attack_visual.scale = base_attack_visual_scale * strike_scale
+	attack_visual.color = Color(
+		base_attack_visual_color.r,
+		base_attack_visual_color.g,
+		base_attack_visual_color.b,
+		base_attack_visual_color.a * strike_alpha
+	)
+
+
+func _reset_attack_pose() -> void:
+	attack_pose_progress = 0.0
+	visual.position = base_visual_position
+	visual.rotation = base_visual_rotation
+	visual.scale.y = base_visual_scale_y
+	attack_visual.scale = base_attack_visual_scale
+	attack_visual.color = base_attack_visual_color
+
+
+func _smoothstep01(value: float) -> float:
+	var clamped := clampf(value, 0.0, 1.0)
+	return clamped * clamped * (3.0 - 2.0 * clamped)
+
+
+func _attack_anticipation_end() -> float:
+	return clampf(attack_anticipation_ratio, 0.05, 0.45)
+
+
+func _attack_contact_point() -> float:
+	return clampf(
+		attack_contact_ratio,
+		_attack_anticipation_end() + 0.05,
+		0.85
+	)
 
 
 func _consume_impact_freeze_frame() -> bool:
