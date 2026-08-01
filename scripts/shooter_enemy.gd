@@ -10,6 +10,8 @@ enum State {
 	KNOCKBACK,
 }
 
+const VISUAL_HALF_HEIGHT := 22.0
+
 @export_category("Ranged attack")
 @export var line_length := 900.0
 @export var aim_time := 0.7
@@ -19,6 +21,20 @@ enum State {
 @export var projectile_scene: PackedScene = preload(
 	"res://scenes/shooter_projectile.tscn"
 )
+
+@export_category("Shooter animation")
+@export_range(0.0, 2.0, 0.1) var ready_bob_height := 0.7
+@export_range(0.5, 5.0, 0.1) var ready_cycle_frequency := 1.4
+@export_range(0.0, 0.1, 0.005) var ready_breath_stretch := 0.018
+@export_range(0.0, 8.0, 0.5) var aim_forward_offset := 2.5
+@export_range(0.0, 0.25, 0.01) var aim_brace_squash := 0.08
+@export_range(0.0, 0.2, 0.01) var aim_pose_lean := 0.055
+@export_range(1.0, 1.5, 0.01) var locked_marker_scale := 1.2
+@export_range(0.0, 10.0, 0.5) var fire_recoil_offset := 5.0
+@export_range(0.0, 0.25, 0.01) var fire_recoil_stretch := 0.12
+@export_range(0.0, 0.2, 0.01) var cooldown_slump := 0.06
+@export_range(0.0, 8.0, 0.5) var knockback_recoil_offset := 3.0
+@export_range(0.0, 0.2, 0.01) var knockback_stretch := 0.07
 
 @onready var gun_pivot: Node2D = $GunPivot
 @onready var muzzle: Marker2D = $GunPivot/Muzzle
@@ -37,10 +53,23 @@ var aim_direction := Vector2.LEFT
 var aim_distance := 0.0
 var facing_direction := -1.0
 var aim_is_locked := false
+var ready_cycle := 0.0
+var fire_visual_direction := -1.0
+var knockback_visual_direction := -1.0
+var base_visual_position := Vector2.ZERO
+var base_visual_rotation := 0.0
+var base_visual_scale_x := 1.0
+var base_aim_mark_scale := Vector2.ONE
+var base_target_mark_scale := Vector2.ONE
 
 
 func _ready() -> void:
 	super()
+	base_visual_position = visual.position
+	base_visual_rotation = visual.rotation
+	base_visual_scale_x = absf(visual.scale.x)
+	base_aim_mark_scale = aim_mark.scale
+	base_target_mark_scale = target_mark.scale
 	player = _find_player_sibling()
 	_track_player()
 	_enter_ready()
@@ -74,14 +103,21 @@ func _physics_process(delta: float) -> void:
 				_process_cooldown(delta)
 
 	move_and_slide()
+	_update_shooter_animation(delta)
 
 
 func receive_impulse(impulse: Vector2) -> void:
+	knockback_visual_direction = (
+		signf(impulse.x)
+		if not is_zero_approx(impulse.x)
+		else facing_direction
+	)
 	super(impulse)
 	_cancel_aim()
 	_track_player()
 	state = State.KNOCKBACK
 	_set_cooldown_progress(0.0)
+	_apply_shooter_visual()
 
 
 func _process_knockback(delta: float) -> void:
@@ -110,6 +146,7 @@ func _begin_aim() -> void:
 	_update_aim_style()
 	_set_cooldown_progress(1.0)
 	_update_aim_line()
+	_apply_shooter_visual()
 
 
 func _process_aim(delta: float) -> void:
@@ -149,6 +186,7 @@ func _fire() -> void:
 		aim_direction,
 		self
 	)
+	fire_visual_direction = facing_direction
 	shot_fired.emit(projectile)
 
 	muzzle_flash.visible = true
@@ -180,6 +218,7 @@ func _begin_cooldown() -> void:
 	state = State.COOLDOWN
 	state_time_remaining = cooldown_time
 	_set_cooldown_progress(0.0)
+	_apply_shooter_visual()
 
 
 func _process_cooldown(delta: float) -> void:
@@ -196,7 +235,9 @@ func _enter_ready() -> void:
 	_cancel_aim()
 	state = State.READY
 	state_time_remaining = 0.0
+	ready_cycle = 0.0
 	_set_cooldown_progress(1.0)
+	_apply_shooter_visual()
 
 
 func _cancel_aim() -> void:
@@ -271,3 +312,157 @@ func _update_muzzle_flash(delta: float) -> void:
 	flash_time_remaining = maxf(flash_time_remaining - delta, 0.0)
 	if is_zero_approx(flash_time_remaining):
 		muzzle_flash.visible = false
+
+
+func _update_shooter_animation(delta: float) -> void:
+	if state == State.READY:
+		ready_cycle = fmod(
+			ready_cycle + delta * ready_cycle_frequency * TAU,
+			TAU
+		)
+
+	_apply_shooter_visual()
+
+
+func _apply_shooter_visual() -> void:
+	var offset := Vector2.ZERO
+	var rotation_offset := 0.0
+	var body_scale_x := 1.0
+	var body_scale_y := 1.0
+	var lift := 0.0
+	var marker_scale := 1.0
+
+	match state:
+		State.READY:
+			var breath := 0.5 - 0.5 * cos(ready_cycle)
+			lift = -ready_bob_height * breath
+			body_scale_x = 1.0 - ready_breath_stretch * 0.35 * breath
+			body_scale_y = 1.0 + ready_breath_stretch * breath
+			rotation_offset = (
+				facing_direction
+				* aim_pose_lean
+				* 0.12
+				* sin(ready_cycle)
+			)
+		State.AIMING:
+			var charge := _smoothstep01(_state_progress(aim_time))
+			var lock_weight := 0.0
+			if aim_is_locked:
+				lock_weight = lerpf(
+					0.65,
+					1.0,
+					_smoothstep01(_state_progress(aim_lock_time))
+				)
+			var brace := lerpf(charge * 0.72, 1.0, lock_weight)
+			offset.x = facing_direction * aim_forward_offset * brace
+			body_scale_x = 1.0 + aim_brace_squash * 0.45 * brace
+			body_scale_y = 1.0 - aim_brace_squash * brace
+			rotation_offset = facing_direction * aim_pose_lean * brace
+			marker_scale = lerpf(1.0, locked_marker_scale, lock_weight)
+		State.COOLDOWN:
+			var recoil := _smoothstep01(
+				clampf(
+					flash_time_remaining
+					/ maxf(muzzle_flash_time, 0.001),
+					0.0,
+					1.0
+				)
+			)
+			var cooldown_weight := 1.0 - _smoothstep01(
+				_state_progress(cooldown_time)
+			)
+			offset.x = (
+				-fire_visual_direction * fire_recoil_offset * recoil
+			)
+			body_scale_x = (
+				1.0
+				+ fire_recoil_stretch * recoil
+				+ cooldown_slump * 0.25 * cooldown_weight
+			)
+			body_scale_y = (
+				1.0
+				- fire_recoil_stretch * 0.35 * recoil
+				- cooldown_slump * cooldown_weight
+			)
+			rotation_offset = (
+				-fire_visual_direction
+				* aim_pose_lean
+				* 1.4
+				* recoil
+				- facing_direction
+				* aim_pose_lean
+				* 0.45
+				* cooldown_weight
+			)
+		State.KNOCKBACK:
+			var recoil := _smoothstep01(
+				clampf(
+					knockback_time_remaining
+					/ maxf(knockback_lock_time, 0.001),
+					0.0,
+					1.0
+				)
+			)
+			var settle := 1.0 - recoil
+			offset.x = (
+				-knockback_visual_direction
+				* knockback_recoil_offset
+				* recoil
+			)
+			body_scale_x = (
+				1.0
+				+ knockback_stretch * recoil
+				+ cooldown_slump * 0.25 * settle
+			)
+			body_scale_y = 1.0 - cooldown_slump * settle
+			rotation_offset = (
+				-knockback_visual_direction
+				* aim_pose_lean
+				* 0.9
+				* recoil
+				- facing_direction
+				* aim_pose_lean
+				* 0.45
+				* settle
+			)
+
+	offset.y = (
+		lift
+		+ VISUAL_HALF_HEIGHT
+		* base_visual_scale_y
+		* (1.0 - body_scale_y)
+	)
+	var hit_intensity := clampf(
+		hit_flash_time_remaining / maxf(hit_flash_duration, 0.001),
+		0.0,
+		1.0
+	)
+	var hit_scale_y := 1.0 - hit_squash_y * hit_intensity
+	offset.y += (
+		VISUAL_HALF_HEIGHT
+		* base_visual_scale_y
+		* body_scale_y
+		* (1.0 - hit_scale_y)
+	)
+
+	visual.position = base_visual_position + offset
+	visual.rotation = base_visual_rotation + rotation_offset
+	visual.scale = Vector2(
+		facing_direction * base_visual_scale_x * body_scale_x,
+		base_visual_scale_y * body_scale_y * hit_scale_y
+	)
+	aim_mark.scale = base_aim_mark_scale * marker_scale
+	target_mark.scale = base_target_mark_scale * marker_scale
+
+
+func _state_progress(duration: float) -> float:
+	return clampf(
+		1.0 - state_time_remaining / maxf(duration, 0.001),
+		0.0,
+		1.0
+	)
+
+
+func _smoothstep01(value: float) -> float:
+	var clamped := clampf(value, 0.0, 1.0)
+	return clamped * clamped * (3.0 - 2.0 * clamped)

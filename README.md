@@ -250,6 +250,16 @@ godot --headless --fixed-fps 60 --path . \
   --script res://tests/shooter_enemy_smoke.gd
 ```
 
+Отдельный smoke-тест анимации стрелка проверяет спокойную стойку, наведение,
+фиксацию цели, отдачу, перезарядку и knockback, зеркальность направления,
+композицию с hit-flash, трёхкадровый hit-stop и неизменность прицела,
+снаряда, AI-параметров и физической геометрии:
+
+```sh
+godot --headless --fixed-fps 60 --path . \
+  --script res://tests/shooter_enemy_animation_smoke.gd
+```
+
 Вертикальный срез катапульты проверяет закрытый JSON-контракт, точную
 геометрию, связь с шарниром, preview стартовой траектории, реальный запуск
 патрульного и lifecycle встроенного playtest:
