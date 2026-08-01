@@ -75,6 +75,10 @@ func _ready() -> void:
 	_enter_ready()
 
 
+func _uses_base_patrol_animation() -> bool:
+	return false
+
+
 func _physics_process(delta: float) -> void:
 	if _consume_impact_freeze_frame():
 		return

@@ -223,6 +223,16 @@ godot --headless --fixed-fps 60 --path . \
   --script res://tests/player_locomotion_animation_smoke.gd
 ```
 
+Отдельный smoke-тест анимации базового патрульного проверяет механическую
+походку, короткую тормозящую позу при развороте, knockback, композицию с
+hit-flash, трёхкадровый hit-stop, неизменность AI и коллайдера, а также
+изоляцию базового compositor от толкача и стрелка:
+
+```sh
+godot --headless --fixed-fps 60 --path . \
+  --script res://tests/patrol_enemy_animation_smoke.gd
+```
+
 Вертикальный срез толкача — встроенный Arena 03-like JSON, строгие свойства,
 редактор, реальный рывок и победа столкновением в яму:
 
