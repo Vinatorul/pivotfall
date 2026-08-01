@@ -455,6 +455,7 @@ func _test_builder_order_and_real_projectile() -> void:
 	if not is_instance_valid(arena) or not arena.level_loaded:
 		await _cleanup_current_scene()
 		return
+	arena.fall_restart_delay = 10.0
 
 	var enemy := arena.get_level_object("shooter_1") as ShooterEnemy
 	var player := arena.get_level_object("player_start") as Player
@@ -520,6 +521,7 @@ func _test_builder_order_and_real_projectile() -> void:
 							"position": projectile.global_position,
 							"velocity": player.velocity,
 							"lock": player.knockback_time_remaining,
+							"defeated": player.is_defeated,
 						}
 					)
 			)
@@ -543,12 +545,6 @@ func _test_builder_order_and_real_projectile() -> void:
 		if not impacts.is_empty():
 			break
 
-	var expected_velocity := Vector2.ZERO
-	if not shots.is_empty():
-		expected_velocity = (
-			shots[0]["direction"] * 520.0
-			+ Vector2(0, -140)
-		)
 	var impact_velocity: Vector2 = (
 		impacts[0].get("velocity", Vector2.ZERO)
 		if not impacts.is_empty()
@@ -570,13 +566,18 @@ func _test_builder_order_and_real_projectile() -> void:
 		)
 		and impacts.size() == 1
 		and impacts[0]["id"] == "player_start"
-		and impact_velocity.distance_to(expected_velocity) < 0.5
-		and impact_lock > 0.0,
+		and bool(impacts[0]["defeated"])
+		and impact_velocity.length() < 0.5
+		and is_zero_approx(impact_lock)
+		and arena.pending_outcome == Arena.Outcome.FALL
+		and arena.status_label.text
+		== "ПОРАЖЕНИЕ  /  ПЕРЕЗАПУСК..."
+		and player.is_falling_out,
 		(
 			"A shooter declared before the player did not reacquire, "
-			+ "track, fire an arena-owned projectile, and apply impulse: "
+			+ "track, fire an arena-owned projectile, and defeat the player: "
 			+ "player=%s vertical=%s shots=%s impacts=%s velocity=%s "
-			+ "expected=%s lock=%s"
+			+ "lock=%s outcome=%s"
 		)
 		% [
 			enemy.player == player,
@@ -584,8 +585,8 @@ func _test_builder_order_and_real_projectile() -> void:
 			str(shots),
 			str(impacts),
 			impact_velocity,
-			expected_velocity,
 			impact_lock,
+			arena.pending_outcome,
 		]
 	)
 	await _cleanup_current_scene()
@@ -647,6 +648,7 @@ func _test_cover_blocks_first_shot() -> void:
 		and impacts.size() == 1
 		and impacts[0]["id"] == "cover"
 		and absf(float(impacts[0]["x"]) - 506.0) < 2.0
+		and not player.is_defeated
 		and player.knockback_time_remaining <= 0.0
 		and absf(player.global_position.x - 120.0) < 2.0,
 		"Cover did not block both the telegraph and the first real shot."
@@ -901,7 +903,7 @@ func _test_arena_06_projectile_chain_and_clear() -> void:
 	var saw_hinge_trigger := false
 	var saw_platform_transition := false
 	var saw_platform_off := false
-	var saw_player_hit := false
+	var saw_player_defeated := false
 	for _frame in range(360):
 		await physics_frame
 		var shot_fired := not shots.is_empty()
@@ -918,9 +920,8 @@ func _test_arena_06_projectile_chain_and_clear() -> void:
 			or not platform.is_active
 			and platform_collision.disabled
 		)
-		saw_player_hit = (
-			saw_player_hit
-			or player.knockback_time_remaining > 0.0
+		saw_player_defeated = (
+			saw_player_defeated or player.is_defeated
 		)
 		if arena.restart_scheduled:
 			break
@@ -942,7 +943,7 @@ func _test_arena_06_projectile_chain_and_clear() -> void:
 		"A real Arena 06 projectile did not switch the shooter support off."
 	)
 	_expect(
-		not saw_player_hit
+		not saw_player_defeated
 		and is_instance_valid(player)
 		and arena.enemies_remaining == 0
 		and arena.pending_outcome == Arena.Outcome.CLEAR,

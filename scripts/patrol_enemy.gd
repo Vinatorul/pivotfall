@@ -27,6 +27,7 @@ const PATROL_VISUAL_HALF_WIDTH := 15.0
 
 @onready var visual: Node2D = $Visual
 @onready var edge_probe: RayCast2D = $EdgeProbe
+@onready var contact_hazard: Area2D = $ContactHazard
 
 var gravity: float = float(
 	ProjectSettings.get_setting("physics/2d/default_gravity", 1500.0)
@@ -46,6 +47,9 @@ var patrol_base_visual_scale_x := 1.0
 
 
 func _ready() -> void:
+	contact_hazard.body_entered.connect(
+		_on_contact_hazard_body_entered
+	)
 	base_visual_modulate = visual.modulate
 	base_visual_scale_y = visual.scale.y
 	patrol_base_visual_position = visual.position
@@ -53,6 +57,11 @@ func _ready() -> void:
 	patrol_base_visual_scale_x = absf(visual.scale.x)
 	_sync_direction()
 	_apply_patrol_visual()
+
+
+func _on_contact_hazard_body_entered(body: Node2D) -> void:
+	if body is Player:
+		body.receive_lethal_hit()
 
 
 func _physics_process(delta: float) -> void:

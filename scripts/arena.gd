@@ -26,6 +26,7 @@ var outcome_generation := 0
 func _ready() -> void:
 	enemies_remaining = _count_arena_enemies()
 	death_zone.body_entered.connect(_on_death_zone_body_entered)
+	_connect_player_defeat_signals()
 
 
 func _input(event: InputEvent) -> void:
@@ -40,17 +41,7 @@ func _input(event: InputEvent) -> void:
 
 func _on_death_zone_body_entered(body: Node2D) -> void:
 	if body is Player:
-		if pending_outcome == Outcome.FALL:
-			return
-
-		status_label.text = "ПАДЕНИЕ  /  ПЕРЕЗАПУСК..."
-		_schedule_outcome(fall_restart_delay, false, Outcome.FALL)
-		body.begin_fall_out(fall_restart_delay)
-		if (
-			is_instance_valid(hazard_feedback)
-			and hazard_feedback.has_method("play_fall")
-		):
-			hazard_feedback.call("play_fall")
+		body.receive_lethal_hit(Player.DefeatCause.FALL)
 		return
 
 	if restart_scheduled:
@@ -67,6 +58,38 @@ func _on_death_zone_body_entered(body: Node2D) -> void:
 				_should_advance_after_clear(),
 				Outcome.CLEAR
 			)
+
+
+func _connect_player_defeat_signals() -> void:
+	for node: Node in get_tree().get_nodes_in_group("player"):
+		if not node is Player or not is_ancestor_of(node):
+			continue
+		var player := node as Player
+		if not player.defeated.is_connected(_on_player_defeated):
+			player.defeated.connect(_on_player_defeated)
+
+
+func _on_player_defeated(player_node: Node2D, cause: int) -> void:
+	if pending_outcome == Outcome.FALL:
+		return
+	var player := player_node as Player
+	if not is_instance_valid(player):
+		return
+
+	var fell_into_pit := cause == Player.DefeatCause.FALL
+	status_label.text = (
+		"ПАДЕНИЕ  /  ПЕРЕЗАПУСК..."
+		if fell_into_pit
+		else "ПОРАЖЕНИЕ  /  ПЕРЕЗАПУСК..."
+	)
+	_schedule_outcome(fall_restart_delay, false, Outcome.FALL)
+	player.begin_fall_out(fall_restart_delay)
+	if (
+		fell_into_pit
+		and is_instance_valid(hazard_feedback)
+		and hazard_feedback.has_method("play_fall")
+	):
+		hazard_feedback.call("play_fall")
 
 
 func _schedule_outcome(

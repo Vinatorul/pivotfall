@@ -229,6 +229,7 @@ func _test_builder_order_and_real_shove() -> void:
 	if not is_instance_valid(arena) or not arena.level_loaded:
 		await _cleanup_current_scene()
 		return
+	arena.fall_restart_delay = 10.0
 
 	var enemy := arena.get_level_object("shove_1") as ShoveEnemy
 	var player := arena.get_level_object("player_start") as Player
@@ -273,7 +274,7 @@ func _test_builder_order_and_real_shove() -> void:
 
 	var saw_telegraph := false
 	var saw_lunge := false
-	var player_was_shoved := false
+	var player_was_defeated := false
 	for _frame in range(180):
 		await physics_frame
 		saw_telegraph = (
@@ -281,22 +282,25 @@ func _test_builder_order_and_real_shove() -> void:
 			or enemy.state == ShoveEnemy.State.TELEGRAPH
 		)
 		saw_lunge = saw_lunge or enemy.state == ShoveEnemy.State.LUNGE
-		player_was_shoved = (
-			player_was_shoved
-			or player.knockback_time_remaining > 0.0
-			or player.velocity.x < -100.0
+		player_was_defeated = (
+			player_was_defeated or player.is_defeated
 		)
-		if saw_lunge and player_was_shoved:
+		if saw_lunge and player_was_defeated:
 			break
 
 	_expect(
 		enemy.player == player
 		and saw_telegraph
 		and saw_lunge
-		and player_was_shoved,
+		and player_was_defeated
+		and is_zero_approx(player.knockback_time_remaining)
+		and arena.pending_outcome == Arena.Outcome.FALL
+		and arena.status_label.text
+		== "ПОРАЖЕНИЕ  /  ПЕРЕЗАПУСК..."
+		and player.is_falling_out,
 		(
 			"A shove declared before the player did not reacquire, "
-			+ "telegraph, lunge, and apply a real impulse."
+			+ "telegraph, lunge, and defeat the player."
 		)
 	)
 	await _cleanup_current_scene()

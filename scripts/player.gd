@@ -6,6 +6,7 @@ signal attack_landed(
 	impact_position: Vector2,
 	impulse: Vector2
 )
+signal defeated(player: Node2D, cause: int)
 
 const IMPACT_BURST_SCRIPT := preload(
 	"res://scripts/effects/impact_burst.gd"
@@ -19,6 +20,11 @@ enum LocomotionPose {
 	RISE,
 	FALL,
 	LAND,
+}
+
+enum DefeatCause {
+	COMBAT,
+	FALL,
 }
 
 @export_category("Movement")
@@ -107,6 +113,7 @@ var fall_out_origin_position := Vector2.ZERO
 var fall_out_origin_rotation := 0.0
 var fall_out_origin_scale := Vector2.ONE
 var fall_out_origin_modulate := Color.WHITE
+var is_defeated := false
 
 
 func _ready() -> void:
@@ -209,6 +216,15 @@ func receive_impulse(impulse: Vector2) -> void:
 	knockback_time_remaining = knockback_lock_time
 	jump_requested = false
 	attack_requested = false
+
+
+func receive_lethal_hit(cause: int = DefeatCause.COMBAT) -> bool:
+	if is_defeated:
+		return false
+
+	is_defeated = true
+	defeated.emit(self, cause)
+	return true
 
 
 func begin_impact_freeze(frames: int = 3) -> void:

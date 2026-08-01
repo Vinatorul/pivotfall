@@ -268,6 +268,7 @@ func _test_runtime_snapshot_and_idle() -> void:
 		"Patrol did not settle on generated floor."
 	)
 
+	enemy.patrol_speed = 0.0
 	for _frame in range(300):
 		await physics_frame
 	_expect(
