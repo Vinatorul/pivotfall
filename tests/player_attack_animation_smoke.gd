@@ -34,10 +34,10 @@ func _test_attack_pose_lifecycle() -> void:
 	var enemy := PATROL_ENEMY_SCENE.instantiate() as PatrolEnemy
 	player.position = Vector2(120.0, 180.0)
 	enemy.position = Vector2(220.0, 180.0)
-	player.set_physics_process(false)
-	enemy.set_physics_process(false)
 	actors.add_child(player)
 	actors.add_child(enemy)
+	player.set_physics_process(false)
+	enemy.set_physics_process(false)
 	await process_frame
 	player.set_physics_process(false)
 	enemy.set_physics_process(false)
@@ -287,10 +287,10 @@ func _test_attack_pose_lifecycle() -> void:
 	_expect(
 		player.visual.scale.x == -1.0
 		and player.attack_pivot.scale.x == -1.0
-		and player.visual.position.is_equal_approx(
-			visual_position_before
-		),
-		"Pose reset overwrote the player's facing direction."
+		and player.locomotion_pose == Player.LocomotionPose.FALL
+		and player.visual.position.y < visual_position_before.y
+		and player.visual.scale.y > visual_scale_y_before,
+		"Pose reset lost facing or the current locomotion pose."
 	)
 
 	actors.queue_free()

@@ -10,6 +10,16 @@ signal attack_landed(
 const IMPACT_BURST_SCRIPT := preload(
 	"res://scripts/effects/impact_burst.gd"
 )
+const VISUAL_HALF_HEIGHT := 20.0
+const RUN_ANIMATION_MIN_SPEED := 18.0
+
+enum LocomotionPose {
+	IDLE,
+	RUN,
+	RISE,
+	FALL,
+	LAND,
+}
 
 @export_category("Movement")
 @export var move_speed := 260.0
@@ -18,6 +28,17 @@ const IMPACT_BURST_SCRIPT := preload(
 @export var air_acceleration := 1100.0
 @export var jump_velocity := -540.0
 @export var maximum_fall_speed := 900.0
+
+@export_category("Movement animation")
+@export_range(0.0, 2.0, 0.1) var idle_bob_height := 0.6
+@export_range(0.5, 4.0, 0.1) var idle_bob_frequency := 1.6
+@export_range(0.0, 3.0, 0.1) var run_bob_height := 1.5
+@export_range(0.5, 8.0, 0.1) var run_cycle_frequency := 3.5
+@export_range(0.0, 0.2, 0.01) var run_lean_radians := 0.07
+@export_range(0.0, 0.2, 0.01) var air_stretch := 0.08
+@export_range(0.05, 0.3, 0.01) var landing_duration := 0.12
+@export_range(0.0, 0.25, 0.01) var landing_squash := 0.14
+@export_range(0.0, 600.0, 10.0) var landing_min_speed := 180.0
 
 @export_category("Attack")
 @export var attack_horizontal_impulse := 390.0
@@ -55,6 +76,11 @@ var attack_cooldown_remaining := 0.0
 var knockback_time_remaining := 0.0
 var impact_freeze_frames_remaining := 0
 var struck_targets: Dictionary[int, bool] = {}
+var locomotion_pose := LocomotionPose.IDLE
+var locomotion_time := 0.0
+var run_cycle := 0.0
+var landing_time_remaining := 0.0
+var landing_strength := 0.0
 var attack_pose_progress := 0.0
 var base_visual_position := Vector2.ZERO
 var base_visual_rotation := 0.0
@@ -88,6 +114,7 @@ func _physics_process(delta: float) -> void:
 	if _consume_impact_freeze_frame():
 		return
 
+	var was_grounded := is_on_floor()
 	_update_attack_timers(delta)
 
 	var direction := Input.get_axis("ui_left", "ui_right")
@@ -140,7 +167,15 @@ func _physics_process(delta: float) -> void:
 	else:
 		velocity.y = minf(velocity.y + gravity * delta, maximum_fall_speed)
 
+	var landing_speed := maxf(velocity.y, 0.0)
 	move_and_slide()
+	_update_locomotion_animation(
+		delta,
+		was_grounded,
+		is_on_floor(),
+		landing_speed,
+		controls_locked
+	)
 
 
 func receive_impulse(impulse: Vector2) -> void:
@@ -335,11 +370,155 @@ func _apply_attack_pose(progress: float) -> void:
 
 func _reset_attack_pose() -> void:
 	attack_pose_progress = 0.0
-	visual.position = base_visual_position
-	visual.rotation = base_visual_rotation
-	visual.scale.y = base_visual_scale_y
 	attack_visual.scale = base_attack_visual_scale
 	attack_visual.color = base_attack_visual_color
+	_apply_locomotion_pose()
+
+
+func _update_locomotion_animation(
+	delta: float,
+	was_grounded: bool,
+	grounded: bool,
+	landing_speed: float,
+	controls_locked: bool
+) -> void:
+	locomotion_time += delta
+	var started_landing := false
+
+	if (
+		not was_grounded
+		and grounded
+		and landing_speed >= landing_min_speed
+	):
+		landing_time_remaining = landing_duration
+		started_landing = true
+		landing_strength = clampf(
+			(landing_speed - landing_min_speed)
+			/ maxf(maximum_fall_speed - landing_min_speed, 1.0),
+			0.35,
+			1.0
+		)
+	elif not grounded:
+		landing_time_remaining = 0.0
+
+	if grounded and landing_time_remaining > 0.0:
+		locomotion_pose = LocomotionPose.LAND
+	elif not grounded:
+		locomotion_pose = (
+			LocomotionPose.RISE
+			if velocity.y < 0.0
+			else LocomotionPose.FALL
+		)
+	elif (
+		not controls_locked
+		and absf(velocity.x) >= RUN_ANIMATION_MIN_SPEED
+	):
+		locomotion_pose = LocomotionPose.RUN
+	else:
+		locomotion_pose = LocomotionPose.IDLE
+
+	if locomotion_pose == LocomotionPose.RUN:
+		var speed_ratio := clampf(
+			absf(velocity.x) / maxf(move_speed, 1.0),
+			0.0,
+			1.0
+		)
+		run_cycle = fmod(
+			run_cycle
+			+ delta * run_cycle_frequency * TAU * speed_ratio,
+			TAU
+		)
+
+	if locomotion_pose == LocomotionPose.LAND and not started_landing:
+		landing_time_remaining = maxf(
+			landing_time_remaining - delta,
+			0.0
+		)
+
+	_apply_current_visual_pose()
+
+
+func _apply_current_visual_pose() -> void:
+	if attack_time_remaining > 0.0:
+		_apply_attack_pose(attack_pose_progress)
+	else:
+		_apply_locomotion_pose()
+
+
+func _apply_locomotion_pose() -> void:
+	var offset_y := 0.0
+	var lean := 0.0
+	var body_scale_y := 1.0
+
+	match locomotion_pose:
+		LocomotionPose.IDLE:
+			var breath := sin(
+				locomotion_time * idle_bob_frequency * TAU
+			)
+			offset_y = -breath * idle_bob_height
+			body_scale_y = 1.0 + breath * 0.012
+		LocomotionPose.RUN:
+			var step := absf(sin(run_cycle))
+			var speed_ratio := clampf(
+				absf(velocity.x) / maxf(move_speed, 1.0),
+				0.0,
+				1.0
+			)
+			offset_y = -step * run_bob_height
+			lean = run_lean_radians * speed_ratio
+			body_scale_y = lerpf(0.97, 1.025, step)
+		LocomotionPose.RISE:
+			var rise_ratio := clampf(
+				absf(velocity.y) / maxf(absf(jump_velocity), 1.0),
+				0.0,
+				1.0
+			)
+			body_scale_y = 1.0 + air_stretch * lerpf(
+				0.35,
+				1.0,
+				rise_ratio
+			)
+			offset_y = -VISUAL_HALF_HEIGHT * (body_scale_y - 1.0)
+			lean = _air_lean()
+		LocomotionPose.FALL:
+			var fall_ratio := clampf(
+				velocity.y / maxf(maximum_fall_speed, 1.0),
+				0.0,
+				1.0
+			)
+			body_scale_y = 1.0 + air_stretch * lerpf(
+				0.35,
+				1.0,
+				fall_ratio
+			)
+			offset_y = -VISUAL_HALF_HEIGHT * (body_scale_y - 1.0)
+			lean = _air_lean()
+		LocomotionPose.LAND:
+			var progress := 1.0 - (
+				landing_time_remaining / maxf(landing_duration, 0.001)
+			)
+			var squash := (
+				landing_squash
+				* landing_strength
+				* (1.0 - _smoothstep01(progress))
+			)
+			body_scale_y = 1.0 - squash
+			offset_y = VISUAL_HALF_HEIGHT * squash
+
+	visual.position = base_visual_position + Vector2(0.0, offset_y)
+	visual.rotation = (
+		base_visual_rotation + facing_direction * lean
+	)
+	visual.scale.y = base_visual_scale_y * body_scale_y
+
+
+func _air_lean() -> float:
+	var horizontal_speed_ratio := clampf(
+		absf(velocity.x) / maxf(move_speed, 1.0),
+		0.0,
+		1.0
+	)
+	return run_lean_radians * 0.45 * horizontal_speed_ratio
 
 
 func _smoothstep01(value: float) -> float:
