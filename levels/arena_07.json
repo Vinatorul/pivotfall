@@ -2,7 +2,7 @@
 	"schema_version": 1,
 	"level_id": "arena_07_data",
 	"title": "GRAYBOX  /  DATA ARENA 07",
-	"objective": "ОПУСТИ СТРЕЛКА → ДОБЕРИСЬ ДО ЛИФТА",
+	"objective": "ОПУСТИ СТРЕЛКА, ДОБЕРИСЬ ДО ЛИФТА",
 	"clear_message": "DATA ARENA 07 ПРОЙДЕНА  /  ПЕРЕЗАПУСК...",
 	"canvas": {
 		"width": 960,

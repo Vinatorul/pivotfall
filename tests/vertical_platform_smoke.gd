@@ -100,7 +100,7 @@ func _test_builtin_schema_and_preview() -> void:
 			"lift_hinge"
 		).get("target_id", "") == "lift_1"
 		and arena_07["objective"]
-		== "ОПУСТИ СТРЕЛКА → ДОБЕРИСЬ ДО ЛИФТА",
+		== "ОПУСТИ СТРЕЛКА, ДОБЕРИСЬ ДО ЛИФТА",
 		"Arena 07 fixture geometry, goal, or stable object order drifted."
 	)
 

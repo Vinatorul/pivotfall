@@ -98,7 +98,7 @@ func _test_builtin_arena_02_fixture() -> void:
 		and arena_02.get("title", "")
 		== "GRAYBOX  /  DATA ARENA 02"
 		and arena_02.get("objective", "")
-		== "УДАРЬ ШАРНИР, УБЕРИ МОСТ ↓"
+		== "УДАРЬ ШАРНИР, УБЕРИ МОСТ"
 		and arena_02.get("clear_message", "")
 		== "DATA ARENA 02 ПРОЙДЕНА  /  ПЕРЕЗАПУСК..."
 		and arena_02.get("canvas", {}) == {

@@ -2,7 +2,7 @@
 	"schema_version": 1,
 	"level_id": "arena_04_data",
 	"title": "GRAYBOX  /  DATA ARENA 04",
-	"objective": "УДАРЬ ШАРНИР → ЗАПУСТИ ВРАГА В ЯМУ ↗",
+	"objective": "УДАРЬ ШАРНИР, ЗАПУСТИ ВРАГА В ЯМУ",
 	"clear_message": "DATA ARENA 04 ПРОЙДЕНА  /  ПЕРЕЗАПУСК...",
 	"canvas": {
 		"width": 960,

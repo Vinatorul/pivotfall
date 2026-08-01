@@ -698,7 +698,7 @@ func _on_link_target_requested(target_id: String) -> void:
 	_cancel_linking(false)
 	draft.update_object(hinge_id, {"target_id": target_id})
 	_set_notice(
-		"Связь '%s' → '%s' назначена." % [hinge_id, target_id]
+		"Связь '%s' -> '%s' назначена." % [hinge_id, target_id]
 	)
 
 
@@ -1607,7 +1607,7 @@ func _rebuild_inspector() -> void:
 			_add_numeric_property("X", "position:0", position[0])
 			_add_numeric_property("Y", "position:1", position[1])
 			_add_readonly_property("SIZE", "80 × 20")
-			_add_readonly_property("TRAVEL", "↓ 136")
+			_add_readonly_property("TRAVEL", "DOWN 136")
 		TOOL_HINGE:
 			var position: Array = object["position"]
 			_add_numeric_property("X", "position:0", position[0])
@@ -1680,8 +1680,8 @@ func _add_direction_property(current: int) -> void:
 	var target_id := selected_id
 	var row := _make_property_row("DIRECTION")
 	var options := OptionButton.new()
-	options.add_item("←  -1")
-	options.add_item("→  +1")
+	options.add_item("<  -1")
+	options.add_item(">  +1")
 	options.select(0 if current == -1 else 1)
 	options.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	options.item_selected.connect(
@@ -1831,7 +1831,7 @@ func _add_hinge_target_property(current_target_id: String) -> void:
 				)
 			else:
 				_set_notice(
-					"Связь '%s' → '%s' назначена."
+					"Связь '%s' -> '%s' назначена."
 					% [hinge_id, target_id]
 				)
 	)

@@ -33,6 +33,27 @@ godot --path .
 
 Проверено на Godot 4.6.1.
 
+## Web-версия
+
+После успешного прохождения smoke-тестов актуальная сборка из ветки `main`
+автоматически публикуется на
+[GitHub Pages](https://vinatorul.github.io/pivotfall/). Это однопоточный Web
+export без расширений, поэтому ему не нужны специальные cross-origin headers.
+Сохранение кампании хранится в браузере; приватный режим может удалить его
+после закрытия вкладки.
+
+Для локальной сборки нужны официальные export templates Godot 4.6.1:
+
+```sh
+mkdir -p builds/web
+godot --headless --path . --export-release Web builds/web/index.html
+python3 -m http.server 8060 --directory builds/web
+```
+
+После этого игра доступна по адресу `http://localhost:8060`. Открывать
+`index.html` напрямую через `file://` нельзя: WebAssembly должен загружаться
+через HTTP.
+
 ### Data-driven кампания
 
 Основной запуск открывает главное меню. `НОВАЯ ИГРА` очищает запомненный

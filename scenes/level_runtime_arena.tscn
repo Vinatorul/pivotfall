@@ -125,7 +125,7 @@ offset_right = 908.0
 offset_bottom = 105.0
 theme_override_colors/font_color = Color(0.439, 0.502, 0.616, 1)
 theme_override_font_sizes/font_size = 14
-text = "A D / ← → — движение    W / ↑ / Space — прыжок    X / J — удар    R — рестарт"
+text = "A D / LEFT RIGHT — движение    W / UP / Space — прыжок    X / J — удар    R — рестарт"
 
 [node name="RuntimeHint" type="Label" parent="UI"]
 offset_left = 52.0

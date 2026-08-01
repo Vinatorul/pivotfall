@@ -444,7 +444,7 @@ static func make_default_level(level_id: String) -> Dictionary:
 		"schema_version": 1,
 		"level_id": level_id,
 		"title": "MY ARENA",
-		"objective": "СТОЛКНИ ВРАГА В ЯМУ ↓",
+		"objective": "СТОЛКНИ ВРАГА В ЯМУ",
 		"clear_message": "АРЕНА ПРОЙДЕНА  /  ПЕРЕЗАПУСК...",
 		"canvas": {
 			"width": 960,

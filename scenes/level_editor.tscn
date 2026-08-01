@@ -66,7 +66,7 @@ offset_left = 496.0
 offset_top = 2.0
 offset_right = 576.0
 offset_bottom = 30.0
-text = "← GAME"
+text = "< GAME"
 
 [node name="UndoButton" type="Button" parent="EditorView/Toolbar"]
 layout_mode = 0
@@ -412,4 +412,4 @@ offset_top = 8.0
 offset_right = 952.0
 offset_bottom = 42.0
 theme_override_colors/font_color = Color(0.439, 0.878, 0.816, 1)
-text = "← EDITOR  [ESC]"
+text = "< EDITOR  [ESC]"

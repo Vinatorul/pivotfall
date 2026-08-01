@@ -104,7 +104,7 @@ offset_right = 454.0
 offset_bottom = 414.0
 theme_override_colors/font_color = Color(0.651, 0.714, 0.82, 1)
 theme_override_font_sizes/font_size = 13
-text = "1–8 — арена    E — редактор    ↑ ↓ — выбрать\nEnter / Space — открыть    F1 / Esc — закрыть"
+text = "1–8 — арена    E — редактор    UP DOWN — выбрать\nEnter / Space — открыть    F1 / Esc — закрыть"
 
 [node name="Hint" type="Label" parent="."]
 visible = false

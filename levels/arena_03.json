@@ -2,7 +2,7 @@
 	"schema_version": 1,
 	"level_id": "arena_03_data",
 	"title": "GRAYBOX  /  DATA ARENA 03",
-	"objective": "УКЛОНИСЬ И СТОЛКНИ В ЯМУ ←",
+	"objective": "УКЛОНИСЬ И СТОЛКНИ В ЯМУ СЛЕВА",
 	"clear_message": "DATA ARENA 03 ПРОЙДЕНА  /  ПЕРЕЗАПУСК...",
 	"canvas": {
 		"width": 960,

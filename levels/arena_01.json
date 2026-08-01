@@ -2,7 +2,7 @@
 	"schema_version": 1,
 	"level_id": "arena_01_data",
 	"title": "GRAYBOX  /  DATA ARENA 01",
-	"objective": "СТОЛКНИ ВРАГА В ЯМУ ↓",
+	"objective": "СТОЛКНИ ВРАГА В ЯМУ",
 	"clear_message": "DATA ARENA ПРОЙДЕНА  /  ПЕРЕЗАПУСК...",
 	"canvas": {
 		"width": 960,

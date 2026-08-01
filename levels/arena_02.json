@@ -2,7 +2,7 @@
 	"schema_version": 1,
 	"level_id": "arena_02_data",
 	"title": "GRAYBOX  /  DATA ARENA 02",
-	"objective": "УДАРЬ ШАРНИР, УБЕРИ МОСТ ↓",
+	"objective": "УДАРЬ ШАРНИР, УБЕРИ МОСТ",
 	"clear_message": "DATA ARENA 02 ПРОЙДЕНА  /  ПЕРЕЗАПУСК...",
 	"canvas": {
 		"width": 960,

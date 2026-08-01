@@ -2,7 +2,7 @@
 	"schema_version": 1,
 	"level_id": "arena_05_data",
 	"title": "GRAYBOX  /  DATA ARENA 05",
-	"objective": "УКРОЙСЯ ОТ ПРИЦЕЛА → СТОЛКНИ СТРЕЛКА В ЯМУ",
+	"objective": "УКРОЙСЯ ОТ ПРИЦЕЛА, СТОЛКНИ СТРЕЛКА В ЯМУ",
 	"clear_message": "DATA ARENA 05 ПРОЙДЕНА  /  ПЕРЕЗАПУСК...",
 	"canvas": {
 		"width": 960,

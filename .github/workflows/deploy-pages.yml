@@ -1,0 +1,120 @@
+name: Deploy Web build to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: read
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Restore Web export template
+        id: templates-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.local/share/godot/export_templates/4.6.1.stable
+          key: godot-web-template-${{ runner.os }}-4.6.1-stable-e6d372afd4fdfaae9571eb5e3568afcd96ce6db9a569244034154faf0ac69875
+
+      - name: Install Web export template
+        if: steps.templates-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/godot-templates.tpz"
+          target="$HOME/.local/share/godot/export_templates/4.6.1.stable"
+          curl --fail --location --silent --show-error --retry 3 \
+            --output "$archive" \
+            'https://github.com/godotengine/godot/releases/download/4.6.1-stable/Godot_v4.6.1-stable_export_templates.tpz'
+          printf '%s  %s\n' \
+            'e6d372afd4fdfaae9571eb5e3568afcd96ce6db9a569244034154faf0ac69875' \
+            "$archive" | sha256sum --check -
+          mkdir -p "$target"
+          unzip -jo "$archive" \
+            templates/web_nothreads_release.zip \
+            templates/version.txt \
+            -d "$target"
+
+      - name: Install Godot 4.6.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/godot.zip"
+          curl --fail --location --silent --show-error --retry 3 \
+            --output "$archive" \
+            'https://github.com/godotengine/godot/releases/download/4.6.1-stable/Godot_v4.6.1-stable_linux.x86_64.zip'
+          printf '%s  %s\n' \
+            'cecd0cb6b55e931318a9d7237dc4197d69ea914966787a454808523626e2789f' \
+            "$archive" | sha256sum --check -
+          unzip -q "$archive" -d "$RUNNER_TEMP/godot"
+          chmod +x "$RUNNER_TEMP/godot/Godot_v4.6.1-stable_linux.x86_64"
+
+      - name: Run smoke suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          godot="$RUNNER_TEMP/godot/Godot_v4.6.1-stable_linux.x86_64"
+          for test_file in "$GITHUB_WORKSPACE"/tests/*_smoke.gd; do
+            test_name="${test_file##*/}"
+            "$godot" \
+              --headless \
+              --fixed-fps 60 \
+              --log-file "$RUNNER_TEMP/$test_name.log" \
+              --path "$GITHUB_WORKSPACE" \
+              --script "res://tests/$test_name"
+          done
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+
+      - name: Export Web release
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/builds/web/index.html"
+          mkdir -p "$(dirname "$output")"
+          "$RUNNER_TEMP/godot/Godot_v4.6.1-stable_linux.x86_64" \
+            --headless \
+            --path "$GITHUB_WORKSPACE" \
+            --export-release Web \
+            "$output"
+          test -s "$GITHUB_WORKSPACE/builds/web/index.html"
+          test -s "$GITHUB_WORKSPACE/builds/web/index.js"
+          test -s "$GITHUB_WORKSPACE/builds/web/index.pck"
+          test -s "$GITHUB_WORKSPACE/builds/web/index.wasm"
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: builds/web
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
