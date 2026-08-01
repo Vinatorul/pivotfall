@@ -1,6 +1,10 @@
 class_name RotatingPlatform
 extends StaticBody2D
 
+const MECHANISM_WARNING_PULSE := preload(
+	"res://scripts/effects/mechanism_warning_pulse.gd"
+)
+
 signal toggled(is_ready: bool)
 signal launched(body_count: int)
 
@@ -35,15 +39,21 @@ const WARNING_COLOR := Color(0.925, 0.58, 0.267, 0.9)
 var is_transitioning := false
 var active_tween: Tween
 var is_cancelling := false
+var warning_pulse := MECHANISM_WARNING_PULSE.new()
 
 
 func _ready() -> void:
+	warning_pulse.bind(outline)
 	visual_pivot.rotation = 0.0
 	launch_guide.scale.x = launch_direction
 	arrow_head.scale.x = launch_direction
 	rest_collision.disabled = false
 	target_preview.visible = false
 	_apply_idle_visual()
+
+
+func _process(delta: float) -> void:
+	warning_pulse.advance(delta)
 
 
 func _exit_tree() -> void:
@@ -57,6 +67,7 @@ func request_toggle() -> bool:
 
 	is_transitioning = true
 	_apply_warning_visual()
+	warning_pulse.begin(warning_time)
 	_run_launch_cycle()
 	return true
 
@@ -65,6 +76,7 @@ func _run_launch_cycle() -> void:
 	await get_tree().create_timer(warning_time, false).timeout
 	if not is_inside_tree():
 		return
+	warning_pulse.finish()
 
 	var launch_bodies := _get_bodies_in(launch_area)
 	_apply_impulse(launch_bodies, _directed(launch_impulse))

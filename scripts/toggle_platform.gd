@@ -1,6 +1,10 @@
 class_name TogglePlatform
 extends StaticBody2D
 
+const MECHANISM_WARNING_PULSE := preload(
+	"res://scripts/effects/mechanism_warning_pulse.gd"
+)
+
 signal toggled(is_active: bool)
 
 const ACTIVE_BODY_COLOR := Color(0.278, 0.345, 0.459, 1.0)
@@ -24,14 +28,20 @@ var is_active := true
 var is_transitioning := false
 var pending_active := true
 var platform_size := DEFAULT_SIZE
+var warning_pulse := MECHANISM_WARNING_PULSE.new()
 
 
 func _ready() -> void:
 	_apply_geometry()
+	warning_pulse.bind(outline)
 	is_active = starts_active
 	pending_active = is_active
 	collision_shape.disabled = not is_active
 	_apply_state_visual()
+
+
+func _process(delta: float) -> void:
+	warning_pulse.advance(delta)
 
 
 func configure(rect: Rect2, active: bool) -> void:
@@ -53,6 +63,7 @@ func request_toggle() -> bool:
 	is_transitioning = true
 	pending_active = not is_active
 	_apply_warning_visual()
+	warning_pulse.begin(transition_time)
 	get_tree().create_timer(transition_time, false).timeout.connect(
 		_finish_toggle
 	)
@@ -60,6 +71,7 @@ func request_toggle() -> bool:
 
 
 func _finish_toggle() -> void:
+	warning_pulse.finish()
 	is_active = pending_active
 	collision_shape.set_deferred("disabled", not is_active)
 	is_transitioning = false

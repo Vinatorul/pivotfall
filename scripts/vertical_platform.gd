@@ -1,6 +1,10 @@
 class_name VerticalPlatform
 extends Node2D
 
+const MECHANISM_WARNING_PULSE := preload(
+	"res://scripts/effects/mechanism_warning_pulse.gd"
+)
+
 signal toggled(is_lowered: bool)
 
 const BODY_COLOR := Color(0.278, 0.345, 0.459, 1.0)
@@ -28,9 +32,11 @@ var pending_lowered := false
 var movement_elapsed := 0.0
 var movement_start := Vector2.ZERO
 var movement_target := Vector2.ZERO
+var warning_pulse := MECHANISM_WARNING_PULSE.new()
 
 
 func _ready() -> void:
+	warning_pulse.bind(outline)
 	is_lowered = starts_lowered
 	pending_lowered = is_lowered
 	platform.position = travel_offset if is_lowered else Vector2.ZERO
@@ -38,6 +44,10 @@ func _ready() -> void:
 	lower_stop.position = travel_offset
 	target_preview.visible = false
 	_apply_idle_visual()
+
+
+func _process(delta: float) -> void:
+	warning_pulse.advance(delta)
 
 
 func _physics_process(delta: float) -> void:
@@ -74,6 +84,7 @@ func request_toggle() -> bool:
 	target_preview.position = movement_target
 	target_preview.visible = true
 	_apply_warning_visual()
+	warning_pulse.begin(warning_time)
 	get_tree().create_timer(warning_time, false).timeout.connect(
 		_begin_travel
 	)
@@ -84,6 +95,7 @@ func _begin_travel() -> void:
 	if not is_inside_tree():
 		return
 
+	warning_pulse.finish()
 	movement_start = platform.position
 	movement_elapsed = 0.0
 	is_moving = true
