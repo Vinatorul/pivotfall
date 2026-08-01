@@ -129,9 +129,9 @@ text = "A D / ← → — движение    W / ↑ / Space — прыжок  
 
 [node name="RuntimeHint" type="Label" parent="UI"]
 offset_left = 52.0
-offset_top = 462.0
-offset_right = 360.0
-offset_bottom = 486.0
-theme_override_colors/font_color = Color(0.439, 0.827, 0.816, 0.62)
+offset_top = 104.0
+offset_right = 420.0
+offset_bottom = 128.0
+theme_override_colors/font_color = Color(0.973, 0.58, 0.267, 0.72)
 theme_override_font_sizes/font_size = 12
-text = "JSON → VALIDATOR → LEVEL BUILDER"
+text = "ВРАГИ И ИХ АТАКИ СМЕРТЕЛЬНЫ"

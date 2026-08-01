@@ -6,7 +6,11 @@ signal attack_landed(
 	impact_position: Vector2,
 	impulse: Vector2
 )
-signal defeated(player: Node2D, cause: int)
+signal defeated(
+	player: Node2D,
+	cause: int,
+	impact_direction: Vector2
+)
 
 const IMPACT_BURST_SCRIPT := preload(
 	"res://scripts/effects/impact_burst.gd"
@@ -69,6 +73,17 @@ enum DefeatCause {
 @export_range(0.0, 1.0, 0.01) var fall_end_alpha := 0.0
 @export_range(0.0, 0.3, 0.01) var fall_entry_squash := 0.1
 
+@export_category("Combat defeat feedback")
+@export_range(1, 6, 1) var combat_defeat_hit_stop_frames := 3
+@export_range(0.0, 80.0, 1.0) var combat_defeat_recoil_distance := 44.0
+@export_range(0.0, 40.0, 1.0) var combat_defeat_lift_height := 18.0
+@export_range(0.0, 32.0, 1.0) var combat_defeat_drop_distance := 10.0
+@export_range(0.0, 1.0, 0.01) var combat_defeat_spin_radians := 0.22
+@export_range(0.01, 1.0, 0.01) var combat_defeat_end_scale := 0.62
+@export_range(0.0, 1.0, 0.01) var combat_defeat_end_alpha := 0.0
+@export_range(0.0, 0.4, 0.01) var combat_defeat_entry_squash := 0.18
+@export var combat_defeat_flash_color := Color(3.0, 0.52, 0.52, 1.0)
+
 @export_category("Knockback")
 @export var knockback_lock_time := 0.22
 @export var knockback_drag := 520.0
@@ -114,6 +129,16 @@ var fall_out_origin_rotation := 0.0
 var fall_out_origin_scale := Vector2.ONE
 var fall_out_origin_modulate := Color.WHITE
 var is_defeated := false
+var defeat_cause := DefeatCause.FALL
+var defeat_impact_direction := Vector2.ZERO
+var is_combat_defeat_active := false
+var combat_defeat_duration := 0.001
+var combat_defeat_elapsed := 0.0
+var combat_defeat_hold_frames_remaining := 0
+var combat_defeat_origin_position := Vector2.ZERO
+var combat_defeat_origin_rotation := 0.0
+var combat_defeat_origin_scale := Vector2.ONE
+var combat_defeat_origin_modulate := Color.WHITE
 
 
 func _ready() -> void:
@@ -133,7 +158,12 @@ func _ready() -> void:
 
 
 func _input(event: InputEvent) -> void:
-	if not event is InputEventKey or not event.pressed or event.echo:
+	if (
+		is_defeated
+		or not event is InputEventKey
+		or not event.pressed
+		or event.echo
+	):
 		return
 
 	if event.physical_keycode == KEY_W:
@@ -143,8 +173,18 @@ func _input(event: InputEvent) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if is_defeated and defeat_cause == DefeatCause.COMBAT:
+		if combat_defeat_hold_frames_remaining > 0:
+			combat_defeat_hold_frames_remaining -= 1
+			return
+		_update_combat_defeat_animation(delta)
+		return
+
 	_update_fall_out_animation(delta)
 	if _consume_impact_freeze_frame():
+		return
+	if is_defeated:
+		_process_fall_defeat_physics(delta)
 		return
 
 	var was_grounded := is_on_floor()
@@ -211,23 +251,85 @@ func _physics_process(delta: float) -> void:
 	)
 
 
+func _process_fall_defeat_physics(delta: float) -> void:
+	var was_grounded := is_on_floor()
+	_update_attack_timers(delta)
+	var controls_locked := knockback_time_remaining > 0.0
+	if controls_locked:
+		knockback_time_remaining = maxf(
+			knockback_time_remaining - delta,
+			0.0
+		)
+		velocity.x = move_toward(
+			velocity.x,
+			0.0,
+			knockback_drag * delta
+		)
+	else:
+		velocity.x = move_toward(
+			velocity.x,
+			0.0,
+			ground_deceleration * delta
+		)
+
+	if not is_on_floor():
+		velocity.y = minf(
+			velocity.y + gravity * delta,
+			maximum_fall_speed
+		)
+	var landing_speed := maxf(velocity.y, 0.0)
+	move_and_slide()
+	_update_locomotion_animation(
+		delta,
+		was_grounded,
+		is_on_floor(),
+		landing_speed,
+		controls_locked
+	)
+
+
 func receive_impulse(impulse: Vector2) -> void:
+	if is_defeated:
+		return
+
 	velocity = impulse
 	knockback_time_remaining = knockback_lock_time
 	jump_requested = false
 	attack_requested = false
 
 
-func receive_lethal_hit(cause: int = DefeatCause.COMBAT) -> bool:
+func receive_lethal_hit(
+	cause: int = DefeatCause.COMBAT,
+	impact_direction := Vector2.ZERO
+) -> bool:
 	if is_defeated:
 		return false
 
 	is_defeated = true
-	defeated.emit(self, cause)
+	defeat_cause = cause
+	defeat_impact_direction = impact_direction.normalized()
+	if (
+		cause == DefeatCause.COMBAT
+		and defeat_impact_direction.is_zero_approx()
+	):
+		defeat_impact_direction = Vector2(facing_direction, 0.0)
+		if defeat_impact_direction.is_zero_approx():
+			defeat_impact_direction = Vector2.RIGHT
+	jump_requested = false
+	attack_requested = false
+	_finish_attack()
+	if cause == DefeatCause.COMBAT:
+		combat_defeat_hold_frames_remaining = (
+			combat_defeat_hit_stop_frames
+		)
+	defeated.emit(self, cause, defeat_impact_direction)
 	return true
 
 
 func begin_impact_freeze(frames: int = 3) -> void:
+	if is_defeated:
+		return
+
 	impact_freeze_frames_remaining = maxi(
 		impact_freeze_frames_remaining,
 		frames
@@ -235,7 +337,7 @@ func begin_impact_freeze(frames: int = 3) -> void:
 
 
 func begin_fall_out(duration: float) -> bool:
-	if is_falling_out:
+	if is_falling_out or is_combat_defeat_active:
 		return false
 
 	fall_out_duration = maxf(duration, 0.001)
@@ -257,11 +359,40 @@ func begin_fall_out(duration: float) -> bool:
 	return true
 
 
+func begin_combat_defeat(
+	impact_direction: Vector2,
+	duration: float
+) -> bool:
+	if is_combat_defeat_active or is_falling_out:
+		return false
+
+	combat_defeat_duration = maxf(duration, 0.001)
+	combat_defeat_elapsed = 0.0
+	defeat_impact_direction = impact_direction.normalized()
+	if defeat_impact_direction.is_zero_approx():
+		defeat_impact_direction = Vector2(facing_direction, 0.0)
+	if defeat_impact_direction.is_zero_approx():
+		defeat_impact_direction = Vector2.RIGHT
+	var visual_global_transform := fall_visual_pivot.global_transform
+	fall_visual_pivot.set_as_top_level(true)
+	fall_visual_pivot.global_transform = visual_global_transform
+	combat_defeat_origin_position = fall_visual_pivot.position
+	combat_defeat_origin_rotation = fall_visual_pivot.rotation
+	combat_defeat_origin_scale = fall_visual_pivot.scale
+	combat_defeat_origin_modulate = fall_visual_pivot.modulate
+	is_combat_defeat_active = true
+	_apply_combat_defeat_visual()
+	return true
+
+
 func is_impact_frozen() -> bool:
 	return impact_freeze_frames_remaining > 0
 
 
 func _start_attack() -> void:
+	if is_defeated:
+		return
+
 	attack_time_remaining = attack_active_time
 	attack_cooldown_remaining = attack_cooldown
 	struck_targets.clear()
@@ -309,7 +440,8 @@ func _on_attack_area_area_entered(area: Area2D) -> void:
 
 func _try_apply_impulse(target: Node2D) -> void:
 	if (
-		is_zero_approx(attack_time_remaining)
+		is_defeated
+		or is_zero_approx(attack_time_remaining)
 		or not target.has_method("receive_impulse")
 	):
 		return
@@ -575,6 +707,77 @@ func _apply_locomotion_pose() -> void:
 		base_visual_rotation + facing_direction * lean
 	)
 	visual.scale.y = base_visual_scale_y * body_scale_y
+
+
+func _update_combat_defeat_animation(delta: float) -> void:
+	if not is_combat_defeat_active:
+		return
+	combat_defeat_elapsed = minf(
+		combat_defeat_elapsed + maxf(delta, 0.0),
+		combat_defeat_duration
+	)
+	_apply_combat_defeat_visual()
+
+
+func _apply_combat_defeat_visual() -> void:
+	var progress := clampf(
+		combat_defeat_elapsed / maxf(combat_defeat_duration, 0.001),
+		0.0,
+		1.0
+	)
+	var travel_progress := smoothstep(0.0, 1.0, progress)
+	var lift_offset := -combat_defeat_lift_height * sin(progress * PI)
+	var drop_offset := combat_defeat_drop_distance * pow(progress, 2.0)
+	fall_visual_pivot.position = (
+		combat_defeat_origin_position
+		+ defeat_impact_direction
+		* combat_defeat_recoil_distance
+		* travel_progress
+		+ Vector2(0.0, lift_offset + drop_offset)
+	)
+	var rotation_direction := signf(defeat_impact_direction.x)
+	if is_zero_approx(rotation_direction):
+		rotation_direction = facing_direction
+	if is_zero_approx(rotation_direction):
+		rotation_direction = 1.0
+	fall_visual_pivot.rotation = (
+		combat_defeat_origin_rotation
+		+ combat_defeat_spin_radians
+		* rotation_direction
+		* smoothstep(0.08, 0.82, progress)
+	)
+	var entry_strength := 1.0 - smoothstep(0.0, 0.18, progress)
+	var uniform_scale := lerpf(
+		1.0,
+		combat_defeat_end_scale,
+		smoothstep(0.1, 1.0, progress)
+	)
+	fall_visual_pivot.scale = combat_defeat_origin_scale * Vector2(
+		uniform_scale * (1.0 + combat_defeat_entry_squash * entry_strength),
+		uniform_scale * (1.0 - combat_defeat_entry_squash * entry_strength)
+	)
+	var flash_strength := 1.0 - smoothstep(0.0, 0.28, progress)
+	var flash_color := Color(
+		combat_defeat_flash_color.r,
+		combat_defeat_flash_color.g,
+		combat_defeat_flash_color.b,
+		combat_defeat_origin_modulate.a
+	)
+	var tint := combat_defeat_origin_modulate.lerp(
+		flash_color,
+		flash_strength
+	)
+	var alpha := combat_defeat_origin_modulate.a * lerpf(
+		1.0,
+		combat_defeat_end_alpha,
+		smoothstep(0.42, 1.0, progress)
+	)
+	fall_visual_pivot.modulate = Color(
+		tint.r,
+		tint.g,
+		tint.b,
+		alpha
+	)
 
 
 func _update_fall_out_animation(delta: float) -> void:

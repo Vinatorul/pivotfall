@@ -367,7 +367,13 @@ func _try_apply_shove(target: Node2D) -> void:
 
 	struck_targets[target_id] = true
 	if target is Player:
-		target.receive_lethal_hit()
+		target.receive_lethal_hit(
+			Player.DefeatCause.COMBAT,
+			Vector2(
+				lunge_direction * shove_horizontal_impulse,
+				shove_vertical_impulse
+			).normalized()
+		)
 		return
 	if not target.has_method("receive_impulse"):
 		return

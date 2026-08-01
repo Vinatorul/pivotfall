@@ -40,6 +40,7 @@ func _run() -> void:
 	await _test_enemy_contact_hazards()
 	await _test_shove_lunge_is_lethal_without_impulse()
 	await _test_real_projectile_is_lethal_without_impulse()
+	await _test_defeat_locks_controls_and_attack()
 	await _test_arena_combat_outcome_is_idempotent()
 
 	if failures.is_empty():
@@ -61,9 +62,15 @@ func _test_enemy_contact_hazards() -> void:
 			as PatrolEnemy
 		)
 		var causes: Array[int] = []
+		var directions: Array[Vector2] = []
 		player.defeated.connect(
-			func(_player: Node2D, cause: int) -> void:
+			func(
+				_player: Node2D,
+				cause: int,
+				impact_direction: Vector2
+			) -> void:
 				causes.append(cause)
+				directions.append(impact_direction)
 		)
 		player.position = Vector2(240.0, 220.0)
 		enemy.position = player.position
@@ -96,6 +103,8 @@ func _test_enemy_contact_hazards() -> void:
 		_expect(
 			player.is_defeated
 			and causes == [Player.DefeatCause.COMBAT]
+			and directions.size() == 1
+			and not directions[0].is_zero_approx()
 			and player.velocity.is_equal_approx(sentinel_velocity)
 			and is_zero_approx(player.knockback_time_remaining),
 			"%s contact did not defeat the player exactly once." % label
@@ -126,9 +135,15 @@ func _test_shove_lunge_is_lethal_without_impulse() -> void:
 	var player := PLAYER_SCENE.instantiate() as Player
 	var enemy := SHOVE_SCENE.instantiate() as ShoveEnemy
 	var causes: Array[int] = []
+	var directions: Array[Vector2] = []
 	player.defeated.connect(
-		func(_player: Node2D, cause: int) -> void:
+		func(
+			_player: Node2D,
+			cause: int,
+			impact_direction: Vector2
+		) -> void:
 			causes.append(cause)
+			directions.append(impact_direction)
 	)
 	player.position = Vector2(180.0, 220.0)
 	enemy.position = Vector2(520.0, 220.0)
@@ -148,6 +163,10 @@ func _test_shove_lunge_is_lethal_without_impulse() -> void:
 	_expect(
 		player.is_defeated
 		and causes == [Player.DefeatCause.COMBAT]
+		and directions.size() == 1
+		and directions[0].is_equal_approx(
+			Vector2(-520.0, -140.0).normalized()
+		)
 		and player.velocity.is_equal_approx(sentinel_velocity)
 		and is_zero_approx(player.knockback_time_remaining),
 		"Shove lunge did not produce one lethal hit without impulse."
@@ -162,10 +181,16 @@ func _test_real_projectile_is_lethal_without_impulse() -> void:
 	var player := PLAYER_SCENE.instantiate() as Player
 	var shooter := SHOOTER_SCENE.instantiate() as ShooterEnemy
 	var causes: Array[int] = []
+	var directions: Array[Vector2] = []
 	var impacts: Array[CollisionObject2D] = []
 	player.defeated.connect(
-		func(_player: Node2D, cause: int) -> void:
+		func(
+			_player: Node2D,
+			cause: int,
+			impact_direction: Vector2
+		) -> void:
 			causes.append(cause)
+			directions.append(impact_direction)
 	)
 	player.position = Vector2(320.0, 220.0)
 	shooter.position = Vector2(100.0, 220.0)
@@ -212,6 +237,7 @@ func _test_real_projectile_is_lethal_without_impulse() -> void:
 		and impacts.size() == 1
 		and impacts[0] == player
 		and causes == [Player.DefeatCause.COMBAT]
+		and directions == [Vector2.RIGHT]
 		and player.is_defeated
 		and player.velocity.is_equal_approx(sentinel_velocity)
 		and is_zero_approx(player.knockback_time_remaining)
@@ -231,6 +257,81 @@ func _test_real_projectile_is_lethal_without_impulse() -> void:
 			player.knockback_time_remaining,
 			projectile_ref.get_ref() != null,
 		]
+	)
+
+	holder.queue_free()
+	await process_frame
+
+
+func _test_defeat_locks_controls_and_attack() -> void:
+	var holder := Node2D.new()
+	var player := PLAYER_SCENE.instantiate() as Player
+	var enemy := PATROL_SCENE.instantiate() as PatrolEnemy
+	player.position = Vector2(180.0, 220.0)
+	enemy.position = Vector2(480.0, 220.0)
+	holder.add_child(player)
+	holder.add_child(enemy)
+	root.add_child(holder)
+	player.set_physics_process(false)
+	enemy.set_physics_process(false)
+	await process_frame
+
+	var landed_targets: Array[Node2D] = []
+	player.attack_landed.connect(
+		func(
+			target: Node2D,
+			_position: Vector2,
+			_impulse: Vector2
+		) -> void:
+			landed_targets.append(target)
+	)
+	player.call("_start_attack")
+	player.jump_requested = true
+	player.attack_requested = true
+	var sentinel_velocity := Vector2(71.0, -23.0)
+	player.velocity = sentinel_velocity
+	var position_before := player.global_position
+	var accepted := player.receive_lethal_hit(
+		Player.DefeatCause.COMBAT,
+		Vector2.RIGHT
+	)
+
+	var move_event := InputEventKey.new()
+	move_event.pressed = true
+	move_event.physical_keycode = KEY_W
+	player._input(move_event)
+	var attack_event := InputEventKey.new()
+	attack_event.pressed = true
+	attack_event.physical_keycode = KEY_X
+	player._input(attack_event)
+	player.call("_start_attack")
+	player.call("_try_apply_impulse", enemy)
+	player.receive_impulse(Vector2(900.0, -900.0))
+
+	var held_position := player.global_position
+	for _frame in player.combat_defeat_hit_stop_frames:
+		player._physics_process(1.0 / 60.0)
+		_expect(
+			player.global_position.is_equal_approx(held_position),
+			"Defeated player root moved during combat hit-stop."
+		)
+	player._physics_process(1.0 / 60.0)
+
+	_expect(
+		accepted
+		and player.is_defeated
+		and player.defeat_cause == Player.DefeatCause.COMBAT
+		and player.jump_requested == false
+		and player.attack_requested == false
+		and is_zero_approx(player.attack_time_remaining)
+		and not player.attack_area.monitoring
+		and not player.attack_visual.visible
+		and player.global_position.is_equal_approx(position_before)
+		and player.velocity.is_equal_approx(sentinel_velocity)
+		and enemy.velocity.is_zero_approx()
+		and landed_targets.is_empty()
+		and get_nodes_in_group("impact_feedback").is_empty(),
+		"Combat defeat did not lock controls and cancel the active attack."
 	)
 
 	holder.queue_free()
@@ -271,16 +372,18 @@ func _test_arena_combat_outcome_is_idempotent() -> void:
 	arena.call(
 		"_on_player_defeated",
 		player,
-		Player.DefeatCause.FALL
+		Player.DefeatCause.FALL,
+		Vector2.DOWN
 	)
 
 	_expect(
 		accepted_first
 		and not accepted_second
 		and player.is_defeated
-		and player.is_falling_out
+		and player.is_combat_defeat_active
+		and not player.is_falling_out
 		and is_equal_approx(
-			player.fall_out_duration,
+			player.combat_defeat_duration,
 			arena.fall_restart_delay
 		)
 		and is_equal_approx(arena.fall_restart_delay, 0.45)

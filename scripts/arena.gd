@@ -69,7 +69,11 @@ func _connect_player_defeat_signals() -> void:
 			player.defeated.connect(_on_player_defeated)
 
 
-func _on_player_defeated(player_node: Node2D, cause: int) -> void:
+func _on_player_defeated(
+	player_node: Node2D,
+	cause: int,
+	impact_direction: Vector2
+) -> void:
 	if pending_outcome == Outcome.FALL:
 		return
 	var player := player_node as Player
@@ -83,13 +87,25 @@ func _on_player_defeated(player_node: Node2D, cause: int) -> void:
 		else "ПОРАЖЕНИЕ  /  ПЕРЕЗАПУСК..."
 	)
 	_schedule_outcome(fall_restart_delay, false, Outcome.FALL)
-	player.begin_fall_out(fall_restart_delay)
-	if (
-		fell_into_pit
-		and is_instance_valid(hazard_feedback)
-		and hazard_feedback.has_method("play_fall")
-	):
-		hazard_feedback.call("play_fall")
+	if fell_into_pit:
+		player.begin_fall_out(fall_restart_delay)
+		if (
+			is_instance_valid(hazard_feedback)
+			and hazard_feedback.has_method("play_fall")
+		):
+			hazard_feedback.call("play_fall")
+	else:
+		player.begin_combat_defeat(
+			impact_direction,
+			fall_restart_delay
+		)
+		_play_combat_defeat_feedback(impact_direction)
+
+
+func _play_combat_defeat_feedback(
+	_impact_direction: Vector2
+) -> void:
+	pass
 
 
 func _schedule_outcome(

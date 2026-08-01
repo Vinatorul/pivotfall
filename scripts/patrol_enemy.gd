@@ -61,7 +61,15 @@ func _ready() -> void:
 
 func _on_contact_hazard_body_entered(body: Node2D) -> void:
 	if body is Player:
-		body.receive_lethal_hit()
+		var impact_direction := (
+			body.global_position - global_position
+		).normalized()
+		if impact_direction.is_zero_approx():
+			impact_direction = Vector2(patrol_direction, 0.0)
+		body.receive_lethal_hit(
+			Player.DefeatCause.COMBAT,
+			impact_direction
+		)
 
 
 func _physics_process(delta: float) -> void:

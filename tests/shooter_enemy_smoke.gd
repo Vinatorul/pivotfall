@@ -572,7 +572,8 @@ func _test_builder_order_and_real_projectile() -> void:
 		and arena.pending_outcome == Arena.Outcome.FALL
 		and arena.status_label.text
 		== "ПОРАЖЕНИЕ  /  ПЕРЕЗАПУСК..."
-		and player.is_falling_out,
+		and player.is_combat_defeat_active
+		and not player.is_falling_out,
 		(
 			"A shooter declared before the player did not reacquire, "
 			+ "track, fire an arena-owned projectile, and defeat the player: "

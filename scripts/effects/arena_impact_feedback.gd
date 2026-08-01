@@ -5,6 +5,7 @@ extends Node
 @export_range(0.01, 0.5, 0.01) var shake_duration := 0.12
 @export_range(0.0, 16.0, 0.5) var enemy_shake_strength := 5.0
 @export_range(0.0, 16.0, 0.5) var mechanism_shake_strength := 2.5
+@export_range(0.0, 16.0, 0.5) var defeat_shake_strength := 8.0
 @export_range(1.0, 120.0, 1.0) var shake_frequency := 48.0
 
 @export_category("Impact sound")
@@ -12,8 +13,10 @@ extends Node
 @export_range(8000, 48000, 50) var sound_mix_rate := 22050
 @export_range(-40.0, 0.0, 1.0) var enemy_volume_db := -8.0
 @export_range(-40.0, 0.0, 1.0) var mechanism_volume_db := -11.0
+@export_range(-40.0, 0.0, 1.0) var defeat_volume_db := -5.0
 @export_range(0.5, 2.0, 0.01) var enemy_pitch_scale := 0.92
 @export_range(0.5, 2.0, 0.01) var mechanism_pitch_scale := 1.18
+@export_range(0.5, 2.0, 0.01) var defeat_pitch_scale := 0.68
 @export var play_audio_in_headless := false
 
 @onready var camera: Camera2D = $Camera
@@ -24,9 +27,11 @@ var shake_elapsed := 0.0
 var shake_direction := Vector2.RIGHT
 var active_shake_strength := 0.0
 var impact_count := 0
+var defeat_count := 0
 var sound_play_count := 0
 var last_impact_direction := Vector2.RIGHT
 var last_impact_was_enemy := false
+var last_defeat_direction := Vector2.RIGHT
 var impact_stream: AudioStreamWAV
 var base_camera_offset := Vector2.ZERO
 
@@ -57,19 +62,50 @@ func _process(delta: float) -> void:
 
 
 func play_impact(direction: Vector2, hit_enemy: bool) -> void:
+	impact_count += 1
+	last_impact_was_enemy = hit_enemy
+	last_impact_direction = _play_feedback(
+		direction,
+		(
+		enemy_shake_strength
+		if hit_enemy
+		else mechanism_shake_strength
+		),
+		(
+			enemy_volume_db
+			if hit_enemy
+			else mechanism_volume_db
+		),
+		(
+			enemy_pitch_scale
+			if hit_enemy
+			else mechanism_pitch_scale
+		)
+	)
+
+
+func play_defeat(direction: Vector2) -> void:
+	defeat_count += 1
+	last_defeat_direction = _play_feedback(
+		direction,
+		defeat_shake_strength,
+		defeat_volume_db,
+		defeat_pitch_scale
+	)
+
+
+func _play_feedback(
+	direction: Vector2,
+	shake_strength: float,
+	volume_db: float,
+	pitch_scale: float
+) -> Vector2:
 	var normalized_direction := direction.normalized()
 	if normalized_direction.is_zero_approx():
 		normalized_direction = Vector2.RIGHT
 
-	impact_count += 1
-	last_impact_direction = normalized_direction
-	last_impact_was_enemy = hit_enemy
 	shake_direction = normalized_direction
-	active_shake_strength = (
-		enemy_shake_strength
-		if hit_enemy
-		else mechanism_shake_strength
-	)
+	active_shake_strength = shake_strength
 	shake_elapsed = 0.0
 	shake_time_remaining = shake_duration
 	camera.offset = (
@@ -78,22 +114,15 @@ func play_impact(direction: Vector2, hit_enemy: bool) -> void:
 	)
 	set_process(true)
 
-	audio_player.volume_db = (
-		enemy_volume_db
-		if hit_enemy
-		else mechanism_volume_db
-	)
-	audio_player.pitch_scale = (
-		enemy_pitch_scale
-		if hit_enemy
-		else mechanism_pitch_scale
-	)
+	audio_player.volume_db = volume_db
+	audio_player.pitch_scale = pitch_scale
 	if (
 		DisplayServer.get_name() != "headless"
 		or play_audio_in_headless
 	):
 		audio_player.play()
 		sound_play_count += 1
+	return normalized_direction
 
 
 func cancel_feedback() -> void:

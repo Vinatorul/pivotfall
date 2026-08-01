@@ -127,7 +127,10 @@ func _find_first_collision(
 
 func _apply_impulse(target: CollisionObject2D) -> void:
 	if target is Player:
-		target.receive_lethal_hit()
+		target.receive_lethal_hit(
+			Player.DefeatCause.COMBAT,
+			direction
+		)
 		return
 	if not target.has_method("receive_impulse"):
 		return

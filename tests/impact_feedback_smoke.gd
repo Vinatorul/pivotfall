@@ -376,6 +376,122 @@ func _test_runtime_camera_and_sound() -> void:
 	)
 	feedback.cancel_feedback()
 	await _wait_real_milliseconds(80)
+	player.call("_finish_attack")
+	runtime.fall_restart_delay = 10.0
+	var combat_direction := Vector2.LEFT
+	var combat_root_position := player.global_position
+	var combat_velocity := Vector2(63.0, -21.0)
+	player.velocity = combat_velocity
+	var combat_visual_transform := player.fall_visual_pivot.global_transform
+	var combat_visual_modulate := player.fall_visual_pivot.modulate
+	var generation_before_defeat := runtime.outcome_generation
+	var time_scale_before_defeat := Engine.time_scale
+	var accepted_defeat := player.receive_lethal_hit(
+		Player.DefeatCause.COMBAT,
+		combat_direction
+	)
+	var hazard_feedback := (
+		runtime.hazard_feedback as ArenaHazardFeedback
+	)
+	_expect(
+		accepted_defeat
+		and feedback.impact_count == 2
+		and feedback.defeat_count == 1
+		and feedback.sound_play_count == 3
+		and feedback.last_defeat_direction.is_equal_approx(
+			combat_direction
+		)
+		and feedback.camera.offset.is_equal_approx(
+			-combat_direction * feedback.defeat_shake_strength
+		)
+		and is_equal_approx(
+			feedback.audio_player.volume_db,
+			feedback.defeat_volume_db
+		)
+		and is_equal_approx(
+			feedback.audio_player.pitch_scale,
+			feedback.defeat_pitch_scale
+		)
+		and feedback.audio_player.playing
+		and runtime.pending_outcome == Arena.Outcome.FALL
+		and runtime.outcome_generation == generation_before_defeat + 1
+		and runtime.status_label.text
+		== "ПОРАЖЕНИЕ  /  ПЕРЕЗАПУСК..."
+		and player.is_combat_defeat_active
+		and not player.is_falling_out
+		and player.fall_visual_pivot.is_set_as_top_level()
+		and player.fall_visual_pivot.global_position.is_equal_approx(
+			combat_visual_transform.origin
+		)
+		and player.fall_visual_pivot.scale.x
+		> combat_visual_transform.get_scale().x
+		and player.fall_visual_pivot.scale.y
+		< combat_visual_transform.get_scale().y
+		and not player.fall_visual_pivot.modulate.is_equal_approx(
+			combat_visual_modulate
+		)
+		and not hazard_feedback.is_alerting
+		and is_equal_approx(Engine.time_scale, time_scale_before_defeat),
+		"Combat defeat did not start its distinct camera, audio, and pose."
+	)
+
+	var held_combat_transform := player.fall_visual_pivot.transform
+	for _frame in player.combat_defeat_hit_stop_frames:
+		player._physics_process(1.0 / 60.0)
+		_expect(
+			player.fall_visual_pivot.transform.is_equal_approx(
+				held_combat_transform
+			)
+			and is_zero_approx(player.combat_defeat_elapsed),
+			"Combat defeat pose advanced during its local hit-stop."
+		)
+	player._physics_process(player.combat_defeat_duration * 0.5)
+	_expect(
+		player.global_position.is_equal_approx(combat_root_position)
+		and player.velocity.is_equal_approx(combat_velocity)
+		and player.fall_visual_pivot.position.x
+		< player.combat_defeat_origin_position.x
+		and player.fall_visual_pivot.position.y
+		< player.combat_defeat_origin_position.y
+		and player.fall_visual_pivot.rotation
+		< player.combat_defeat_origin_rotation
+		and player.fall_visual_pivot.scale.x
+		< player.combat_defeat_origin_scale.x
+		and player.fall_visual_pivot.modulate.a
+		< player.combat_defeat_origin_modulate.a,
+		"Combat defeat midpoint missed its directional visual arc."
+	)
+
+	var duplicate_defeat := player.receive_lethal_hit(
+		Player.DefeatCause.COMBAT,
+		Vector2.DOWN
+	)
+	runtime.call(
+		"_on_player_defeated",
+		player,
+		Player.DefeatCause.COMBAT,
+		Vector2.DOWN
+	)
+	_expect(
+		not duplicate_defeat
+		and feedback.defeat_count == 1
+		and feedback.sound_play_count == 3
+		and runtime.outcome_generation == generation_before_defeat + 1
+		and feedback.last_defeat_direction.is_equal_approx(
+			combat_direction
+		),
+		"Repeated combat defeat restarted feedback or the outcome timer."
+	)
+	feedback._process(feedback.shake_duration)
+	await _wait_for_audio_stop(feedback.audio_player, 500)
+	_expect(
+		not feedback.is_shaking()
+		and feedback.camera.offset.is_zero_approx()
+		and not feedback.audio_player.playing,
+		"Combat defeat feedback did not settle before cleanup."
+	)
+	feedback.cancel_feedback()
+	await _wait_real_milliseconds(80)
 	stream = null
 	runtime.free()
 	for _frame in 3:

@@ -30,6 +30,9 @@ func _test_hazard_feedback_lifecycle() -> void:
 	var hazard := arena.get_node(
 		"HazardFeedback"
 	) as ArenaHazardFeedback
+	var impact_feedback := arena.get_node(
+		"ImpactFeedback"
+	) as ArenaImpactFeedback
 	hazard.set_process(false)
 	root.add_child(arena)
 	await process_frame
@@ -127,6 +130,8 @@ func _test_hazard_feedback_lifecycle() -> void:
 			fall_modulate_before
 		)
 		and hazard.is_alerting
+		and impact_feedback.defeat_count == 0
+		and not impact_feedback.is_shaking()
 		and is_zero_approx(hazard.alert_elapsed)
 		and pit_edge.width
 		> hazard.base_edge_width + hazard.alert_width_boost

@@ -140,6 +140,12 @@ func _on_player_attack_landed(
 	)
 
 
+func _play_combat_defeat_feedback(
+	impact_direction: Vector2
+) -> void:
+	impact_feedback.play_defeat(impact_direction)
+
+
 func _should_advance_after_clear() -> bool:
 	if campaign_mode:
 		return true
