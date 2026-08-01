@@ -14,6 +14,7 @@ const STATUS_INFO_COLOR := Color(0.439, 0.827, 0.816, 1.0)
 @onready var editor_button: Button = $Panel/Editor
 @onready var exit_button: Button = $Panel/Exit
 @onready var status_label: Label = $Panel/Status
+@onready var footer_label: Label = $Footer
 @onready var new_game_confirm: Control = $NewGameConfirm
 @onready var confirm_message: Label = (
 	$NewGameConfirm/Panel/Message
@@ -41,6 +42,9 @@ func _ready() -> void:
 
 	if OS.has_feature("web"):
 		exit_button.visible = false
+	if DisplayServer.is_touchscreen_available():
+		editor_button.visible = false
+		footer_label.text = "КАСАНИЕ — ВЫБОР"
 
 	var selector := get_node_or_null("/root/DebugLevelSelector")
 	if (
@@ -209,9 +213,19 @@ func _change_scene(scene_path: String, description: String) -> bool:
 		return false
 
 	transitioning = true
+	_perform_scene_change.call_deferred(scene_path, description)
+	return true
+
+
+func _perform_scene_change(
+	scene_path: String,
+	description: String
+) -> void:
+	if not is_inside_tree():
+		return
 	var change_error := get_tree().change_scene_to_file(scene_path)
 	if change_error == OK:
-		return true
+		return
 
 	var progress_store := _progress_store()
 	if is_instance_valid(progress_store):
@@ -223,7 +237,6 @@ func _change_scene(scene_path: String, description: String) -> bool:
 		"Не удалось открыть %s (ошибка %d)."
 		% [description, change_error]
 	)
-	return false
 
 
 func _move_focus(offset: int) -> void:

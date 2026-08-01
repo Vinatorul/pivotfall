@@ -27,6 +27,33 @@ window/size/window_width_override=960
 window/size/window_height_override=540
 window/stretch/mode="canvas_items"
 
+[input]
+
+mobile_move_left={
+"deadzone": 0.5,
+"events": []
+}
+mobile_move_right={
+"deadzone": 0.5,
+"events": []
+}
+mobile_jump={
+"deadzone": 0.5,
+"events": []
+}
+mobile_attack={
+"deadzone": 0.5,
+"events": []
+}
+mobile_pause={
+"deadzone": 0.5,
+"events": []
+}
+
+[input_devices]
+
+pointing/emulate_mouse_from_touch=true
+
 [physics]
 
 2d/default_gravity=1500.0

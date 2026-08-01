@@ -522,6 +522,10 @@ func _test_runner_lifecycle(campaign_result: Dictionary) -> void:
 		runner.completion_ui.visible
 		and not runner.intro_ui.visible
 		and runner.completion_count.text == "8 / 8"
+		and runner.completion_restart_button.visible
+		and not runner.completion_restart_button.disabled
+		and runner.completion_main_menu_button.visible
+		and not runner.completion_main_menu_button.disabled
 		and runner.progress_label.text == "КАМПАНИЯ  8 / 8",
 		"Campaign completion presentation is incomplete."
 	)
@@ -557,7 +561,7 @@ func _test_runner_lifecycle(campaign_result: Dictionary) -> void:
 		"F1 menu did not close cleanly on the completion screen."
 	)
 
-	await _press_physical_key(KEY_R)
+	runner.completion_restart_button.pressed.emit()
 	var new_run_started := await _wait_for_runtime(
 		runner,
 		"arena_01_data",
@@ -568,7 +572,7 @@ func _test_runner_lifecycle(campaign_result: Dictionary) -> void:
 		and runner.get_instance_id() == controller_id
 		and not runner.is_campaign_complete()
 		and not runner.completion_ui.visible,
-		"R on completion did not start a new campaign."
+		"Completion restart button did not start a new campaign."
 	)
 	if not new_run_started:
 		return

@@ -32,6 +32,7 @@ enum Phase {
 
 @onready var runtime_host: Node2D = $RuntimeHost
 @onready var pause_menu: CampaignPauseMenu = $PauseMenu
+@onready var mobile_controls: MobileControls = $MobileControls
 @onready var progress_backing: ColorRect = $CampaignUI/ProgressBacking
 @onready var progress_label: Label = $CampaignUI/Progress
 @onready var intro_ui: Control = $CampaignUI/Intro
@@ -39,6 +40,13 @@ enum Phase {
 @onready var intro_meta: Label = $CampaignUI/Intro/Panel/Meta
 @onready var completion_ui: Control = $CampaignUI/Completion
 @onready var completion_count: Label = $CampaignUI/Completion/Panel/Count
+@onready var completion_hint: Label = $CampaignUI/Completion/Panel/Hint
+@onready var completion_restart_button: Button = (
+	$CampaignUI/Completion/Panel/Restart
+)
+@onready var completion_main_menu_button: Button = (
+	$CampaignUI/Completion/Panel/MainMenu
+)
 @onready var failure_ui: CanvasLayer = $FailureUI
 @onready var failure_label: Label = $FailureUI/Panel/Message
 
@@ -62,6 +70,12 @@ func _ready() -> void:
 	pause_menu.resume_requested.connect(resume_from_pause)
 	pause_menu.restart_requested.connect(restart_current_level)
 	pause_menu.main_menu_requested.connect(return_to_main_menu)
+	mobile_controls.pause_requested.connect(open_pause_menu)
+	completion_restart_button.pressed.connect(restart_campaign)
+	completion_main_menu_button.pressed.connect(return_to_main_menu)
+	mobile_controls.set_active(false)
+	if DisplayServer.is_touchscreen_available():
+		completion_hint.text = "ВЫБЕРИТЕ ДЕЙСТВИЕ"
 	_set_debug_selector_suppressed(false)
 	var campaign_result: Dictionary = (
 		CAMPAIGN_STORAGE.load_builtin_campaign()
@@ -126,6 +140,7 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	mobile_controls.set_active(false)
 	transition_generation += 1
 	_intro_generation += 1
 	transitioning = false
@@ -248,6 +263,7 @@ func open_pause_menu() -> bool:
 	var opened := pause_menu.open_menu(_pause_arena_text())
 	if opened:
 		phase = Phase.PAUSED
+		_set_runtime_active(false)
 		return true
 
 	_set_debug_selector_suppressed(false)
@@ -260,6 +276,7 @@ func resume_from_pause() -> bool:
 
 	pause_menu.close_menu()
 	phase = Phase.PLAYING
+	_set_runtime_active(true)
 	_set_debug_selector_suppressed(false)
 	return true
 
@@ -294,6 +311,7 @@ func return_to_main_menu() -> bool:
 	var pause_was_open := pause_menu.is_open()
 	if pause_was_open:
 		pause_menu.close_menu()
+	_set_runtime_active(false)
 
 	transitioning = true
 	phase = Phase.REPLACING
@@ -309,6 +327,8 @@ func return_to_main_menu() -> bool:
 	phase = previous_phase
 	if pause_was_open:
 		pause_menu.open_menu(_pause_arena_text())
+	elif previous_phase == Phase.PLAYING:
+		_set_runtime_active(true)
 	push_error(
 		"Could not open main menu '%s' (error %d)."
 		% [MAIN_MENU_SCENE_PATH, change_error]
@@ -454,6 +474,7 @@ func _replace_runtime(
 
 	transitioning = true
 	phase = Phase.REPLACING
+	_set_runtime_active(false)
 	_hide_completion()
 	_cancel_intro()
 	transition_generation += 1
@@ -620,6 +641,8 @@ func _show_completion() -> void:
 		campaign_entries.size(),
 		campaign_entries.size(),
 	]
+	completion_restart_button.disabled = true
+	completion_main_menu_button.disabled = true
 	completion_ui.visible = true
 	_set_runtime_active(false)
 	transition_generation += 1
@@ -636,14 +659,25 @@ func _show_completion() -> void:
 
 	transitioning = false
 	phase = Phase.COMPLETED
+	completion_restart_button.disabled = false
+	completion_main_menu_button.disabled = false
+	completion_restart_button.grab_focus()
 
 
 func _hide_completion() -> void:
+	var focused := get_viewport().gui_get_focus_owner()
+	if focused in [
+		completion_restart_button,
+		completion_main_menu_button,
+	]:
+		focused.release_focus()
 	campaign_completed = false
 	completion_ui.visible = false
 
 
 func _set_runtime_active(active: bool) -> void:
+	if is_instance_valid(mobile_controls):
+		mobile_controls.set_active(active)
 	if not is_instance_valid(current_runtime):
 		return
 	current_runtime.process_mode = (

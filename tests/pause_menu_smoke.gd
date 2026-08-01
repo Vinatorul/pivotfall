@@ -78,9 +78,23 @@ func _run() -> void:
 	)
 
 	var runtime_id := runtime.get_instance_id()
-	await _press_physical_key(KEY_ESCAPE)
+	runner.mobile_controls.set_touchscreen_override_for_tests(true, true)
+	runner.mobile_controls.set_active(true)
+	_expect(
+		runner.mobile_controls.is_active(),
+		"Forced mobile controls did not appear during gameplay."
+	)
+	await _tap_touchscreen_button(
+		runner.mobile_controls.pause_button,
+		0
+	)
 	await process_frame
 	_expect_pause_open(runner, selector, runtime_id)
+	_expect(
+		not runner.mobile_controls.is_active()
+		and not Input.is_action_pressed("mobile_pause"),
+		"Opening pause did not hide and release mobile controls."
+	)
 	var paused_enemy_position := enemy.global_position
 	await _wait_process_frames(8)
 	_expect(
@@ -136,6 +150,10 @@ func _run() -> void:
 	await _press_physical_key(KEY_ESCAPE)
 	await process_frame
 	_expect_resumed(runner, selector, runtime_id)
+	_expect(
+		runner.mobile_controls.is_active(),
+		"Mobile controls did not return after resuming gameplay."
+	)
 	var resumed_enemy_position := enemy.global_position
 	await _wait_physics_frames(8)
 	_expect(
@@ -205,7 +223,7 @@ func _expect_pause_open(
 		and runner.runtime_host.get_child_count() == 1
 		and root.get_viewport().gui_get_focus_owner()
 		== runner.pause_menu.resume_button,
-		"Esc did not open a focused pause menu over the current runtime."
+		"Pause request did not open a focused menu over the runtime."
 	)
 	_expect(
 		selector.context_suppressed
@@ -294,7 +312,7 @@ func _press_physical_key(key: Key) -> void:
 	press.physical_keycode = key
 	press.keycode = key
 	press.pressed = true
-	Input.parse_input_event(press)
+	root.push_input(press)
 	await process_frame
 	await physics_frame
 
@@ -302,7 +320,29 @@ func _press_physical_key(key: Key) -> void:
 	release.physical_keycode = key
 	release.keycode = key
 	release.pressed = false
-	Input.parse_input_event(release)
+	root.push_input(release)
+	await process_frame
+
+
+func _tap_touchscreen_button(
+	button: MobileTouchButton,
+	index: int
+) -> void:
+	var controls := button.get_parent() as MobileControls
+	var press := InputEventScreenTouch.new()
+	press.window_id = root.get_window_id()
+	press.index = index
+	press.position = button.get_global_transform_with_canvas().origin
+	press.pressed = true
+	controls._input(press)
+	await process_frame
+
+	var release := InputEventScreenTouch.new()
+	release.window_id = root.get_window_id()
+	release.index = index
+	release.position = button.get_global_transform_with_canvas().origin
+	release.pressed = false
+	controls._input(release)
 	await process_frame
 
 

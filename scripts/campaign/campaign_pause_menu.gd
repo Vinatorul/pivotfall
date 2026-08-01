@@ -9,6 +9,7 @@ signal main_menu_requested
 @onready var resume_button: Button = $Overlay/Panel/Resume
 @onready var restart_button: Button = $Overlay/Panel/Restart
 @onready var main_menu_button: Button = $Overlay/Panel/MainMenu
+@onready var footer_label: Label = $Overlay/Panel/Footer
 
 var _previous_tree_paused := false
 
@@ -17,6 +18,8 @@ func _ready() -> void:
 	resume_button.pressed.connect(resume_requested.emit)
 	restart_button.pressed.connect(restart_requested.emit)
 	main_menu_button.pressed.connect(main_menu_requested.emit)
+	if DisplayServer.is_touchscreen_available():
+		footer_label.text = "КАСАНИЕ — ВЫБОР"
 	visible = false
 
 

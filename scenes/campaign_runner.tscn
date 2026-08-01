@@ -1,7 +1,64 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://scripts/campaign/campaign_runner.gd" id="1_runner"]
 [ext_resource type="PackedScene" path="res://scenes/campaign_pause_menu.tscn" id="2_pause"]
+[ext_resource type="PackedScene" path="res://scenes/mobile_controls.tscn" id="3_mobile"]
+
+[sub_resource type="StyleBoxFlat" id="CompletionButtonNormal"]
+content_margin_left = 14.0
+content_margin_right = 14.0
+bg_color = Color(0.075, 0.098, 0.165, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.173, 0.227, 0.337, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="CompletionButtonHover"]
+content_margin_left = 14.0
+content_margin_right = 14.0
+bg_color = Color(0.102, 0.137, 0.224, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.439, 0.827, 0.816, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="CompletionButtonPressed"]
+content_margin_left = 14.0
+content_margin_right = 14.0
+bg_color = Color(0.176, 0.118, 0.094, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.973, 0.58, 0.267, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="CompletionButtonFocus"]
+content_margin_left = 14.0
+content_margin_right = 14.0
+bg_color = Color(0.075, 0.098, 0.165, 1)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.439, 0.827, 0.816, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
 
 [node name="CampaignRunner" type="Node2D"]
 script = ExtResource("1_runner")
@@ -9,6 +66,8 @@ script = ExtResource("1_runner")
 [node name="RuntimeHost" type="Node2D" parent="."]
 
 [node name="PauseMenu" parent="." instance=ExtResource("2_pause")]
+
+[node name="MobileControls" parent="." instance=ExtResource("3_mobile")]
 
 [node name="CampaignUI" type="CanvasLayer" parent="."]
 layer = 20
@@ -123,9 +182,9 @@ mouse_filter = 2
 [node name="Panel" type="ColorRect" parent="CampaignUI/Completion"]
 layout_mode = 0
 offset_left = 150.0
-offset_top = 130.0
+offset_top = 112.0
 offset_right = 810.0
-offset_bottom = 410.0
+offset_bottom = 428.0
 color = Color(0.075, 0.098, 0.165, 1)
 mouse_filter = 2
 
@@ -178,15 +237,55 @@ mouse_filter = 2
 [node name="Hint" type="Label" parent="CampaignUI/Completion/Panel"]
 layout_mode = 0
 offset_left = 30.0
-offset_top = 214.0
+offset_top = 268.0
 offset_right = 630.0
-offset_bottom = 244.0
+offset_bottom = 294.0
 theme_override_colors/font_color = Color(0.439, 0.827, 0.816, 1)
-theme_override_font_sizes/font_size = 13
+theme_override_font_sizes/font_size = 11
 text = "R — СНАЧАЛА    ESC — МЕНЮ    F1 — АРЕНЫ"
 horizontal_alignment = 1
 vertical_alignment = 1
 mouse_filter = 2
+
+[node name="Restart" type="Button" parent="CampaignUI/Completion/Panel"]
+layout_mode = 0
+offset_left = 38.0
+offset_top = 194.0
+offset_right = 306.0
+offset_bottom = 250.0
+focus_neighbor_left = NodePath("../MainMenu")
+focus_neighbor_right = NodePath("../MainMenu")
+mouse_default_cursor_shape = 2
+theme_override_colors/font_color = Color(0.792, 0.835, 0.906, 1)
+theme_override_colors/font_hover_color = Color(0.439, 0.827, 0.816, 1)
+theme_override_colors/font_focus_color = Color(0.439, 0.827, 0.816, 1)
+theme_override_colors/font_pressed_color = Color(0.973, 0.58, 0.267, 1)
+theme_override_font_sizes/font_size = 15
+theme_override_styles/normal = SubResource("CompletionButtonNormal")
+theme_override_styles/hover = SubResource("CompletionButtonHover")
+theme_override_styles/pressed = SubResource("CompletionButtonPressed")
+theme_override_styles/focus = SubResource("CompletionButtonFocus")
+text = "СНАЧАЛА"
+
+[node name="MainMenu" type="Button" parent="CampaignUI/Completion/Panel"]
+layout_mode = 0
+offset_left = 354.0
+offset_top = 194.0
+offset_right = 622.0
+offset_bottom = 250.0
+focus_neighbor_left = NodePath("../Restart")
+focus_neighbor_right = NodePath("../Restart")
+mouse_default_cursor_shape = 2
+theme_override_colors/font_color = Color(0.792, 0.835, 0.906, 1)
+theme_override_colors/font_hover_color = Color(0.439, 0.827, 0.816, 1)
+theme_override_colors/font_focus_color = Color(0.439, 0.827, 0.816, 1)
+theme_override_colors/font_pressed_color = Color(0.973, 0.58, 0.267, 1)
+theme_override_font_sizes/font_size = 15
+theme_override_styles/normal = SubResource("CompletionButtonNormal")
+theme_override_styles/hover = SubResource("CompletionButtonHover")
+theme_override_styles/pressed = SubResource("CompletionButtonPressed")
+theme_override_styles/focus = SubResource("CompletionButtonFocus")
+text = "В МЕНЮ"
 
 [node name="FailureUI" type="CanvasLayer" parent="."]
 visible = false

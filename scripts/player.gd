@@ -213,6 +213,10 @@ func _physics_process(delta: float) -> void:
 	_update_attack_timers(delta)
 
 	var direction := Input.get_axis("ui_left", "ui_right")
+	direction += Input.get_axis(
+		"mobile_move_left",
+		"mobile_move_right"
+	)
 
 	if Input.is_physical_key_pressed(KEY_A):
 		direction -= 1.0
@@ -244,13 +248,18 @@ func _physics_process(delta: float) -> void:
 	var wants_to_jump := (
 		Input.is_action_just_pressed("ui_accept")
 		or Input.is_action_just_pressed("ui_up")
+		or Input.is_action_just_pressed("mobile_jump")
 		or jump_requested
 	)
 	jump_requested = false
+	var wants_to_attack := (
+		Input.is_action_just_pressed("mobile_attack")
+		or attack_requested
+	)
 
 	if (
 		not controls_locked
-		and attack_requested
+		and wants_to_attack
 		and is_zero_approx(attack_cooldown_remaining)
 	):
 		_start_attack()

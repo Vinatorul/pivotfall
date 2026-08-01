@@ -77,8 +77,18 @@ func configure_campaign_snapshot(
 
 
 func _ready() -> void:
+	var has_touchscreen := DisplayServer.is_touchscreen_available()
+	if has_touchscreen:
+		controls_label.text = (
+			"ЭКРАННЫЕ КНОПКИ — движение / прыжок / удар"
+		)
+
 	if campaign_mode:
-		controls_label.text += "    Esc — пауза"
+		controls_label.text += (
+			"    II — пауза"
+			if has_touchscreen
+			else "    Esc — пауза"
+		)
 	elif embedded_mode:
 		controls_label.text += "    Esc — в редактор"
 
