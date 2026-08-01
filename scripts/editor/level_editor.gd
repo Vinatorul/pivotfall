@@ -33,6 +33,7 @@ const TOOL_HINGE := "hinge"
 
 @onready var editor_view: Control = $EditorView
 @onready var discard_dialog: ConfirmationDialog = $DiscardDialog
+@onready var file_transfer: LevelFileTransfer = $LevelFileTransfer
 @onready var playtest_host: Node2D = $PlaytestHost
 @onready var playtest_overlay: CanvasLayer = $PlaytestOverlay
 @onready var return_button: Button = $PlaytestOverlay/ReturnButton
@@ -106,6 +107,12 @@ const TOOL_HINGE := "hinge"
 @onready var new_button: Button = $EditorView/InspectorPanel/NewButton
 @onready var load_button: Button = $EditorView/InspectorPanel/LoadButton
 @onready var save_button: Button = $EditorView/InspectorPanel/SaveButton
+@onready var import_button: Button = (
+	$EditorView/InspectorPanel/ImportButton
+)
+@onready var export_button: Button = (
+	$EditorView/InspectorPanel/ExportButton
+)
 @onready var inspector_title: Label = (
 	$EditorView/InspectorPanel/InspectorTitle
 )
@@ -132,11 +139,18 @@ var syncing_ui := false
 var pending_destructive_action := ""
 var pending_load_index := -1
 var pending_save_level_id := ""
+var pending_import_data: Dictionary = {}
+var pending_import_file_name := ""
 var loaded_user_level_id := ""
 var linking_hinge_id := ""
 
 
 func _ready() -> void:
+	file_transfer.max_import_bytes = LEVEL_DATA_CODEC.MAX_FILE_BYTES
+	file_transfer.configure_web_import_hit_rect(
+		import_button.get_global_rect(),
+		get_viewport().get_visible_rect().size
+	)
 	_connect_ui()
 	draft.changed.connect(_on_draft_changed)
 	_set_debug_selector_suppressed(true)
@@ -327,6 +341,12 @@ func _connect_ui() -> void:
 	new_button.pressed.connect(_new_level)
 	load_button.pressed.connect(_load_selected_level)
 	save_button.pressed.connect(_save_level)
+	import_button.pressed.connect(_request_import_level)
+	export_button.pressed.connect(_request_export_level)
+	file_transfer.import_requested.connect(_commit_all_metadata)
+	file_transfer.import_selected.connect(_on_import_file_selected)
+	file_transfer.transfer_failed.connect(_on_file_transfer_failed)
+	file_transfer.export_completed.connect(_on_export_completed)
 	discard_dialog.confirmed.connect(_on_discard_confirmed)
 	discard_dialog.canceled.connect(_clear_pending_destructive_action)
 
@@ -446,6 +466,7 @@ func _refresh_buttons() -> void:
 	redo_button.disabled = not draft.can_redo()
 	test_button.disabled = not is_valid
 	save_button.disabled = not is_valid
+	export_button.disabled = not is_valid
 
 	var selected := draft.find_object(selected_id)
 	delete_button.disabled = selected.is_empty()
@@ -1203,6 +1224,8 @@ func _on_discard_confirmed() -> void:
 	var action := pending_destructive_action
 	var load_index := pending_load_index
 	var save_level_id := pending_save_level_id
+	var import_data := pending_import_data.duplicate(true)
+	var import_file_name := pending_import_file_name
 	_clear_pending_destructive_action()
 	if action == "new":
 		_create_new_level()
@@ -1210,6 +1233,8 @@ func _on_discard_confirmed() -> void:
 		_perform_load_selected_level(load_index)
 	elif action == "overwrite" and not save_level_id.is_empty():
 		_perform_save_level(save_level_id)
+	elif action == "import" and not import_data.is_empty():
+		_perform_import_level(import_data, import_file_name)
 	elif action == "exit":
 		_perform_return_to_game()
 
@@ -1218,6 +1243,9 @@ func _clear_pending_destructive_action() -> void:
 	pending_destructive_action = ""
 	pending_load_index = -1
 	pending_save_level_id = ""
+	pending_import_data = {}
+	pending_import_file_name = ""
+	file_transfer.set_web_import_overlay_visible(true)
 
 
 func _show_confirmation(
@@ -1235,6 +1263,7 @@ func _show_confirmation(
 	discard_dialog.dialog_text = message
 	discard_dialog.ok_button_text = confirm_text
 	discard_dialog.cancel_button_text = "ОСТАТЬСЯ"
+	file_transfer.set_web_import_overlay_visible(false)
 	discard_dialog.popup_centered()
 
 
@@ -1329,6 +1358,160 @@ func _perform_save_level(expected_level_id: String) -> void:
 		),
 		not storage_notice.is_empty()
 	)
+
+
+func _request_export_level() -> void:
+	_commit_all_metadata()
+	var encoded: Dictionary = LEVEL_DATA_CODEC.encode(
+		draft.to_dictionary()
+	)
+	if not bool(encoded.get("ok", false)):
+		_set_notice(
+			"Экспорт не выполнен: %s" % _first_error(encoded),
+			true
+		)
+		return
+
+	var level_id := str(encoded["data"]["level_id"])
+	file_transfer.export_file(
+		"%s.json" % level_id,
+		str(encoded["text"]).to_utf8_buffer(),
+		LevelFileTransfer.JSON_MIME_TYPE
+	)
+
+
+func _request_import_level() -> void:
+	_commit_all_metadata()
+	file_transfer.request_import()
+
+
+func _on_import_file_selected(
+	file_name: String,
+	bytes: PackedByteArray
+) -> void:
+	if bytes.size() > LEVEL_DATA_CODEC.MAX_FILE_BYTES:
+		file_transfer.set_web_import_overlay_visible(true)
+		_set_notice(
+			(
+				"Импорт не выполнен: файл превышает лимит "
+				+ "%d КБ."
+			)
+			% int(LEVEL_DATA_CODEC.MAX_FILE_BYTES / 1024),
+			true
+		)
+		return
+
+	var decoded: Dictionary = LEVEL_DATA_CODEC.decode_text(
+		bytes.get_string_from_utf8()
+	)
+	if not bool(decoded.get("ok", false)):
+		file_transfer.set_web_import_overlay_visible(true)
+		_set_notice(
+			"Импорт не выполнен: %s" % _first_error(decoded),
+			true
+		)
+		return
+	_queue_import_level(decoded["data"], file_name)
+
+
+func _queue_import_level(data: Dictionary, file_name: String) -> void:
+	var level_id := str(data.get("level_id", ""))
+	var exists_result: Dictionary = LEVEL_STORAGE.user_level_exists(
+		level_id
+	)
+	if not bool(exists_result.get("ok", false)):
+		file_transfer.set_web_import_overlay_visible(true)
+		_set_notice(
+			_append_storage_notice(
+				"Импорт не выполнен: %s" % _first_error(exists_result),
+				_storage_notice_from_result(exists_result)
+			),
+			true
+		)
+		return
+
+	var consequences := PackedStringArray()
+	if draft.is_dirty():
+		consequences.append(
+			(
+				"Несохранённый текущий черновик будет "
+				+ "отброшен."
+			)
+		)
+	if bool(exists_result.get("data", false)):
+		consequences.append(
+			"Сохранённый уровень '%s' будет заменён."
+			% level_id
+		)
+	if not consequences.is_empty():
+		consequences.append("Продолжить импорт?")
+		_show_confirmation(
+			"Импортировать уровень?",
+			"\n".join(consequences),
+			"ИМПОРТИРОВАТЬ",
+			"import"
+		)
+		pending_import_data = data.duplicate(true)
+		pending_import_file_name = file_name
+		return
+
+	_perform_import_level(data, file_name)
+
+
+func _perform_import_level(
+	data: Dictionary,
+	file_name: String
+) -> void:
+	var result: Dictionary = LEVEL_STORAGE.save_user_level(data)
+	var result_notice := _storage_notice_from_result(result)
+	if not bool(result.get("ok", false)):
+		file_transfer.set_web_import_overlay_visible(true)
+		_set_notice(
+			_append_storage_notice(
+				"Импорт не выполнен: %s" % _first_error(result),
+				result_notice
+			),
+			true
+		)
+		return
+
+	var level_id := str(result["data"]["level_id"])
+	source_label = "USER"
+	loaded_user_level_id = level_id
+	selected_id = ""
+	draft.replace(result["data"], true)
+	_set_tool(TOOL_SELECT)
+	var storage_notice := _refresh_load_options(level_id)
+	storage_notice = _combine_storage_notices(
+		result_notice,
+		storage_notice
+	)
+	var source_name := (
+		file_name
+		if not file_name.is_empty()
+		else "%s.json" % level_id
+	)
+	_set_notice(
+		_append_storage_notice(
+			"Импортирован уровень '%s' из %s."
+			% [level_id, source_name],
+			storage_notice
+		),
+		not storage_notice.is_empty()
+	)
+	file_transfer.set_web_import_overlay_visible(true)
+
+
+func _on_file_transfer_failed(message: String) -> void:
+	file_transfer.set_web_import_overlay_visible(true)
+	_set_notice(
+		"Операция с файлом не выполнена: %s" % message,
+		true
+	)
+
+
+func _on_export_completed(file_name: String) -> void:
+	_set_notice("Экспортирован файл %s." % file_name)
 
 
 func _request_return_to_game() -> void:
@@ -1466,6 +1649,7 @@ func _start_playtest() -> void:
 	playtest_generation += 1
 	editor_view.visible = false
 	editor_view.process_mode = Node.PROCESS_MODE_DISABLED
+	file_transfer.set_web_import_overlay_visible(false)
 	playtest_overlay.visible = true
 	_spawn_playtest(playtest_generation)
 
@@ -1525,6 +1709,7 @@ func _stop_playtest() -> void:
 	playtest_overlay.visible = false
 	editor_view.visible = true
 	editor_view.process_mode = Node.PROCESS_MODE_INHERIT
+	file_transfer.set_web_import_overlay_visible(true)
 	_set_notice("Возврат из теста: черновик и Undo/Redo сохранены.")
 	canvas.grab_focus()
 

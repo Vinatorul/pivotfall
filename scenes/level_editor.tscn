@@ -1,7 +1,8 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scripts/editor/level_editor.gd" id="1_editor"]
 [ext_resource type="Script" path="res://scripts/editor/level_editor_canvas.gd" id="2_canvas"]
+[ext_resource type="Script" path="res://scripts/editor/level_file_transfer.gd" id="3_transfer"]
 
 [node name="LevelEditor" type="Node"]
 script = ExtResource("1_editor")
@@ -11,6 +12,9 @@ title = "Несохранённые изменения"
 dialog_text = "Текущий черновик изменён. Отбросить изменения?"
 ok_button_text = "ОТБРОСИТЬ"
 cancel_button_text = "ОСТАТЬСЯ"
+
+[node name="LevelFileTransfer" type="Node" parent="."]
+script = ExtResource("3_transfer")
 
 [node name="PlaytestHost" type="Node2D" parent="."]
 
@@ -313,7 +317,7 @@ offset_bottom = 144.0
 mouse_filter = 0
 theme_override_colors/default_color = Color(0.651, 0.714, 0.82, 1)
 theme_override_font_sizes/normal_font_size = 12
-bbcode_enabled = true
+bbcode_enabled = false
 fit_content = false
 scroll_active = true
 text = "Ошибок нет. Можно сохранить или запустить тест."
@@ -368,12 +372,29 @@ offset_bottom = 108.0
 theme_override_colors/font_color = Color(0.439, 0.878, 0.816, 1)
 text = "SAVE"
 
+[node name="ImportButton" type="Button" parent="EditorView/InspectorPanel"]
+layout_mode = 0
+offset_left = 8.0
+offset_top = 116.0
+offset_right = 102.0
+offset_bottom = 148.0
+text = "IMPORT"
+
+[node name="ExportButton" type="Button" parent="EditorView/InspectorPanel"]
+layout_mode = 0
+offset_left = 106.0
+offset_top = 116.0
+offset_right = 200.0
+offset_bottom = 148.0
+theme_override_colors/font_color = Color(0.439, 0.878, 0.816, 1)
+text = "EXPORT"
+
 [node name="InspectorTitle" type="Label" parent="EditorView/InspectorPanel"]
 layout_mode = 0
 offset_left = 10.0
-offset_top = 126.0
+offset_top = 164.0
 offset_right = 198.0
-offset_bottom = 150.0
+offset_bottom = 188.0
 theme_override_colors/font_color = Color(0.651, 0.714, 0.82, 1)
 theme_override_font_sizes/font_size = 12
 text = "СВОЙСТВА УРОВНЯ"
@@ -381,7 +402,7 @@ text = "СВОЙСТВА УРОВНЯ"
 [node name="PropertiesScroll" type="ScrollContainer" parent="EditorView/InspectorPanel"]
 layout_mode = 0
 offset_left = 8.0
-offset_top = 156.0
+offset_top = 194.0
 offset_right = 200.0
 offset_bottom = 424.0
 horizontal_scroll_mode = 0
