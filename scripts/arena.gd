@@ -41,7 +41,8 @@ func _input(event: InputEvent) -> void:
 
 func _on_death_zone_body_entered(body: Node2D) -> void:
 	if body is Player:
-		body.receive_lethal_hit(Player.DefeatCause.FALL)
+		if is_ancestor_of(body):
+			body.receive_lethal_hit(Player.DefeatCause.FALL)
 		return
 
 	if (
@@ -73,6 +74,7 @@ func _on_death_zone_body_entered(body: Node2D) -> void:
 			_should_advance_after_clear(),
 			Outcome.CLEAR
 		)
+		_begin_player_clear_celebration()
 
 	if (
 		is_instance_valid(hazard_feedback)
@@ -96,12 +98,19 @@ func _connect_player_defeat_signals() -> void:
 			player.defeated.connect(_on_player_defeated)
 
 
+func _begin_player_clear_celebration() -> void:
+	for node: Node in get_tree().get_nodes_in_group("player"):
+		if not node is Player or not is_ancestor_of(node):
+			continue
+		(node as Player).begin_clear_celebration(clear_restart_delay)
+
+
 func _on_player_defeated(
 	player_node: Node2D,
 	cause: int,
 	impact_direction: Vector2
 ) -> void:
-	if pending_outcome == Outcome.FALL:
+	if pending_outcome != Outcome.NONE:
 		return
 	var player := player_node as Player
 	if not is_instance_valid(player):
@@ -148,7 +157,9 @@ func _schedule_outcome(
 	delay: float,
 	should_advance: bool,
 	outcome: Outcome
-) -> void:
+) -> bool:
+	if pending_outcome != Outcome.NONE:
+		return false
 	restart_scheduled = true
 	advance_after_delay = should_advance
 	pending_outcome = outcome
@@ -156,6 +167,7 @@ func _schedule_outcome(
 	get_tree().create_timer(delay, false).timeout.connect(
 		_finish_outcome.bind(outcome_generation)
 	)
+	return true
 
 
 func _finish_outcome(generation: int) -> void:

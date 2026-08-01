@@ -84,6 +84,16 @@ enum DefeatCause {
 @export_range(0.0, 0.4, 0.01) var combat_defeat_entry_squash := 0.18
 @export var combat_defeat_flash_color := Color(3.0, 0.52, 0.52, 1.0)
 
+@export_category("Clear celebration")
+@export_range(0.1, 1.2, 0.01) var clear_celebration_time := 0.68
+@export_range(0.0, 32.0, 1.0) var clear_celebration_lift := 12.0
+@export_range(0.0, 8.0, 0.5) var clear_celebration_hold_lift := 2.0
+@export_range(0.0, 0.3, 0.01) var clear_celebration_spin := 0.05
+@export_range(0.0, 0.4, 0.01) var clear_celebration_entry_squash := 0.16
+@export_range(1.0, 1.2, 0.01) var clear_celebration_end_scale := 1.03
+@export_range(0.0, 0.5, 0.01) var clear_celebration_hold_glow := 0.22
+@export var clear_celebration_glow_color := Color(0.72, 1.35, 0.58, 1.0)
+
 @export_category("Knockback")
 @export var knockback_lock_time := 0.22
 @export var knockback_drag := 520.0
@@ -139,6 +149,13 @@ var combat_defeat_origin_position := Vector2.ZERO
 var combat_defeat_origin_rotation := 0.0
 var combat_defeat_origin_scale := Vector2.ONE
 var combat_defeat_origin_modulate := Color.WHITE
+var is_clear_celebrating := false
+var clear_celebration_duration := 0.001
+var clear_celebration_elapsed := 0.0
+var clear_celebration_origin_position := Vector2.ZERO
+var clear_celebration_origin_rotation := 0.0
+var clear_celebration_origin_scale := Vector2.ONE
+var clear_celebration_origin_modulate := Color.WHITE
 
 
 func _ready() -> void:
@@ -160,6 +177,7 @@ func _ready() -> void:
 func _input(event: InputEvent) -> void:
 	if (
 		is_defeated
+		or is_clear_celebrating
 		or not event is InputEventKey
 		or not event.pressed
 		or event.echo
@@ -173,6 +191,10 @@ func _input(event: InputEvent) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if is_clear_celebrating:
+		_update_clear_celebration_animation(delta)
+		return
+
 	if is_defeated and defeat_cause == DefeatCause.COMBAT:
 		if combat_defeat_hold_frames_remaining > 0:
 			combat_defeat_hold_frames_remaining -= 1
@@ -289,7 +311,7 @@ func _process_fall_defeat_physics(delta: float) -> void:
 
 
 func receive_impulse(impulse: Vector2) -> void:
-	if is_defeated:
+	if is_defeated or is_clear_celebrating:
 		return
 
 	velocity = impulse
@@ -302,7 +324,7 @@ func receive_lethal_hit(
 	cause: int = DefeatCause.COMBAT,
 	impact_direction := Vector2.ZERO
 ) -> bool:
-	if is_defeated:
+	if is_defeated or is_clear_celebrating:
 		return false
 
 	is_defeated = true
@@ -327,7 +349,7 @@ func receive_lethal_hit(
 
 
 func begin_impact_freeze(frames: int = 3) -> void:
-	if is_defeated:
+	if is_defeated or is_clear_celebrating:
 		return
 
 	impact_freeze_frames_remaining = maxi(
@@ -337,7 +359,11 @@ func begin_impact_freeze(frames: int = 3) -> void:
 
 
 func begin_fall_out(duration: float) -> bool:
-	if is_falling_out or is_combat_defeat_active:
+	if (
+		is_clear_celebrating
+		or is_falling_out
+		or is_combat_defeat_active
+	):
 		return false
 
 	fall_out_duration = maxf(duration, 0.001)
@@ -363,7 +389,11 @@ func begin_combat_defeat(
 	impact_direction: Vector2,
 	duration: float
 ) -> bool:
-	if is_combat_defeat_active or is_falling_out:
+	if (
+		is_clear_celebrating
+		or is_combat_defeat_active
+		or is_falling_out
+	):
 		return false
 
 	combat_defeat_duration = maxf(duration, 0.001)
@@ -385,12 +415,48 @@ func begin_combat_defeat(
 	return true
 
 
+func begin_clear_celebration(outcome_delay: float) -> bool:
+	if (
+		is_clear_celebrating
+		or is_defeated
+		or is_falling_out
+		or is_combat_defeat_active
+	):
+		return false
+
+	clear_celebration_duration = minf(
+		clear_celebration_time,
+		maxf(outcome_delay, 0.001)
+	)
+	clear_celebration_elapsed = 0.0
+	jump_requested = false
+	attack_requested = false
+	knockback_time_remaining = 0.0
+	impact_freeze_frames_remaining = 0
+	velocity = Vector2.ZERO
+	locomotion_pose = LocomotionPose.IDLE
+	locomotion_time = 0.0
+	run_cycle = 0.0
+	landing_time_remaining = 0.0
+	landing_strength = 0.0
+	_finish_attack()
+	struck_targets.clear()
+	fall_visual_pivot.set_as_top_level(false)
+	clear_celebration_origin_position = fall_visual_pivot.position
+	clear_celebration_origin_rotation = fall_visual_pivot.rotation
+	clear_celebration_origin_scale = fall_visual_pivot.scale
+	clear_celebration_origin_modulate = fall_visual_pivot.modulate
+	is_clear_celebrating = true
+	_apply_clear_celebration_visual()
+	return true
+
+
 func is_impact_frozen() -> bool:
 	return impact_freeze_frames_remaining > 0
 
 
 func _start_attack() -> void:
-	if is_defeated:
+	if is_defeated or is_clear_celebrating:
 		return
 
 	attack_time_remaining = attack_active_time
@@ -441,6 +507,7 @@ func _on_attack_area_area_entered(area: Area2D) -> void:
 func _try_apply_impulse(target: Node2D) -> void:
 	if (
 		is_defeated
+		or is_clear_celebrating
 		or is_zero_approx(attack_time_remaining)
 		or not target.has_method("receive_impulse")
 	):
@@ -707,6 +774,81 @@ func _apply_locomotion_pose() -> void:
 		base_visual_rotation + facing_direction * lean
 	)
 	visual.scale.y = base_visual_scale_y * body_scale_y
+
+
+func _update_clear_celebration_animation(delta: float) -> void:
+	if not is_clear_celebrating:
+		return
+	clear_celebration_elapsed = minf(
+		clear_celebration_elapsed + maxf(delta, 0.0),
+		clear_celebration_duration
+	)
+	_apply_clear_celebration_visual()
+
+
+func _apply_clear_celebration_visual() -> void:
+	var progress := clampf(
+		clear_celebration_elapsed
+		/ maxf(clear_celebration_duration, 0.001),
+		0.0,
+		1.0
+	)
+	var hop := sin(progress * PI)
+	var settle := smoothstep(0.55, 1.0, progress)
+	var entry_strength := 1.0 - smoothstep(0.0, 0.16, progress)
+	var pulse := sin(progress * PI)
+	var wobble := (
+		sin(progress * TAU)
+		* (1.0 - smoothstep(0.08, 0.88, progress))
+	)
+	fall_visual_pivot.position = (
+		clear_celebration_origin_position
+		+ Vector2(
+			0.0,
+			VISUAL_HALF_HEIGHT
+			* clear_celebration_entry_squash
+			* entry_strength
+			-clear_celebration_lift * hop
+			- clear_celebration_hold_lift * settle
+		)
+	)
+	fall_visual_pivot.rotation = (
+		clear_celebration_origin_rotation
+		+ facing_direction
+		* clear_celebration_spin
+		* wobble
+	)
+	var uniform_scale := (
+		1.0
+		+ 0.04 * pulse
+		+ (clear_celebration_end_scale - 1.0) * settle
+	)
+	fall_visual_pivot.scale = clear_celebration_origin_scale * Vector2(
+		uniform_scale
+		* (1.0 - 0.06 * hop)
+		* (1.0 + clear_celebration_entry_squash * entry_strength),
+		uniform_scale
+		* (1.0 + 0.06 * hop)
+		* (1.0 - clear_celebration_entry_squash * entry_strength)
+	)
+	var flash_strength := 1.0 - smoothstep(0.0, 0.38, progress)
+	var glow_strength := maxf(
+		flash_strength,
+		maxf(
+			0.32 * pulse,
+			clear_celebration_hold_glow * settle
+		)
+	)
+	var glow_color := Color(
+		clear_celebration_glow_color.r,
+		clear_celebration_glow_color.g,
+		clear_celebration_glow_color.b,
+		clear_celebration_origin_modulate.a
+	)
+	fall_visual_pivot.modulate = clear_celebration_origin_modulate.lerp(
+		glow_color,
+		glow_strength
+	)
 
 
 func _update_combat_defeat_animation(delta: float) -> void:
