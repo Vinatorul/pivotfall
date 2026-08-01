@@ -12,6 +12,9 @@ const LEVEL_DATA_CODEC := preload(
 const LEVEL_BUILDER := preload(
 	"res://scripts/levels/level_builder.gd"
 )
+const ENEMY_ELIMINATION_BURST_SCRIPT := preload(
+	"res://scripts/effects/enemy_elimination_burst.gd"
+)
 
 @export_file("*.json") var level_path := ""
 
@@ -144,6 +147,30 @@ func _play_combat_defeat_feedback(
 	impact_direction: Vector2
 ) -> void:
 	impact_feedback.play_defeat(impact_direction)
+
+
+func _play_enemy_elimination_feedback(
+	world_position: Vector2,
+	fall_direction: Vector2,
+	source_color: Color,
+	clears_arena: bool
+) -> void:
+	impact_feedback.play_enemy_elimination(
+		world_position,
+		fall_direction,
+		clears_arena
+	)
+	var effects_parent := get_node_or_null("Actors") as Node2D
+	if not is_instance_valid(effects_parent):
+		return
+	var burst := ENEMY_ELIMINATION_BURST_SCRIPT.new() as EnemyEliminationBurst
+	effects_parent.add_child(burst)
+	burst.configure(
+		world_position,
+		fall_direction,
+		source_color,
+		clears_arena
+	)
 
 
 func _should_advance_after_clear() -> bool:

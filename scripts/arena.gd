@@ -44,20 +44,47 @@ func _on_death_zone_body_entered(body: Node2D) -> void:
 		body.receive_lethal_hit(Player.DefeatCause.FALL)
 		return
 
-	if restart_scheduled:
+	if (
+		restart_scheduled
+		or not is_ancestor_of(body)
+		or not body.is_in_group("enemies")
+	):
 		return
 
-	if body.is_in_group("enemies"):
-		body.queue_free()
-		enemies_remaining = maxi(enemies_remaining - 1, 0)
+	var elimination_position := body.global_position
+	var elimination_direction := Vector2.DOWN
+	if body is CharacterBody2D:
+		elimination_direction = (body as CharacterBody2D).velocity.normalized()
+		if elimination_direction.is_zero_approx():
+			elimination_direction = Vector2.DOWN
+	var elimination_color := _enemy_elimination_color(body)
 
-		if enemies_remaining == 0:
-			status_label.text = clear_message
-			_schedule_outcome(
-				clear_restart_delay,
-				_should_advance_after_clear(),
-				Outcome.CLEAR
-			)
+	# queue_free() is deferred, so remove the group marker synchronously to make
+	# duplicate DeathZone callbacks idempotent within the same physics frame.
+	body.remove_from_group("enemies")
+	body.queue_free()
+	enemies_remaining = maxi(enemies_remaining - 1, 0)
+	var clears_arena := enemies_remaining == 0
+
+	if clears_arena:
+		status_label.text = clear_message
+		_schedule_outcome(
+			clear_restart_delay,
+			_should_advance_after_clear(),
+			Outcome.CLEAR
+		)
+
+	if (
+		is_instance_valid(hazard_feedback)
+		and hazard_feedback.has_method("play_elimination")
+	):
+		hazard_feedback.call("play_elimination", clears_arena)
+	_play_enemy_elimination_feedback(
+		elimination_position,
+		elimination_direction,
+		elimination_color,
+		clears_arena
+	)
 
 
 func _connect_player_defeat_signals() -> void:
@@ -104,6 +131,15 @@ func _on_player_defeated(
 
 func _play_combat_defeat_feedback(
 	_impact_direction: Vector2
+) -> void:
+	pass
+
+
+func _play_enemy_elimination_feedback(
+	_world_position: Vector2,
+	_fall_direction: Vector2,
+	_source_color: Color,
+	_clears_arena: bool
 ) -> void:
 	pass
 
@@ -161,3 +197,10 @@ func _count_arena_enemies() -> int:
 		if is_ancestor_of(enemy):
 			count += 1
 	return count
+
+
+func _enemy_elimination_color(enemy: Node2D) -> Color:
+	var body_visual := enemy.get_node_or_null("Visual/Body") as Polygon2D
+	if is_instance_valid(body_visual):
+		return body_visual.color
+	return Color(0.439, 0.827, 0.816, 1.0)

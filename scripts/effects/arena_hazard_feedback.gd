@@ -3,12 +3,25 @@ extends Node
 
 const ALERT_EDGE_COLOR := Color(1.0, 0.78, 0.36, 1.0)
 const ALERT_BAND_COLOR := Color(0.15, 0.035, 0.055, 1.0)
+const ELIMINATION_EDGE_COLOR := Color(0.439, 0.827, 0.816, 1.0)
+const ELIMINATION_BAND_COLOR := Color(0.025, 0.09, 0.11, 1.0)
+const CLEAR_EDGE_COLOR := Color(0.72, 1.0, 0.58, 1.0)
+const CLEAR_BAND_COLOR := Color(0.035, 0.13, 0.075, 1.0)
+
+enum AlertKind {
+	NONE,
+	FALL,
+	ELIMINATION,
+	CLEAR,
+}
 
 @export_node_path var pit_band_path: NodePath
 @export_node_path var pit_edge_path: NodePath
 @export_range(0.1, 3.0, 0.05) var idle_frequency := 0.55
 @export_range(0.0, 3.0, 0.05) var idle_width_boost := 0.35
 @export_range(0.0, 8.0, 0.1) var alert_width_boost := 2.6
+@export_range(0.0, 8.0, 0.1) var elimination_width_boost := 3.2
+@export_range(0.0, 8.0, 0.1) var clear_width_boost := 4.8
 @export_range(0.05, 0.5, 0.01) var alert_duration := 0.18
 
 @onready var pit_band: Polygon2D = get_node_or_null(
@@ -24,6 +37,10 @@ var base_edge_width := 0.0
 var idle_cycle := 0.0
 var alert_elapsed := 0.0
 var is_alerting := false
+var alert_kind := AlertKind.NONE
+var fall_count := 0
+var elimination_count := 0
+var clear_count := 0
 
 
 func _ready() -> void:
@@ -50,21 +67,46 @@ func _process(delta: float) -> void:
 		)
 		if alert_elapsed >= maxf(alert_duration, 0.001):
 			is_alerting = false
+			alert_kind = AlertKind.NONE
 	_apply_visual()
 
 
 func play_fall() -> bool:
 	if (
-		is_alerting
-		or not is_instance_valid(pit_band)
+		not is_instance_valid(pit_band)
 		or not is_instance_valid(pit_edge)
+		or (
+			is_alerting
+			and alert_kind == AlertKind.FALL
+		)
 	):
 		return false
 
+	fall_count += 1
+	_start_alert(AlertKind.FALL)
+	return true
+
+
+func play_elimination(clears_arena: bool) -> bool:
+	if not is_instance_valid(pit_band) or not is_instance_valid(pit_edge):
+		return false
+
+	elimination_count += 1
+	if clears_arena:
+		clear_count += 1
+	_start_alert(
+		AlertKind.CLEAR
+		if clears_arena
+		else AlertKind.ELIMINATION
+	)
+	return true
+
+
+func _start_alert(kind: int) -> void:
+	alert_kind = kind
 	alert_elapsed = 0.0
 	is_alerting = true
 	_apply_visual()
-	return true
 
 
 func _apply_visual() -> void:
@@ -73,6 +115,18 @@ func _apply_visual() -> void:
 
 	var idle_wave := 0.5 + 0.5 * sin(idle_cycle * TAU)
 	var alert_strength := 0.0
+	var alert_edge_color := ALERT_EDGE_COLOR
+	var alert_band_color := ALERT_BAND_COLOR
+	var active_width_boost := alert_width_boost
+	match alert_kind:
+		AlertKind.ELIMINATION:
+			alert_edge_color = ELIMINATION_EDGE_COLOR
+			alert_band_color = ELIMINATION_BAND_COLOR
+			active_width_boost = elimination_width_boost
+		AlertKind.CLEAR:
+			alert_edge_color = CLEAR_EDGE_COLOR
+			alert_band_color = CLEAR_BAND_COLOR
+			active_width_boost = clear_width_boost
 	if is_alerting:
 		var progress := clampf(
 			alert_elapsed / maxf(alert_duration, 0.001),
@@ -97,13 +151,13 @@ func _apply_visual() -> void:
 	pit_edge.width = (
 		base_edge_width
 		+ idle_width_boost * idle_wave
-		+ alert_width_boost * alert_strength
+		+ active_width_boost * alert_strength
 	)
 	pit_edge.default_color = idle_color.lerp(
-		ALERT_EDGE_COLOR,
+		alert_edge_color,
 		alert_strength
 	)
 	pit_band.color = base_band_color.lerp(
-		ALERT_BAND_COLOR,
+		alert_band_color,
 		alert_strength * 0.35
 	)

@@ -6,6 +6,8 @@ extends Node
 @export_range(0.0, 16.0, 0.5) var enemy_shake_strength := 5.0
 @export_range(0.0, 16.0, 0.5) var mechanism_shake_strength := 2.5
 @export_range(0.0, 16.0, 0.5) var defeat_shake_strength := 8.0
+@export_range(0.0, 16.0, 0.5) var elimination_shake_strength := 3.5
+@export_range(0.0, 16.0, 0.5) var clear_shake_strength := 6.5
 @export_range(1.0, 120.0, 1.0) var shake_frequency := 48.0
 
 @export_category("Impact sound")
@@ -14,9 +16,13 @@ extends Node
 @export_range(-40.0, 0.0, 1.0) var enemy_volume_db := -8.0
 @export_range(-40.0, 0.0, 1.0) var mechanism_volume_db := -11.0
 @export_range(-40.0, 0.0, 1.0) var defeat_volume_db := -5.0
+@export_range(-40.0, 0.0, 1.0) var elimination_volume_db := -8.0
+@export_range(-40.0, 0.0, 1.0) var clear_volume_db := -4.0
 @export_range(0.5, 2.0, 0.01) var enemy_pitch_scale := 0.92
 @export_range(0.5, 2.0, 0.01) var mechanism_pitch_scale := 1.18
 @export_range(0.5, 2.0, 0.01) var defeat_pitch_scale := 0.68
+@export_range(0.5, 2.0, 0.01) var elimination_pitch_scale := 1.32
+@export_range(0.5, 2.0, 0.01) var clear_pitch_scale := 1.58
 @export var play_audio_in_headless := false
 
 @onready var camera: Camera2D = $Camera
@@ -28,10 +34,15 @@ var shake_direction := Vector2.RIGHT
 var active_shake_strength := 0.0
 var impact_count := 0
 var defeat_count := 0
+var elimination_count := 0
+var clear_count := 0
 var sound_play_count := 0
 var last_impact_direction := Vector2.RIGHT
 var last_impact_was_enemy := false
 var last_defeat_direction := Vector2.RIGHT
+var last_elimination_position := Vector2.ZERO
+var last_elimination_direction := Vector2.DOWN
+var last_elimination_was_clear := false
 var impact_stream: AudioStreamWAV
 var base_camera_offset := Vector2.ZERO
 
@@ -67,9 +78,9 @@ func play_impact(direction: Vector2, hit_enemy: bool) -> void:
 	last_impact_direction = _play_feedback(
 		direction,
 		(
-		enemy_shake_strength
-		if hit_enemy
-		else mechanism_shake_strength
+			enemy_shake_strength
+			if hit_enemy
+			else mechanism_shake_strength
 		),
 		(
 			enemy_volume_db
@@ -91,6 +102,39 @@ func play_defeat(direction: Vector2) -> void:
 		defeat_shake_strength,
 		defeat_volume_db,
 		defeat_pitch_scale
+	)
+
+
+func play_enemy_elimination(
+	world_position: Vector2,
+	direction: Vector2,
+	clears_arena: bool
+) -> void:
+	elimination_count += 1
+	if clears_arena:
+		clear_count += 1
+	last_elimination_position = world_position
+	last_elimination_was_clear = clears_arena
+	var normalized_direction := direction.normalized()
+	if normalized_direction.is_zero_approx():
+		normalized_direction = Vector2.DOWN
+	last_elimination_direction = _play_feedback(
+		normalized_direction,
+		(
+			clear_shake_strength
+			if clears_arena
+			else elimination_shake_strength
+		),
+		(
+			clear_volume_db
+			if clears_arena
+			else elimination_volume_db
+		),
+		(
+			clear_pitch_scale
+			if clears_arena
+			else elimination_pitch_scale
+		)
 	)
 
 
