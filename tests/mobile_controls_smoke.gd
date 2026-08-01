@@ -41,6 +41,7 @@ func _run() -> void:
 		"Controls did not appear for an available touchscreen."
 	)
 	_expect_button_contracts(controls)
+	_expect_gameplay_buttons_clear_actor_floor(controls)
 	controls.pause_requested.connect(_on_pause_requested)
 	_expect(
 		controls.call(
@@ -152,6 +153,75 @@ func _expect_button_contracts(controls: MobileControls) -> void:
 		)
 
 
+func _expect_gameplay_buttons_clear_actor_floor(
+	controls: MobileControls
+) -> void:
+	var view_rect := controls.get_viewport().get_visible_rect()
+	var gameplay_buttons: Array[MobileTouchButton] = [
+		controls.left_button,
+		controls.right_button,
+		controls.attack_button,
+		controls.jump_button,
+	]
+	var all_buttons := gameplay_buttons.duplicate()
+	all_buttons.append(controls.pause_button)
+	for button: MobileTouchButton in all_buttons:
+		var button_rect := _button_rect(button)
+		_expect(
+			view_rect.encloses(button_rect),
+			"Mobile button '%s' is clipped by the viewport."
+			% button.name
+		)
+		_expect(
+			controls.call(
+				"_button_at",
+				button_rect.get_center()
+			) == button,
+			"Mobile button '%s' center is not touchable."
+			% button.name
+		)
+	for button: MobileTouchButton in gameplay_buttons:
+		_expect(
+			_button_rect(button).end.y
+			< view_rect.position.y + view_rect.size.y * 0.78,
+			"Mobile button '%s' overlaps the actor floor zone."
+			% button.name
+		)
+	_expect(
+		not _button_rect(controls.left_button).intersects(
+			_button_rect(controls.right_button)
+		)
+		and not _button_rect(controls.attack_button).intersects(
+			_button_rect(controls.jump_button)
+		),
+		"Buttons in a side group overlap."
+	)
+	_expect(
+		controls.left_button.position.x < view_rect.size.x * 0.25
+		and controls.right_button.position.x < view_rect.size.x * 0.25
+		and controls.attack_button.position.x > view_rect.size.x * 0.75
+		and controls.jump_button.position.x > view_rect.size.x * 0.75,
+		"Gameplay buttons are not docked to the arena sides."
+	)
+
+
+func _button_rect(button: MobileTouchButton) -> Rect2:
+	var half_size := button.touch_shape.size * 0.5
+	var transform := button.get_global_transform_with_canvas()
+	var corners: Array[Vector2] = [
+		transform * Vector2(-half_size.x, -half_size.y),
+		transform * Vector2(half_size.x, -half_size.y),
+		transform * Vector2(half_size.x, half_size.y),
+		transform * Vector2(-half_size.x, half_size.y),
+	]
+	var minimum := corners[0]
+	var maximum := corners[0]
+	for corner: Vector2 in corners:
+		minimum = minimum.min(corner)
+		maximum = maximum.max(corner)
+	return Rect2(minimum, maximum - minimum)
+
+
 func _press_touch(button: MobileTouchButton, index: int) -> void:
 	var event := InputEventScreenTouch.new()
 	event.window_id = root.get_window_id()
@@ -159,8 +229,8 @@ func _press_touch(button: MobileTouchButton, index: int) -> void:
 	event.position = button.get_global_transform_with_canvas().origin
 	event.pressed = true
 	root.push_input(event, true)
-	await process_frame
 	await physics_frame
+	await process_frame
 
 
 func _release_touch(button: MobileTouchButton, index: int) -> void:

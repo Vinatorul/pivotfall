@@ -15,7 +15,7 @@ const GAMEPLAY_ACTIONS: Array[StringName] = [
 	ATTACK_ACTION,
 	PAUSE_ACTION,
 ]
-const GAMEPLAY_BUTTON_SIZE := Vector2(104.0, 104.0)
+const GAMEPLAY_BUTTON_SIZE := Vector2(88.0, 88.0)
 const PAUSE_BUTTON_SIZE := Vector2(72.0, 52.0)
 const BASE_VIEW_SIZE := Vector2(960.0, 540.0)
 const NORMAL_MODULATE := Color.WHITE
@@ -287,23 +287,19 @@ func _update_layout() -> void:
 	for button: MobileTouchButton in _buttons():
 		button.scale = Vector2.ONE * compact_scale
 
-	var bottom_y := view_size.y - 70.0 * compact_scale
-	var left_x := maxf(54.0 * compact_scale, view_size.x * 0.086)
-	left_button.position = Vector2(left_x, bottom_y)
+	var side_row_y := view_size.y * 0.62
+	var left_x := 72.0 * compact_scale
+	var right_x := view_size.x - 72.0 * compact_scale
+	left_button.position = Vector2(left_x, side_row_y)
 	right_button.position = Vector2(
-		left_x + 116.0 * compact_scale,
-		bottom_y
-	)
-
-	var jump_x := view_size.x - 84.0 * compact_scale
-	jump_button.position = Vector2(
-		jump_x,
-		view_size.y - 100.0 * compact_scale
+		left_x + 100.0 * compact_scale,
+		side_row_y
 	)
 	attack_button.position = Vector2(
-		jump_x - 120.0 * compact_scale,
-		bottom_y
+		right_x - 100.0 * compact_scale,
+		side_row_y
 	)
+	jump_button.position = Vector2(right_x, side_row_y)
 	pause_button.position = Vector2(
 		view_size.x * 0.5,
 		36.0 * compact_scale
