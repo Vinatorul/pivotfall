@@ -262,6 +262,29 @@ static func _create_object(definition: Dictionary) -> Dictionary:
 			)
 			return _object_success(platform, "geometry")
 
+		"toggle_wall":
+			var wall := (
+				TOGGLE_PLATFORM_SCENE.instantiate()
+				as TogglePlatform
+			)
+			if not is_instance_valid(wall):
+				return _object_failure(
+					"Could not instantiate toggle_wall."
+				)
+
+			var values: Array = definition["rect"]
+			wall.configure(
+				Rect2(
+					float(values[0]),
+					float(values[1]),
+					float(values[2]),
+					float(values[3])
+				),
+				bool(definition["starts_active"]),
+				true
+			)
+			return _object_success(wall, "geometry")
+
 		"hinge":
 			var hinge := HINGE_SCENE.instantiate() as Hinge
 			if not is_instance_valid(hinge):

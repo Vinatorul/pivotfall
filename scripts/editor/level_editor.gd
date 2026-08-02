@@ -29,6 +29,7 @@ const TOOL_SHOOTER := "shooter_enemy"
 const TOOL_CATAPULT := "catapult_platform"
 const TOOL_LIFT := "vertical_platform"
 const TOOL_TOGGLE := "toggle_platform"
+const TOOL_WALL := "toggle_wall"
 const TOOL_HINGE := "hinge"
 
 @onready var editor_view: Control = $EditorView
@@ -68,6 +69,9 @@ const TOOL_HINGE := "hinge"
 )
 @onready var toggle_button: Button = (
 	$EditorView/PalettePanel/ToolScroll/ToolList/ToggleButton
+)
+@onready var wall_button: Button = (
+	$EditorView/PalettePanel/ToolScroll/ToolList/WallButton
 )
 @onready var catapult_button: Button = (
 	$EditorView/PalettePanel/ToolScroll/ToolList/CatapultButton
@@ -280,6 +284,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_set_tool(TOOL_CATAPULT)
 		KEY_9:
 			_set_tool(TOOL_LIFT)
+		KEY_0:
+			_set_tool(TOOL_WALL)
 		KEY_DELETE, KEY_BACKSPACE:
 			_delete_selected()
 		KEY_LEFT:
@@ -313,6 +319,7 @@ func _connect_ui() -> void:
 		shove_button,
 		shooter_button,
 		toggle_button,
+		wall_button,
 		catapult_button,
 		lift_button,
 		hinge_button,
@@ -326,6 +333,7 @@ func _connect_ui() -> void:
 	shove_button.pressed.connect(_set_tool.bind(TOOL_SHOVE))
 	shooter_button.pressed.connect(_set_tool.bind(TOOL_SHOOTER))
 	toggle_button.pressed.connect(_set_tool.bind(TOOL_TOGGLE))
+	wall_button.pressed.connect(_set_tool.bind(TOOL_WALL))
 	catapult_button.pressed.connect(_set_tool.bind(TOOL_CATAPULT))
 	lift_button.pressed.connect(_set_tool.bind(TOOL_LIFT))
 	hinge_button.pressed.connect(_set_tool.bind(TOOL_HINGE))
@@ -488,6 +496,7 @@ func _set_tool(tool: String) -> void:
 	shove_button.set_pressed_no_signal(tool == TOOL_SHOVE)
 	shooter_button.set_pressed_no_signal(tool == TOOL_SHOOTER)
 	toggle_button.set_pressed_no_signal(tool == TOOL_TOGGLE)
+	wall_button.set_pressed_no_signal(tool == TOOL_WALL)
 	catapult_button.set_pressed_no_signal(tool == TOOL_CATAPULT)
 	lift_button.set_pressed_no_signal(tool == TOOL_LIFT)
 	hinge_button.set_pressed_no_signal(tool == TOOL_HINGE)
@@ -513,6 +522,8 @@ func _palette_button_for_tool(tool: String) -> Button:
 			return shooter_button
 		TOOL_TOGGLE:
 			return toggle_button
+		TOOL_WALL:
+			return wall_button
 		TOOL_CATAPULT:
 			return catapult_button
 		TOOL_LIFT:
@@ -609,6 +620,17 @@ func _place_object(object_type: String, payload: Variant) -> void:
 					"starts_active": true,
 				}
 			)
+		TOOL_WALL:
+			var object_id := draft.make_unique_id("gate")
+			selected_id = object_id
+			draft.add_object(
+				{
+					"id": object_id,
+					"type": TOOL_WALL,
+					"rect": (payload as Array).duplicate(),
+					"starts_active": true,
+				}
+			)
 		TOOL_CATAPULT:
 			var object_id := draft.make_unique_id("catapult")
 			selected_id = object_id
@@ -652,7 +674,11 @@ func _move_object(object_id: String, payload: Variant) -> void:
 	selected_id = object_id
 	var key := (
 		"rect"
-		if object.get("type", "") in [TOOL_SOLID, TOOL_TOGGLE]
+		if object.get("type", "") in [
+			TOOL_SOLID,
+			TOOL_TOGGLE,
+			TOOL_WALL,
+		]
 		else "position"
 	)
 	draft.update_object(
@@ -742,7 +768,12 @@ func _hinge_targets() -> Array[Dictionary]:
 
 
 func _is_hinge_target_type(object_type: String) -> bool:
-	return object_type in [TOOL_TOGGLE, TOOL_CATAPULT, TOOL_LIFT]
+	return object_type in [
+		TOOL_TOGGLE,
+		TOOL_WALL,
+		TOOL_CATAPULT,
+		TOOL_LIFT,
+	]
 
 
 func _refresh_inspector_hint() -> void:
@@ -815,6 +846,13 @@ func _refresh_inspector_hint() -> void:
 		)
 		inspector_hint.modulate = Color(0.439, 0.827, 0.816)
 		return
+	if selected.get("type", "") == TOOL_WALL:
+		inspector_hint.text = (
+			"ТВЁРДАЯ СТЕНА / ШИРИНА 20 PX\n"
+			+ "Шарнир включает и убирает ворота."
+		)
+		inspector_hint.modulate = Color(0.439, 0.827, 0.816)
+		return
 	if selected.get("type", "") == TOOL_HINGE:
 		var target_id := str(selected.get("target_id", ""))
 		var target := draft.find_object(target_id)
@@ -862,7 +900,7 @@ func _duplicate_selected() -> void:
 	var duplicate := object.duplicate(true)
 	var new_id := draft.make_unique_id("%s_copy" % object["id"])
 	duplicate["id"] = new_id
-	if duplicate["type"] in [TOOL_SOLID, TOOL_TOGGLE]:
+	if duplicate["type"] in [TOOL_SOLID, TOOL_TOGGLE, TOOL_WALL]:
 		var rect: Array = duplicate["rect"]
 		rect[0] = clampi(rect[0] + 20, 0, 960 - rect[2])
 		rect[1] = clampi(rect[1] + 20, 0, 540 - rect[3])
@@ -1061,7 +1099,7 @@ func _nudge_selected(direction: Vector2i, fine: bool) -> void:
 	).get("grid_size", 20)
 	var amount := 1 if fine else grid_size
 	var delta := direction * amount
-	if object["type"] in [TOOL_SOLID, TOOL_TOGGLE]:
+	if object["type"] in [TOOL_SOLID, TOOL_TOGGLE, TOOL_WALL]:
 		var rect: Array = object["rect"]
 		rect[0] = clampi(rect[0] + delta.x, 0, 960 - rect[2])
 		rect[1] = clampi(rect[1] + delta.y, 0, 540 - rect[3])
@@ -1740,20 +1778,27 @@ func _rebuild_inspector() -> void:
 	_add_readonly_property("TYPE", str(object["type"]))
 	_add_readonly_property("ID", str(object["id"]))
 	match object["type"]:
-		TOOL_SOLID, TOOL_TOGGLE:
+		TOOL_SOLID, TOOL_TOGGLE, TOOL_WALL:
 			var rect: Array = object["rect"]
 			_add_numeric_property("X", "rect:0", rect[0])
 			_add_numeric_property("Y", "rect:1", rect[1])
-			_add_numeric_property("WIDTH", "rect:2", rect[2])
-			if object["type"] == TOOL_TOGGLE:
+			if object["type"] == TOOL_SOLID:
+				_add_numeric_property("WIDTH", "rect:2", rect[2])
+				_add_numeric_property("HEIGHT", "rect:3", rect[3])
+				_add_collision_property(
+					bool(object.get("one_way", false))
+				)
+			elif object["type"] == TOOL_TOGGLE:
+				_add_numeric_property("WIDTH", "rect:2", rect[2])
 				_add_readonly_property("HEIGHT", "20")
 				_add_start_state_property(
 					bool(object.get("starts_active", true))
 				)
 			else:
+				_add_readonly_property("WIDTH", "20")
 				_add_numeric_property("HEIGHT", "rect:3", rect[3])
-				_add_collision_property(
-					bool(object.get("one_way", false))
+				_add_start_state_property(
+					bool(object.get("starts_active", true))
 				)
 		TOOL_PLAYER:
 			var position: Array = object["position"]
