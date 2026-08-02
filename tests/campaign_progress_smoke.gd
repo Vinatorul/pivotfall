@@ -191,6 +191,41 @@ func _test_validation_and_recovery() -> void:
 
 	progress_store.clear_progress()
 	_write_json(
+		_progress_path(),
+		_progress_data(
+			"arena_08_data",
+			"arena_08_data",
+			true
+		)
+	)
+	var migrated_legacy := progress_store.load_progress(
+		campaign_entries
+	)
+	_expect(
+		bool(migrated_legacy["ok"])
+		and migrated_legacy["data"]
+		== _progress_data("jailbreak", "jailbreak")
+		and not migrated_legacy["warnings"].is_empty(),
+		"Completed Arena 08 progress did not unlock Arena 09."
+	)
+	var persisted_migration := progress_store.record_level_started(
+		campaign_entries,
+		"jailbreak"
+	)
+	var reloaded_migration := progress_store.load_progress(
+		campaign_entries
+	)
+	_expect(
+		bool(persisted_migration["ok"])
+		and bool(reloaded_migration["ok"])
+		and reloaded_migration["data"]
+		== _progress_data("jailbreak", "jailbreak")
+		and reloaded_migration["warnings"].is_empty(),
+		"Starting Arena 09 did not persist the migrated progress."
+	)
+
+	progress_store.clear_progress()
+	_write_json(
 		"%s.bak" % _progress_path(),
 		_progress_data("arena_01_data", "arena_01_data")
 	)
@@ -331,8 +366,8 @@ func _test_menu_and_runner_integration() -> void:
 		"Natural Arena 03 to 04 transition was not checkpointed."
 	)
 
-	var debug_opened := runner.open_level_by_id("arena_08_data")
-	await _wait_for_level(runner, "arena_08_data")
+	var debug_opened := runner.open_level_by_id("tower_assault")
+	await _wait_for_level(runner, "tower_assault")
 	_expect(
 		debug_opened and not runner.is_tracking_progress(),
 		"Accepted debug jump did not detach progress tracking."
@@ -401,7 +436,7 @@ func _test_menu_and_runner_integration() -> void:
 			bool(honest_completion["ok"])
 			and bool(honest_completion["data"]["completed"])
 			and honest_completion["data"]["current_level_id"]
-			== "arena_08_data",
+			== "tower_assault",
 			"Tracked campaign completion was not persisted."
 		)
 
@@ -432,7 +467,7 @@ func _test_menu_and_runner_integration() -> void:
 		bool(completed["ok"])
 		and menu.continue_button.disabled
 		and menu.continue_button.text == "КАМПАНИЯ ПРОЙДЕНА"
-		and "8 ИЗ 8" in menu.status_label.text
+		and "11 ИЗ 11" in menu.status_label.text
 		and root.get_viewport().gui_get_focus_owner()
 		== menu.new_game_button,
 		"Completed progress did not produce the completed menu state."

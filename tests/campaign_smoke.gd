@@ -22,6 +22,9 @@ const EXPECTED_LEVEL_IDS: Array[String] = [
 	"arena_06_data",
 	"arena_07_data",
 	"arena_08_data",
+	"jailbreak",
+	"sniper_party",
+	"tower_assault",
 ]
 
 var failures: Array[String] = []
@@ -77,11 +80,11 @@ func _test_manifest() -> Dictionary:
 
 	_expect(
 		actual_ids == EXPECTED_LEVEL_IDS,
-		"Campaign order drifted from Arena 01 through Arena 08."
+		"Campaign order drifted from the expected built-in sequence."
 	)
 	_expect(
 		entries.size() == EXPECTED_LEVEL_IDS.size(),
-		"Campaign did not resolve exactly eight entries."
+		"Campaign did not resolve exactly eleven entries."
 	)
 	_expect(
 		str(data.get("advance_message", "")).length() > 0,
@@ -288,8 +291,8 @@ func _test_runner_lifecycle(campaign_result: Dictionary) -> void:
 	_expect_intro(
 		runner,
 		"ARENA 01 / ПАТРУЛЬ",
-		"АРЕНА 1 / 8",
-		"КАМПАНИЯ  1 / 8",
+		"АРЕНА 1 / 11",
+		"КАМПАНИЯ  1 / 11",
 		"Initial Arena 01 intro is incomplete."
 	)
 	if not await _wait_for_intro_end(runner):
@@ -332,8 +335,8 @@ func _test_runner_lifecycle(campaign_result: Dictionary) -> void:
 	_expect_intro(
 		runner,
 		"ARENA 02 / ОПОРА",
-		"АРЕНА 2 / 8",
-		"КАМПАНИЯ  2 / 8",
+		"АРЕНА 2 / 11",
+		"КАМПАНИЯ  2 / 11",
 		"Arena 02 transition intro is incomplete."
 	)
 	if not await _wait_for_intro_end(runner):
@@ -363,7 +366,7 @@ func _test_runner_lifecycle(campaign_result: Dictionary) -> void:
 	_expect(
 		not runner.intro_active
 		and not runner.intro_ui.visible
-		and runner.progress_label.text == "КАМПАНИЯ  2 / 8",
+		and runner.progress_label.text == "КАМПАНИЯ  2 / 11",
 		"R restart incorrectly replayed the Arena 02 intro."
 	)
 	_expect_selector_id("arena_02_data")
@@ -403,47 +406,47 @@ func _test_runner_lifecycle(campaign_result: Dictionary) -> void:
 	_expect(
 		not runner.intro_active
 		and not runner.intro_ui.visible
-		and runner.progress_label.text == "КАМПАНИЯ  2 / 8",
+		and runner.progress_label.text == "КАМПАНИЯ  2 / 11",
 		"Fall restart incorrectly replayed the Arena 02 intro."
 	)
 	_expect_selector_id("arena_02_data")
 
 	_expect(
-		runner.open_level_by_id("arena_08_data"),
-		"Runner rejected a direct open of Arena 08."
+		runner.open_level_by_id("tower_assault"),
+		"Runner rejected a direct open of the final community arena."
 	)
 	var opened_final := await _wait_for_runtime(
 		runner,
-		"arena_08_data"
+		"tower_assault"
 	)
 	_expect(
 		opened_final
 		and runner.get_instance_id() == controller_id,
-		"Direct Arena 08 open replaced or lost the campaign controller."
+		"Direct final-arena open replaced or lost the campaign controller."
 	)
 	if not opened_final:
 		return
 	_expect_runtime(
 		runner,
-		"arena_08_data",
-		"Direct open did not leave exactly one Arena 08 runtime."
+		"tower_assault",
+		"Direct open did not leave exactly one final runtime."
 	)
 	_expect_intro(
 		runner,
-		"ARENA 08 / ЭКЗАМЕН",
-		"АРЕНА 8 / 8",
-		"КАМПАНИЯ  8 / 8",
-		"Direct Arena 08 intro is incomplete."
+		"ARENA 11 / ШТУРМ",
+		"АРЕНА 11 / 11",
+		"КАМПАНИЯ  11 / 11",
+		"Direct final-arena intro is incomplete."
 	)
 	if not await _wait_for_intro_end(runner):
-		_expect(false, "Direct Arena 08 intro did not finish.")
+		_expect(false, "Direct final-arena intro did not finish.")
 		return
-	_expect_selector_id("arena_08_data")
+	_expect_selector_id("tower_assault")
 	_expect(
 		runner.current_runtime.clear_message
 		== CampaignRunner.COMPLETION_CLEAR_MESSAGE
 		and runner.current_runtime.clear_message != advance_message,
-		"Final Arena 08 did not receive its campaign completion message."
+		"Final arena did not receive its campaign completion message."
 	)
 
 	runner.campaign_data["final_behavior"] = "restart_final_level"
@@ -452,7 +455,7 @@ func _test_runner_lifecycle(campaign_result: Dictionary) -> void:
 	_clear_runtime_enemies(runner.current_runtime)
 	var legacy_final_restarted := await _wait_for_runtime(
 		runner,
-		"arena_08_data",
+		"tower_assault",
 		legacy_final_id
 	)
 	_expect(
@@ -477,7 +480,7 @@ func _test_runner_lifecycle(campaign_result: Dictionary) -> void:
 	await _press_physical_key(KEY_R)
 	var clear_race_restarted := await _wait_for_runtime(
 		runner,
-		"arena_08_data",
+		"tower_assault",
 		clear_race_runtime_id
 	)
 	_expect(
@@ -494,11 +497,11 @@ func _test_runner_lifecycle(campaign_result: Dictionary) -> void:
 		runner.current_runtime.get_instance_id() == restarted_final_id
 		and not runner.is_campaign_complete()
 		and not runner.completion_ui.visible,
-		"Stale final clear timer affected the restarted Arena 08."
+		"Stale final clear timer affected the restarted final arena."
 	)
 
-	var arena_08_id := runner.current_runtime.get_instance_id()
-	var arena_08_ref: WeakRef = weakref(runner.current_runtime)
+	var final_runtime_id := runner.current_runtime.get_instance_id()
+	var final_runtime_ref: WeakRef = weakref(runner.current_runtime)
 	runner.current_runtime.clear_restart_delay = 0.01
 	_clear_runtime_enemies(runner.current_runtime)
 	_expect(
@@ -511,25 +514,25 @@ func _test_runner_lifecycle(campaign_result: Dictionary) -> void:
 	_expect(
 		completed
 		and runner.get_instance_id() == controller_id
-		and not is_instance_valid(arena_08_ref.get_ref())
+		and not is_instance_valid(final_runtime_ref.get_ref())
 		and not is_instance_valid(runner.current_runtime)
 		and runner.runtime_host.get_child_count() == 0,
-		"Final clear did not retire the Arena 08 runtime cleanly."
+		"Final clear did not retire the final runtime cleanly."
 	)
 	if not completed:
 		return
 	_expect(
 		runner.completion_ui.visible
 		and not runner.intro_ui.visible
-		and runner.completion_count.text == "8 / 8"
+		and runner.completion_count.text == "11 / 11"
 		and runner.completion_restart_button.visible
 		and not runner.completion_restart_button.disabled
 		and runner.completion_main_menu_button.visible
 		and not runner.completion_main_menu_button.disabled
-		and runner.progress_label.text == "КАМПАНИЯ  8 / 8",
+		and runner.progress_label.text == "КАМПАНИЯ  11 / 11",
 		"Campaign completion presentation is incomplete."
 	)
-	_expect_selector_id("arena_08_data")
+	_expect_selector_id("tower_assault")
 	await _wait_frames(10)
 	_expect(
 		runner.is_campaign_complete()
@@ -565,7 +568,7 @@ func _test_runner_lifecycle(campaign_result: Dictionary) -> void:
 	var new_run_started := await _wait_for_runtime(
 		runner,
 		"arena_01_data",
-		arena_08_id
+		final_runtime_id
 	)
 	_expect(
 		new_run_started
@@ -579,8 +582,8 @@ func _test_runner_lifecycle(campaign_result: Dictionary) -> void:
 	_expect_intro(
 		runner,
 		"ARENA 01 / ПАТРУЛЬ",
-		"АРЕНА 1 / 8",
-		"КАМПАНИЯ  1 / 8",
+		"АРЕНА 1 / 11",
+		"КАМПАНИЯ  1 / 11",
 		"New campaign did not show the Arena 01 intro."
 	)
 	_expect_selector_id("arena_01_data")

@@ -1,0 +1,87 @@
+{
+	"schema_version": 1,
+	"level_id": "tower_assault",
+	"title": "TOWER ASSAULT",
+	"objective": "СТОЛКНИ ВРАГОВ В ЯМУ",
+	"clear_message": "АРЕНА ПРОЙДЕНА  /  ПЕРЕЗАПУСК...",
+	"canvas": {
+		"width": 960,
+		"height": 540,
+		"grid_size": 20
+	},
+	"objects": [
+		{
+			"id": "left_floor",
+			"type": "solid_rect",
+			"rect": [32, 496, 368, 44],
+			"one_way": false
+		},
+		{
+			"id": "right_floor",
+			"type": "solid_rect",
+			"rect": [560, 496, 368, 44],
+			"one_way": false
+		},
+		{
+			"id": "player_start",
+			"type": "player_spawn",
+			"position": [150, 450]
+		},
+		{
+			"id": "lift",
+			"type": "vertical_platform",
+			"position": [520, 354]
+		},
+		{
+			"id": "lift_2",
+			"type": "vertical_platform",
+			"position": [760, 260]
+		},
+		{
+			"id": "shooter",
+			"type": "shooter_enemy",
+			"position": [760, 220],
+			"behavior_preset": "standard"
+		},
+		{
+			"id": "patrol",
+			"type": "patrol_enemy",
+			"position": [520, 320],
+			"speed": 65.0,
+			"direction": 1
+		},
+		{
+			"id": "patrol_13",
+			"type": "patrol_enemy",
+			"position": [500, 120],
+			"speed": 65.0,
+			"direction": 1
+		},
+		{
+			"id": "hinge",
+			"type": "hinge",
+			"position": [440, 340],
+			"target_id": "lift_2"
+		},
+		{
+			"id": "shove_2",
+			"type": "shove_enemy",
+			"position": [500, 200],
+			"direction": -1,
+			"behavior_preset": "standard"
+		},
+		{
+			"id": "bridge_2",
+			"type": "toggle_platform",
+			"rect": [500, 500, 160, 20],
+			"starts_active": true
+		},
+		{
+			"id": "shove",
+			"type": "shove_enemy",
+			"position": [500, 280],
+			"direction": -1,
+			"behavior_preset": "standard"
+		}
+	]
+}

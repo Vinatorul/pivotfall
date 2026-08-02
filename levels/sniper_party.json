@@ -1,0 +1,84 @@
+{
+	"schema_version": 1,
+	"level_id": "sniper_party",
+	"title": "SNIPER PARTY",
+	"objective": "СТОЛКНИ ВРАГОВ В ЯМУ",
+	"clear_message": "АРЕНА ПРОЙДЕНА  /  ПЕРЕЗАПУСК...",
+	"canvas": {
+		"width": 960,
+		"height": 540,
+		"grid_size": 20
+	},
+	"objects": [
+		{
+			"id": "left_floor",
+			"type": "solid_rect",
+			"rect": [32, 496, 368, 44],
+			"one_way": false
+		},
+		{
+			"id": "right_floor",
+			"type": "solid_rect",
+			"rect": [560, 496, 368, 44],
+			"one_way": false
+		},
+		{
+			"id": "player_start",
+			"type": "player_spawn",
+			"position": [100, 460]
+		},
+		{
+			"id": "lift",
+			"type": "vertical_platform",
+			"position": [480, 354]
+		},
+		{
+			"id": "bridge",
+			"type": "toggle_platform",
+			"rect": [160, 340, 40, 20],
+			"starts_active": true
+		},
+		{
+			"id": "bridge_2",
+			"type": "toggle_platform",
+			"rect": [760, 340, 40, 20],
+			"starts_active": true
+		},
+		{
+			"id": "shooter",
+			"type": "shooter_enemy",
+			"position": [780, 320],
+			"behavior_preset": "standard"
+		},
+		{
+			"id": "shooter_2",
+			"type": "shooter_enemy",
+			"position": [180, 320],
+			"behavior_preset": "standard"
+		},
+		{
+			"id": "hinge",
+			"type": "hinge",
+			"position": [140, 480],
+			"target_id": "lift"
+		},
+		{
+			"id": "hinge_2",
+			"type": "hinge",
+			"position": [500, 460],
+			"target_id": "lift"
+		},
+		{
+			"id": "floor_2",
+			"type": "solid_rect",
+			"rect": [80, 320, 20, 20],
+			"one_way": false
+		},
+		{
+			"id": "floor",
+			"type": "solid_rect",
+			"rect": [860, 320, 20, 20],
+			"one_way": false
+		}
+	]
+}

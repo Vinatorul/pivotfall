@@ -8,6 +8,7 @@ const CAMPAIGN_STORAGE := preload(
 const SCHEMA_VERSION := 1
 const MAX_FILE_BYTES := 8_192
 const DEFAULT_STORAGE_PATH := "user://campaign_progress.json"
+const LEGACY_COMPLETED_FINAL_LEVEL_ID := "arena_08_data"
 const ROOT_KEYS := [
 	"schema_version",
 	"campaign_id",
@@ -34,7 +35,10 @@ func load_progress(entries: Array[Dictionary]) -> Dictionary:
 		if bool(loaded["ok"]):
 			_remove_if_present(_temporary_path())
 			_remove_if_present(_backup_path())
-			return _success(true, loaded["data"], [])
+			var warnings: Array[String] = []
+			for warning: Variant in loaded.get("warnings", []):
+				warnings.append(str(warning))
+			return _success(true, loaded["data"], warnings)
 		return _recover_progress(
 			entries,
 			loaded["errors"],
@@ -343,7 +347,17 @@ func _load_path(
 				]
 			]
 		)
-	return _validate_progress(parser.data, entries)
+	var migration := _migrate_legacy_completed_progress(
+		parser.data,
+		entries
+	)
+	var validation := _validate_progress(
+		migration["data"],
+		entries
+	)
+	if bool(validation.get("ok", false)):
+		validation["warnings"] = migration["warnings"]
+	return validation
 
 
 func _validate_progress(
@@ -442,6 +456,53 @@ func _validate_progress(
 		},
 		"errors": [] as Array[String],
 	}
+
+
+func _migrate_legacy_completed_progress(
+	raw: Variant,
+	entries: Array[Dictionary]
+) -> Dictionary:
+	var result := {
+		"data": raw,
+		"warnings": [] as Array[String],
+	}
+	if typeof(raw) != TYPE_DICTIONARY:
+		return result
+
+	var root := raw as Dictionary
+	if (
+		_read_integer(root.get("schema_version")) != SCHEMA_VERSION
+		or root.get("campaign_id")
+		!= CAMPAIGN_STORAGE.BUILTIN_CAMPAIGN_ID
+		or root.get("current_level_id")
+		!= LEGACY_COMPLETED_FINAL_LEVEL_ID
+		or root.get("highest_unlocked_level_id")
+		!= LEGACY_COMPLETED_FINAL_LEVEL_ID
+		or typeof(root.get("completed")) != TYPE_BOOL
+		or not bool(root.get("completed"))
+	):
+		return result
+
+	var ids_result := _campaign_level_ids(entries)
+	if not bool(ids_result.get("ok", false)):
+		return result
+	var level_ids: Array[String] = ids_result["ids"]
+	var legacy_index := level_ids.find(
+		LEGACY_COMPLETED_FINAL_LEVEL_ID
+	)
+	if legacy_index < 0 or legacy_index + 1 >= level_ids.size():
+		return result
+
+	var next_level_id := level_ids[legacy_index + 1]
+	var migrated := root.duplicate(true)
+	migrated["current_level_id"] = next_level_id
+	migrated["highest_unlocked_level_id"] = next_level_id
+	migrated["completed"] = false
+	result["data"] = migrated
+	result["warnings"] = [
+		"Campaign expanded after Arena 08; the next level was unlocked."
+	] as Array[String]
+	return result
 
 
 func _campaign_level_ids(

@@ -1,0 +1,61 @@
+{
+	"schema_version": 1,
+	"level_id": "jailbreak",
+	"title": "JAILBREAK",
+	"objective": "СТОЛКНИ ВРАГА В ЯМУ",
+	"clear_message": "АРЕНА ПРОЙДЕНА  /  ПЕРЕЗАПУСК...",
+	"canvas": {
+		"width": 960,
+		"height": 540,
+		"grid_size": 20
+	},
+	"objects": [
+		{
+			"id": "left_floor",
+			"type": "solid_rect",
+			"rect": [32, 496, 368, 44],
+			"one_way": false
+		},
+		{
+			"id": "right_floor",
+			"type": "solid_rect",
+			"rect": [560, 496, 368, 44],
+			"one_way": false
+		},
+		{
+			"id": "player_start",
+			"type": "player_spawn",
+			"position": [50, 470]
+		},
+		{
+			"id": "shooter_7",
+			"type": "shooter_enemy",
+			"position": [820, 220],
+			"behavior_preset": "standard"
+		},
+		{
+			"id": "floor",
+			"type": "solid_rect",
+			"rect": [380, 300, 20, 200],
+			"one_way": false
+		},
+		{
+			"id": "bridge",
+			"type": "toggle_platform",
+			"rect": [180, 400, 60, 20],
+			"starts_active": false
+		},
+		{
+			"id": "floor_2",
+			"type": "solid_rect",
+			"rect": [320, 300, 60, 20],
+			"one_way": false
+		},
+		{
+			"id": "hinge",
+			"type": "hinge",
+			"position": [420, 380],
+			"target_id": "bridge"
+		}
+	]
+}

@@ -274,6 +274,10 @@ func _digit_to_arena_index(event: InputEventKey) -> int:
 			key_index = 6
 		KEY_8, KEY_KP_8:
 			key_index = 7
+		KEY_9, KEY_KP_9:
+			key_index = 8
+		KEY_0, KEY_KP_0:
+			key_index = 9
 
 	return (
 		key_index

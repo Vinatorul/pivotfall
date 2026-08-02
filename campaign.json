@@ -43,6 +43,21 @@
 			"level_id": "arena_08_data",
 			"path": "res://levels/arena_08.json",
 			"catalog_title": "Arena 08 / Экзамен"
+		},
+		{
+			"level_id": "jailbreak",
+			"path": "res://levels/jailbreak.json",
+			"catalog_title": "Arena 09 / Побег"
+		},
+		{
+			"level_id": "sniper_party",
+			"path": "res://levels/sniper_party.json",
+			"catalog_title": "Arena 10 / Снайперы"
+		},
+		{
+			"level_id": "tower_assault",
+			"path": "res://levels/tower_assault.json",
+			"catalog_title": "Arena 11 / Штурм"
 		}
 	]
 }
