@@ -199,6 +199,12 @@ layout_mode = 2
 toggle_mode = true
 text = "4  ПЛАТФОРМА"
 
+[node name="WallButton" type="Button" parent="EditorView/PalettePanel/ToolScroll/ToolList"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+toggle_mode = true
+text = "0  ВОРОТА"
+
 [node name="CatapultButton" type="Button" parent="EditorView/PalettePanel/ToolScroll/ToolList"]
 custom_minimum_size = Vector2(0, 32)
 layout_mode = 2

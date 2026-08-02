@@ -44,6 +44,8 @@ const MAX_SUPPORT_WARNING_GAP := 64.0
 const MIN_SHOVE_RUNWAY := 48.0
 const TOGGLE_PLATFORM_HEIGHT := 20
 const MIN_TOGGLE_PLATFORM_WIDTH := 20
+const TOGGLE_WALL_WIDTH := 20
+const MIN_TOGGLE_WALL_HEIGHT := 20
 const CATAPULT_SIZE := Vector2i(180, 20)
 const CATAPULT_MINIMUM_Y := 94
 const VERTICAL_PLATFORM_SIZE := Vector2i(80, 20)
@@ -102,6 +104,12 @@ const TOGGLE_PLATFORM_KEYS := [
 	"rect",
 	"starts_active",
 ]
+const TOGGLE_WALL_KEYS := [
+	"id",
+	"type",
+	"rect",
+	"starts_active",
+]
 const HINGE_KEYS := ["id", "type", "position", "target_id"]
 const SUPPORTED_TYPES := [
 	"solid_rect",
@@ -112,6 +120,7 @@ const SUPPORTED_TYPES := [
 	"catapult_platform",
 	"vertical_platform",
 	"toggle_platform",
+	"toggle_wall",
 	"hinge",
 ]
 const ENEMY_TYPES := [
@@ -121,6 +130,7 @@ const ENEMY_TYPES := [
 ]
 const HINGE_TARGET_TYPES := [
 	"toggle_platform",
+	"toggle_wall",
 	"catapult_platform",
 	"vertical_platform",
 ]
@@ -754,6 +764,61 @@ static func _validate_object(
 				},
 			}
 
+		"toggle_wall":
+			_reject_unknown_keys(
+				object,
+				TOGGLE_WALL_KEYS,
+				path,
+				errors
+			)
+			var rect: Variant = null
+			var starts_active := true
+			if _require_key(object, "rect", path, errors):
+				rect = _read_int_array(
+					object["rect"],
+					"%s.rect" % path,
+					4,
+					errors
+				)
+				if rect != null:
+					_validate_rect_bounds(rect, canvas_size, path, errors)
+					_validate_toggle_platform_playfield_bounds(
+						rect,
+						object_id,
+						errors
+					)
+					if rect[2] != TOGGLE_WALL_WIDTH:
+						errors.append(
+							"%s.rect width must be exactly %d."
+							% [path, TOGGLE_WALL_WIDTH]
+						)
+					if rect[3] < MIN_TOGGLE_WALL_HEIGHT:
+						errors.append(
+							"%s.rect height must be at least %d."
+							% [path, MIN_TOGGLE_WALL_HEIGHT]
+						)
+
+			if object.has("starts_active"):
+				var active_result: Variant = _read_boolean(
+					object["starts_active"],
+					"%s.starts_active" % path,
+					errors
+				)
+				if active_result != null:
+					starts_active = active_result
+
+			if errors.size() != error_count_before:
+				return {"ok": false, "data": {}}
+			return {
+				"ok": true,
+				"data": {
+					"id": object_id,
+					"type": object_type,
+					"rect": rect,
+					"starts_active": starts_active,
+				},
+			}
+
 		"hinge":
 			_reject_unknown_keys(object, HINGE_KEYS, path, errors)
 			var position: Variant = null
@@ -1202,6 +1267,8 @@ static func _collect_warnings(
 			var label := "Vertical platform"
 			if object["type"] == "toggle_platform":
 				label = "Toggle platform"
+			elif object["type"] == "toggle_wall":
+				label = "Toggle wall"
 			elif object["type"] == "catapult_platform":
 				label = "Catapult platform"
 			warnings.append(
@@ -1266,7 +1333,11 @@ static func _vertical_platform_passenger_clearance_rect(
 
 static func _mechanism_collision_rect(object: Dictionary) -> Rect2:
 	var object_type: String = object["type"]
-	if object_type == "solid_rect" or object_type == "toggle_platform":
+	if (
+		object_type == "solid_rect"
+		or object_type == "toggle_platform"
+		or object_type == "toggle_wall"
+	):
 		var values: Array = object["rect"]
 		return Rect2(
 			float(values[0]),
@@ -1295,7 +1366,10 @@ static func _support_definition(object: Dictionary) -> Dictionary:
 	if object_type == "solid_rect":
 		return object
 	if (
-		object_type == "toggle_platform"
+		(
+			object_type == "toggle_platform"
+			or object_type == "toggle_wall"
+		)
 		and bool(object["starts_active"])
 	):
 		return object

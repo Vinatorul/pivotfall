@@ -16,7 +16,9 @@ const LOGICAL_SIZE := Vector2(960.0, 540.0)
 const DEFAULT_GRID_SIZE := 20
 const DEFAULT_SOLID_SIZE := Vector2i(120, 20)
 const DEFAULT_TOGGLE_SIZE := Vector2i(160, 20)
+const DEFAULT_TOGGLE_WALL_SIZE := Vector2i(20, 160)
 const MIN_TOGGLE_WIDTH := 20
+const MIN_TOGGLE_WALL_HEIGHT := 20
 const PIT_TOP := 496.0
 const FIXED_BORDER_SIZE := 32.0
 const DRAG_THRESHOLD := 4.0
@@ -57,6 +59,7 @@ const TOOL_SHOOTER_ENEMY := "shooter_enemy"
 const TOOL_CATAPULT_PLATFORM := "catapult_platform"
 const TOOL_VERTICAL_PLATFORM := "vertical_platform"
 const TOOL_TOGGLE_PLATFORM := "toggle_platform"
+const TOOL_TOGGLE_WALL := "toggle_wall"
 const TOOL_HINGE := "hinge"
 const SUPPORTED_TOOLS := [
 	TOOL_SELECT,
@@ -68,11 +71,13 @@ const SUPPORTED_TOOLS := [
 	TOOL_CATAPULT_PLATFORM,
 	TOOL_VERTICAL_PLATFORM,
 	TOOL_TOGGLE_PLATFORM,
+	TOOL_TOGGLE_WALL,
 	TOOL_HINGE,
 ]
 const RECT_OBJECT_TYPES := [
 	TOOL_SOLID_RECT,
 	TOOL_TOGGLE_PLATFORM,
+	TOOL_TOGGLE_WALL,
 ]
 const ACTOR_OBJECT_TYPES := [
 	TOOL_PLAYER_SPAWN,
@@ -92,6 +97,7 @@ const POINT_OBJECT_TYPES := [
 const DRAW_ORDER := [
 	TOOL_SOLID_RECT,
 	TOOL_TOGGLE_PLATFORM,
+	TOOL_TOGGLE_WALL,
 	TOOL_VERTICAL_PLATFORM,
 	TOOL_CATAPULT_PLATFORM,
 	TOOL_PLAYER_SPAWN,
@@ -108,11 +114,13 @@ const HIT_ORDER := [
 	TOOL_PLAYER_SPAWN,
 	TOOL_CATAPULT_PLATFORM,
 	TOOL_TOGGLE_PLATFORM,
+	TOOL_TOGGLE_WALL,
 	TOOL_VERTICAL_PLATFORM,
 	TOOL_SOLID_RECT,
 ]
 const HINGE_TARGET_TYPES := [
 	TOOL_TOGGLE_PLATFORM,
+	TOOL_TOGGLE_WALL,
 	TOOL_CATAPULT_PLATFORM,
 	TOOL_VERTICAL_PLATFORM,
 ]
@@ -384,7 +392,7 @@ func _begin_primary_action(local_position: Vector2) -> void:
 			selection_requested.emit(object_id)
 			_begin_move_drag(hit_object, local_position, logical_position)
 
-		TOOL_SOLID_RECT, TOOL_TOGGLE_PLATFORM:
+		TOOL_SOLID_RECT, TOOL_TOGGLE_PLATFORM, TOOL_TOGGLE_WALL:
 			_drag_active = true
 			_drag_kind = _tool
 			_drag_press_local = local_position
@@ -474,6 +482,15 @@ func _update_drag(local_position: Vector2) -> void:
 			true
 		)
 		_drag_preview_payload = _toggle_rect_from_drag(
+			_drag_start_logical,
+			snapped_current
+		)
+	elif _drag_kind == TOOL_TOGGLE_WALL:
+		var snapped_current := _snap_logical_point(
+			_drag_current_logical,
+			true
+		)
+		_drag_preview_payload = _toggle_wall_rect_from_drag(
 			_drag_start_logical,
 			snapped_current
 		)
@@ -805,6 +822,17 @@ func _draw_object(
 				alpha
 			)
 
+		TOOL_TOGGLE_WALL:
+			var rect_values: Variant = object.get("rect")
+			if not _is_number_array(rect_values, 4):
+				return
+			_draw_toggle_wall(
+				rect_values,
+				bool(object.get("starts_active", true)),
+				view_rect,
+				alpha
+			)
+
 		TOOL_VERTICAL_PLATFORM:
 			var position_values: Variant = object.get("position")
 			if not _is_number_array(position_values, 2):
@@ -943,6 +971,37 @@ func _draw_toggle_platform(
 	view_rect: Rect2,
 	alpha: float
 ) -> void:
+	_draw_toggle_mechanism(
+		rect_values,
+		starts_active,
+		view_rect,
+		alpha,
+		false
+	)
+
+
+func _draw_toggle_wall(
+	rect_values: Array,
+	starts_active: bool,
+	view_rect: Rect2,
+	alpha: float
+) -> void:
+	_draw_toggle_mechanism(
+		rect_values,
+		starts_active,
+		view_rect,
+		alpha,
+		true
+	)
+
+
+func _draw_toggle_mechanism(
+	rect_values: Array,
+	starts_active: bool,
+	view_rect: Rect2,
+	alpha: float,
+	vertical: bool
+) -> void:
 	var logical_rect := _rect_from_payload(rect_values)
 	var local_rect := _logical_rect_to_local(logical_rect, view_rect)
 	var body_color := (
@@ -958,17 +1017,34 @@ func _draw_toggle_platform(
 		2.0
 	)
 	var local_center := local_rect.get_center()
-	var notch_half := minf(7.0, local_rect.size.y * 0.3)
+	var notch_half := minf(
+		7.0,
+		(
+			local_rect.size.x * 0.3
+			if vertical
+			else local_rect.size.y * 0.3
+		)
+	)
+	var primary_axis := (
+		Vector2(0.0, notch_half)
+		if vertical
+		else Vector2(notch_half, 0.0)
+	)
 	draw_line(
-		local_center - Vector2(notch_half, 0.0),
-		local_center + Vector2(notch_half, 0.0),
+		local_center - primary_axis,
+		local_center + primary_axis,
 		_with_alpha(COLOR_TOGGLE_EDGE, alpha),
 		2.0
 	)
 	if not starts_active:
+		var secondary_axis := (
+			Vector2(notch_half, 0.0)
+			if vertical
+			else Vector2(0.0, notch_half)
+		)
 		draw_line(
-			local_center - Vector2(0.0, notch_half),
-			local_center + Vector2(0.0, notch_half),
+			local_center - secondary_axis,
+			local_center + secondary_axis,
 			_with_alpha(COLOR_TOGGLE_EDGE, alpha),
 			2.0
 		)
@@ -2047,7 +2123,10 @@ func _initial_collision_rects() -> Array[Dictionary]:
 			if _is_number_array(values, 4):
 				blocker_rect = _rect_from_payload(values)
 		elif (
-				object_type == TOOL_TOGGLE_PLATFORM
+				object_type in [
+					TOOL_TOGGLE_PLATFORM,
+					TOOL_TOGGLE_WALL,
+				]
 				and bool(object.get("starts_active", true))
 		):
 			var values: Variant = object.get("rect")
@@ -2210,6 +2289,13 @@ func _draw_drag_preview(view_rect: Rect2) -> void:
 				view_rect,
 				COLOR_GHOST.a
 			)
+		elif _drag_kind == TOOL_TOGGLE_WALL:
+			_draw_toggle_wall(
+				_drag_preview_payload,
+				true,
+				view_rect,
+				COLOR_GHOST.a
+			)
 		else:
 			_draw_solid(
 				_drag_preview_payload,
@@ -2326,6 +2412,18 @@ func _draw_drag_preview(view_rect: Rect2) -> void:
 		logical_rect = _rect_from_payload(_drag_preview_payload)
 		if _drag_object_type == TOOL_TOGGLE_PLATFORM:
 			_draw_toggle_platform(
+				_drag_preview_payload,
+				bool(
+					_find_object(_drag_object_id).get(
+						"starts_active",
+						true
+					)
+				),
+				view_rect,
+				COLOR_GHOST.a
+			)
+		elif _drag_object_type == TOOL_TOGGLE_WALL:
+			_draw_toggle_wall(
 				_drag_preview_payload,
 				bool(
 					_find_object(_drag_object_id).get(
@@ -2479,7 +2577,7 @@ static func _behavior_preset(object: Dictionary) -> String:
 func _payload_for_object(object: Dictionary) -> Variant:
 	var object_type := str(object.get("type", ""))
 	match object_type:
-		TOOL_SOLID_RECT, TOOL_TOGGLE_PLATFORM:
+		TOOL_SOLID_RECT, TOOL_TOGGLE_PLATFORM, TOOL_TOGGLE_WALL:
 			var rect_values: Variant = object.get("rect")
 			if _is_number_array(rect_values, 4):
 				return _duplicate_payload(rect_values)
@@ -2563,6 +2661,41 @@ func _toggle_rect_from_drag(
 	]
 
 
+func _toggle_wall_rect_from_drag(
+	start: Vector2,
+	current: Vector2
+) -> Array:
+	var grid_size := float(_grid_size())
+	var minimum_height := maxf(
+		grid_size,
+		float(MIN_TOGGLE_WALL_HEIGHT)
+	)
+	var end_y := current.y
+	if is_equal_approx(end_y, start.y):
+		end_y += grid_size
+	end_y = clampf(end_y, 0.0, LOGICAL_SIZE.y)
+
+	var top := minf(start.y, end_y)
+	var bottom := maxf(start.y, end_y)
+	if bottom - top < minimum_height:
+		if top + minimum_height <= LOGICAL_SIZE.y:
+			bottom = top + minimum_height
+		else:
+			top = maxf(0.0, bottom - minimum_height)
+
+	var left := clampf(
+		start.x,
+		0.0,
+		LOGICAL_SIZE.x - float(DEFAULT_TOGGLE_WALL_SIZE.x)
+	)
+	return [
+		_round_to_int(left),
+		_round_to_int(top),
+		DEFAULT_TOGGLE_WALL_SIZE.x,
+		_round_to_int(bottom - top),
+	]
+
+
 func _default_rect(start: Vector2, object_type: String) -> Array:
 	var grid_size := _grid_size()
 	if object_type == TOOL_TOGGLE_PLATFORM:
@@ -2584,6 +2717,26 @@ func _default_rect(start: Vector2, object_type: String) -> Array:
 			maxi(toggle_top, 0),
 			toggle_width,
 			toggle_height,
+		]
+	if object_type == TOOL_TOGGLE_WALL:
+		var wall_width := DEFAULT_TOGGLE_WALL_SIZE.x
+		var wall_height := mini(
+			DEFAULT_TOGGLE_WALL_SIZE.y,
+			int(LOGICAL_SIZE.y)
+		)
+		var wall_left := mini(
+			_round_to_int(start.x),
+			int(LOGICAL_SIZE.x) - wall_width
+		)
+		var wall_top := mini(
+			_round_to_int(start.y),
+			int(LOGICAL_SIZE.y) - wall_height
+		)
+		return [
+			maxi(wall_left, 0),
+			maxi(wall_top, 0),
+			wall_width,
+			wall_height,
 		]
 
 	var width := mini(

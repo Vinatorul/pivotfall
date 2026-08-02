@@ -28,11 +28,13 @@ var is_active := true
 var is_transitioning := false
 var pending_active := true
 var platform_size := DEFAULT_SIZE
+var is_vertical_wall := false
 var warning_pulse := MECHANISM_WARNING_PULSE.new()
 
 
 func _ready() -> void:
 	_apply_geometry()
+	collision_shape.one_way_collision = not is_vertical_wall
 	warning_pulse.bind(outline)
 	is_active = starts_active
 	pending_active = is_active
@@ -44,7 +46,11 @@ func _process(delta: float) -> void:
 	warning_pulse.advance(delta)
 
 
-func configure(rect: Rect2, active: bool) -> void:
+func configure(
+	rect: Rect2,
+	active: bool,
+	vertical_wall := false
+) -> void:
 	if is_inside_tree():
 		push_error(
 			"TogglePlatform must be configured before entering the tree."
@@ -54,6 +60,7 @@ func configure(rect: Rect2, active: bool) -> void:
 	position = rect.get_center()
 	platform_size = rect.size
 	starts_active = active
+	is_vertical_wall = vertical_wall
 
 
 func request_toggle() -> bool:
@@ -101,18 +108,32 @@ func _apply_geometry() -> void:
 			Vector2(-half_size.x, half_size.y),
 		]
 	)
-	var edge_bottom := minf(
-		-half_size.y + TOP_EDGE_HEIGHT,
-		half_size.y
-	)
-	edge_visual.polygon = PackedVector2Array(
-		[
-			Vector2(-half_size.x, -half_size.y),
-			Vector2(half_size.x, -half_size.y),
-			Vector2(half_size.x, edge_bottom),
-			Vector2(-half_size.x, edge_bottom),
-		]
-	)
+	if is_vertical_wall:
+		var edge_right := minf(
+			-half_size.x + TOP_EDGE_HEIGHT,
+			half_size.x
+		)
+		edge_visual.polygon = PackedVector2Array(
+			[
+				Vector2(-half_size.x, -half_size.y),
+				Vector2(edge_right, -half_size.y),
+				Vector2(edge_right, half_size.y),
+				Vector2(-half_size.x, half_size.y),
+			]
+		)
+	else:
+		var edge_bottom := minf(
+			-half_size.y + TOP_EDGE_HEIGHT,
+			half_size.y
+		)
+		edge_visual.polygon = PackedVector2Array(
+			[
+				Vector2(-half_size.x, -half_size.y),
+				Vector2(half_size.x, -half_size.y),
+				Vector2(half_size.x, edge_bottom),
+				Vector2(-half_size.x, edge_bottom),
+			]
+		)
 	outline.points = PackedVector2Array(
 		[
 			Vector2(-half_size.x, -half_size.y),
