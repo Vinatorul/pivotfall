@@ -8,7 +8,6 @@ const CAMPAIGN_STORAGE := preload(
 const SCHEMA_VERSION := 1
 const MAX_FILE_BYTES := 8_192
 const DEFAULT_STORAGE_PATH := "user://campaign_progress.json"
-const LEGACY_COMPLETED_FINAL_LEVEL_ID := "arena_08_data"
 const ROOT_KEYS := [
 	"schema_version",
 	"campaign_id",
@@ -347,7 +346,7 @@ func _load_path(
 				]
 			]
 		)
-	var migration := _migrate_legacy_completed_progress(
+	var migration := _migrate_completed_progress_for_expansion(
 		parser.data,
 		entries
 	)
@@ -458,7 +457,7 @@ func _validate_progress(
 	}
 
 
-func _migrate_legacy_completed_progress(
+func _migrate_completed_progress_for_expansion(
 	raw: Variant,
 	entries: Array[Dictionary]
 ) -> Dictionary:
@@ -474,10 +473,11 @@ func _migrate_legacy_completed_progress(
 		_read_integer(root.get("schema_version")) != SCHEMA_VERSION
 		or root.get("campaign_id")
 		!= CAMPAIGN_STORAGE.BUILTIN_CAMPAIGN_ID
+		or typeof(root.get("current_level_id")) != TYPE_STRING
+		or typeof(root.get("highest_unlocked_level_id"))
+		!= TYPE_STRING
 		or root.get("current_level_id")
-		!= LEGACY_COMPLETED_FINAL_LEVEL_ID
-		or root.get("highest_unlocked_level_id")
-		!= LEGACY_COMPLETED_FINAL_LEVEL_ID
+		!= root.get("highest_unlocked_level_id")
 		or typeof(root.get("completed")) != TYPE_BOOL
 		or not bool(root.get("completed"))
 	):
@@ -487,20 +487,25 @@ func _migrate_legacy_completed_progress(
 	if not bool(ids_result.get("ok", false)):
 		return result
 	var level_ids: Array[String] = ids_result["ids"]
-	var legacy_index := level_ids.find(
-		LEGACY_COMPLETED_FINAL_LEVEL_ID
-	)
-	if legacy_index < 0 or legacy_index + 1 >= level_ids.size():
+	var completed_level_id := str(root["current_level_id"])
+	var completed_index := level_ids.find(completed_level_id)
+	if (
+		completed_index < 0
+		or completed_index + 1 >= level_ids.size()
+	):
 		return result
 
-	var next_level_id := level_ids[legacy_index + 1]
+	var next_level_id := level_ids[completed_index + 1]
 	var migrated := root.duplicate(true)
 	migrated["current_level_id"] = next_level_id
 	migrated["highest_unlocked_level_id"] = next_level_id
 	migrated["completed"] = false
 	result["data"] = migrated
 	result["warnings"] = [
-		"Campaign expanded after Arena 08; the next level was unlocked."
+		(
+			"Campaign expanded after '%s'; the next level was unlocked."
+			% completed_level_id
+		)
 	] as Array[String]
 	return result
 

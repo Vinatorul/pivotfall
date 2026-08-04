@@ -81,13 +81,18 @@ func receive_impulse(impulse: Vector2) -> void:
 
 	is_ready = false
 	cooldown_finished = false
-	target_finished = not target.has_signal("toggled")
+	var completion_signal := _target_completion_signal()
+	target_finished = completion_signal.is_empty()
 	outer_visual.color = ACCEPTED_OUTER_COLOR
 	inner_visual.color = ACCEPTED_INNER_COLOR
 	_start_press_visual(impulse)
 
 	if not target_finished:
-		target.connect("toggled", _on_target_toggled, CONNECT_ONE_SHOT)
+		target.connect(
+			completion_signal,
+			_on_target_toggled,
+			CONNECT_ONE_SHOT
+		)
 
 	get_tree().create_timer(cooldown, false).timeout.connect(
 		_on_cooldown_finished
@@ -104,6 +109,14 @@ func _on_cooldown_finished() -> void:
 func _on_target_toggled(_is_active: bool) -> void:
 	target_finished = true
 	_try_unlock()
+
+
+func _target_completion_signal() -> StringName:
+	if target.has_signal("toggle_completed"):
+		return &"toggle_completed"
+	if target.has_signal("toggled"):
+		return &"toggled"
+	return StringName()
 
 
 func _try_unlock() -> void:

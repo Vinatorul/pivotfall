@@ -58,6 +58,11 @@
 			"level_id": "tower_assault",
 			"path": "res://levels/tower_assault.json",
 			"catalog_title": "Arena 11 / Штурм"
+		},
+		{
+			"level_id": "arena_12_data",
+			"path": "res://levels/arena_12.json",
+			"catalog_title": "Arena 12 / Ворота"
 		}
 	]
 }

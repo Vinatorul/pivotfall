@@ -212,8 +212,217 @@ func _test_builder_collision_and_hinge() -> void:
 		probe.queue_free()
 		await probe.tree_exited
 
+		await _test_wall_ejection(runtime, wall, hinge, collision_shape)
+		await _test_blocked_wall(runtime, wall, hinge, collision_shape)
+
 	runtime.queue_free()
 	await runtime.tree_exited
+
+
+func _test_wall_ejection(
+	runtime: LevelRuntimeArena,
+	wall: TogglePlatform,
+	hinge: Hinge,
+	collision_shape: CollisionShape2D
+) -> void:
+	var player := runtime.get_level_object("player_start") as Player
+	var enemy := runtime.get_level_object("patrol_1") as PatrolEnemy
+	var center_probe := _make_probe()
+	center_probe.name = "CenterVelocityProbe"
+	center_probe.velocity = Vector2.LEFT
+	runtime.add_child(center_probe)
+	player.set_physics_process(false)
+	enemy.set_physics_process(false)
+	player.global_position = Vector2(466, 340)
+	enemy.global_position = Vector2(474, 420)
+	center_probe.global_position = Vector2(470, 380)
+	await physics_frame
+	await process_frame
+
+	var ejection_event := {"count": 0}
+	wall.bodies_ejected.connect(
+		func(count: int) -> void:
+			ejection_event["count"] = count
+	)
+	hinge.receive_impulse(Vector2.RIGHT)
+	await _wait_for_wall_transition(wall)
+	await physics_frame
+
+	_expect(
+		wall.is_active
+		and not collision_shape.disabled
+		and int(ejection_event["count"]) == 3,
+		(
+			"Closing wall did not eject every overlapping character "
+			+ "body: active=%s disabled=%s count=%s."
+			% [
+				wall.is_active,
+				collision_shape.disabled,
+				ejection_event["count"],
+			]
+		)
+	)
+	_expect(
+		player.global_position.x < 450
+		and player.velocity.x < 0
+		and enemy.global_position.x > 490
+		and enemy.velocity.x > 0,
+		"Wall did not eject player and enemy toward their nearest sides."
+	)
+	_expect(
+		center_probe.global_position.x < 455
+		and center_probe.velocity.x < 0,
+		(
+			"Centered body did not use its velocity as the ejection "
+			+ "tie-break: position=%s velocity=%s."
+			% [center_probe.global_position, center_probe.velocity]
+		)
+	)
+
+	center_probe.queue_free()
+	await center_probe.tree_exited
+	player.set_physics_process(true)
+	enemy.set_physics_process(true)
+
+
+func _test_blocked_wall(
+	runtime: LevelRuntimeArena,
+	wall: TogglePlatform,
+	hinge: Hinge,
+	collision_shape: CollisionShape2D
+) -> void:
+	hinge.receive_impulse(Vector2.RIGHT)
+	await _wait_for_wall_transition(wall)
+	await physics_frame
+	_expect(
+		not wall.is_active and collision_shape.disabled,
+		"Wall did not reopen before the blocked-close scenario."
+	)
+
+	wall.blocked_feedback_time = 0.01
+	var fallback_probe := _make_probe()
+	fallback_probe.name = "FallbackProbe"
+	fallback_probe.global_position = Vector2(466, 340)
+	var fallback_blocker := _make_blocker(Vector2(449, 340))
+	runtime.add_child(fallback_probe)
+	runtime.add_child(fallback_blocker)
+	await physics_frame
+	await process_frame
+	hinge.receive_impulse(Vector2.RIGHT)
+	await _wait_for_wall_transition(wall)
+	await physics_frame
+	_expect(
+		wall.is_active
+		and not collision_shape.disabled
+		and fallback_probe.global_position.x > 485
+		and fallback_probe.velocity.x > 0,
+		(
+			"Wall did not use the opposite side when the preferred "
+			+ "exit was blocked: active=%s position=%s velocity=%s."
+			% [
+				wall.is_active,
+				fallback_probe.global_position,
+				fallback_probe.velocity,
+			]
+		)
+	)
+	fallback_probe.queue_free()
+	fallback_blocker.queue_free()
+	await fallback_probe.tree_exited
+	await fallback_blocker.tree_exited
+
+	hinge.receive_impulse(Vector2.RIGHT)
+	await _wait_for_wall_transition(wall)
+	await physics_frame
+	_expect(
+		not wall.is_active and collision_shape.disabled,
+		"Wall did not reopen before the atomic-cancel scenario."
+	)
+
+	var blocked_event := {"count": 0}
+	wall.toggle_blocked.connect(
+		func() -> void:
+			blocked_event["count"] = int(blocked_event["count"]) + 1
+	)
+	var trapped_probe := _make_probe()
+	trapped_probe.name = "TrappedProbe"
+	trapped_probe.global_position = Vector2(466, 340)
+	var free_probe := _make_probe()
+	free_probe.name = "AtomicFreeProbe"
+	free_probe.global_position = Vector2(474, 420)
+	var left_blocker := _make_blocker(Vector2(449, 340))
+	var right_blocker := _make_blocker(Vector2(491, 340))
+	runtime.add_child(trapped_probe)
+	runtime.add_child(free_probe)
+	runtime.add_child(left_blocker)
+	runtime.add_child(right_blocker)
+	await physics_frame
+	await process_frame
+	hinge.receive_impulse(Vector2.RIGHT)
+	await _wait_for_wall_transition(wall)
+	await physics_frame
+
+	_expect(
+		not wall.is_active
+		and collision_shape.disabled
+		and int(blocked_event["count"]) == 1
+		and trapped_probe.global_position.is_equal_approx(
+			Vector2(466, 340)
+		)
+		and free_probe.global_position.is_equal_approx(
+			Vector2(474, 420)
+		),
+		(
+			"Wall partially closed or moved a body blocked on both "
+			+ "sides: active=%s disabled=%s blocked=%s position=%s."
+			% [
+				wall.is_active,
+				collision_shape.disabled,
+				blocked_event["count"],
+				trapped_probe.global_position,
+			]
+		)
+	)
+	await _wait_for_hinge_ready(hinge)
+	_expect(
+		hinge.is_ready,
+		"Blocked close left its hinge permanently locked."
+	)
+
+	trapped_probe.queue_free()
+	free_probe.queue_free()
+	left_blocker.queue_free()
+	right_blocker.queue_free()
+	await trapped_probe.tree_exited
+	await free_probe.tree_exited
+	await left_blocker.tree_exited
+	await right_blocker.tree_exited
+	await physics_frame
+	hinge.receive_impulse(Vector2.RIGHT)
+	await _wait_for_wall_transition(wall)
+	await physics_frame
+	_expect(
+		wall.is_active and not collision_shape.disabled,
+		"Hinge could not retry after a blocked wall close."
+	)
+
+
+func _wait_for_wall_transition(wall: TogglePlatform) -> void:
+	for _frame in range(60):
+		await process_frame
+		await physics_frame
+		if not wall.is_transitioning:
+			return
+	_expect(false, "toggle_wall transition did not finish.")
+
+
+func _wait_for_hinge_ready(hinge: Hinge) -> void:
+	for _frame in range(60):
+		await process_frame
+		await physics_frame
+		if hinge.is_ready:
+			return
+	_expect(false, "toggle_wall hinge did not unlock.")
 
 
 func _test_editor_vertical_slice() -> void:
@@ -362,6 +571,22 @@ func _make_probe() -> CharacterBody2D:
 	collision.shape = shape
 	probe.add_child(collision)
 	return probe
+
+
+func _make_blocker(
+	position: Vector2,
+	size := Vector2(12, 40)
+) -> StaticBody2D:
+	var blocker := StaticBody2D.new()
+	blocker.position = position
+	blocker.collision_layer = 1
+	blocker.collision_mask = 0
+	var collision := CollisionShape2D.new()
+	var shape := RectangleShape2D.new()
+	shape.size = size
+	collision.shape = shape
+	blocker.add_child(collision)
+	return blocker
 
 
 func _probe_hits(
