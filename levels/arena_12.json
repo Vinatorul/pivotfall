@@ -1,0 +1,61 @@
+{
+	"schema_version": 1,
+	"level_id": "arena_12_data",
+	"title": "GRAYBOX  /  DATA ARENA 12  /  ВОРОТА",
+	"objective": "ОТКРОЙ ВОРОТА  /  ЗАКРОЙ ИХ НА СТРЕЛКЕ",
+	"clear_message": "DATA ARENA 12 ПРОЙДЕНА  /  ПЕРЕЗАПУСК...",
+	"canvas": {
+		"width": 960,
+		"height": 540,
+		"grid_size": 20
+	},
+	"objects": [
+		{
+			"id": "left_floor",
+			"type": "solid_rect",
+			"rect": [32, 496, 368, 44],
+			"one_way": false
+		},
+		{
+			"id": "right_floor",
+			"type": "solid_rect",
+			"rect": [560, 496, 368, 44],
+			"one_way": false
+		},
+		{
+			"id": "approach_platform",
+			"type": "solid_rect",
+			"rect": [420, 400, 100, 20],
+			"one_way": true
+		},
+		{
+			"id": "player_start",
+			"type": "player_spawn",
+			"position": [160, 450]
+		},
+		{
+			"id": "shooter",
+			"type": "shooter_enemy",
+			"position": [590, 450],
+			"behavior_preset": "standard"
+		},
+		{
+			"id": "gate",
+			"type": "toggle_wall",
+			"rect": [540, 296, 20, 200],
+			"starts_active": true
+		},
+		{
+			"id": "entry_hinge",
+			"type": "hinge",
+			"position": [480, 380],
+			"target_id": "gate"
+		},
+		{
+			"id": "eject_hinge",
+			"type": "hinge",
+			"position": [630, 450],
+			"target_id": "gate"
+		}
+	]
+}

@@ -139,10 +139,10 @@ func _run() -> void:
 		is_instance_valid(selector)
 		and selector_entries.size() == catalog.size()
 		and is_instance_valid(selector_list)
-		and "[11]" in selector_list.text
-		and "Arena 11 / Штурм" in selector_list.text,
+		and "[12]" in selector_list.text
+		and "Arena 12 / Ворота" in selector_list.text,
 		(
-			"Debug selector did not expose all eleven built-in arenas: "
+			"Debug selector did not expose all twelve built-in arenas: "
 			+ "selector=%s entries=%d text=%s"
 			% [
 				is_instance_valid(selector),
@@ -152,10 +152,15 @@ func _run() -> void:
 		)
 	)
 
-	var tail_start := catalog.size() - EXPECTED_LEVELS.size()
+	var catalog_by_id := {}
+	for catalog_entry: Dictionary in catalog:
+		catalog_by_id[str(catalog_entry.get("id", ""))] = catalog_entry
 	for index in EXPECTED_LEVELS.size():
 		var expected: Dictionary = EXPECTED_LEVELS[index]
-		var catalog_entry: Dictionary = catalog[tail_start + index]
+		var catalog_entry: Dictionary = catalog_by_id.get(
+			str(expected["id"]),
+			{}
+		)
 		_expect(
 			catalog_entry.get("id") == expected["id"]
 			and catalog_entry.get("path") == expected["path"]
