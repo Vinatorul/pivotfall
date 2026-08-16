@@ -52,6 +52,7 @@ const VERTICAL_PLATFORM_SIZE := Vector2i(80, 20)
 const VERTICAL_PLATFORM_TRAVEL := 136
 const VERTICAL_PLATFORM_MINIMUM_Y := 82
 const HINGE_RADIUS := 18
+const DOUBLE_JUMP_PICKUP_RADIUS := 12
 const ACTOR_HALF_EXTENTS := {
 	"player_spawn": Vector2i(14, 20),
 	"patrol_enemy": Vector2i(15, 18),
@@ -98,6 +99,7 @@ const CATAPULT_PLATFORM_KEYS := [
 	"behavior_preset",
 ]
 const VERTICAL_PLATFORM_KEYS := ["id", "type", "position"]
+const DOUBLE_JUMP_PICKUP_KEYS := ["id", "type", "position"]
 const TOGGLE_PLATFORM_KEYS := [
 	"id",
 	"type",
@@ -119,6 +121,7 @@ const SUPPORTED_TYPES := [
 	"shooter_enemy",
 	"catapult_platform",
 	"vertical_platform",
+	"double_jump_pickup",
 	"toggle_platform",
 	"toggle_wall",
 	"hinge",
@@ -709,6 +712,46 @@ static func _validate_object(
 				},
 			}
 
+		"double_jump_pickup":
+			_reject_unknown_keys(
+				object,
+				DOUBLE_JUMP_PICKUP_KEYS,
+				path,
+				errors
+			)
+			var position: Variant = null
+			if _require_key(object, "position", path, errors):
+				position = _read_int_array(
+					object["position"],
+					"%s.position" % path,
+					2,
+					errors
+				)
+				if position != null:
+					_validate_point_bounds(
+						position,
+						canvas_size,
+						"%s.position" % path,
+						errors
+					)
+					_validate_radial_playfield_bounds(
+						position,
+						DOUBLE_JUMP_PICKUP_RADIUS,
+						object_id,
+						errors
+					)
+
+			if errors.size() != error_count_before:
+				return {"ok": false, "data": {}}
+			return {
+				"ok": true,
+				"data": {
+					"id": object_id,
+					"type": object_type,
+					"position": position,
+				},
+			}
+
 		"toggle_platform":
 			_reject_unknown_keys(
 				object,
@@ -837,8 +880,9 @@ static func _validate_object(
 						"%s.position" % path,
 						errors
 					)
-					_validate_hinge_playfield_bounds(
+					_validate_radial_playfield_bounds(
 						position,
+						HINGE_RADIUS,
 						object_id,
 						errors
 					)
@@ -918,18 +962,19 @@ static func _validate_point_bounds(
 		)
 
 
-static func _validate_hinge_playfield_bounds(
+static func _validate_radial_playfield_bounds(
 	point: Array,
+	radius: int,
 	object_id: String,
 	errors: Array[String]
 ) -> void:
 	var x: int = point[0]
 	var y: int = point[1]
 	if (
-		x - HINGE_RADIUS < PLAYFIELD_LEFT
-		or y - HINGE_RADIUS < PLAYFIELD_TOP
-		or x + HINGE_RADIUS > PLAYFIELD_RIGHT
-		or y + HINGE_RADIUS > PLAYFIELD_BOTTOM
+		x - radius < PLAYFIELD_LEFT
+		or y - radius < PLAYFIELD_TOP
+		or x + radius > PLAYFIELD_RIGHT
+		or y + radius > PLAYFIELD_BOTTOM
 	):
 		errors.append(
 			(

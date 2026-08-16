@@ -24,6 +24,7 @@ const FIXED_BORDER_SIZE := 32.0
 const DRAG_THRESHOLD := 4.0
 const TOP_EDGE_HEIGHT := 6.0
 const HINGE_HALF_EXTENTS := Vector2(18.0, 18.0)
+const DOUBLE_JUMP_PICKUP_HALF_EXTENTS := Vector2(12.0, 12.0)
 const SHOOTER_GUN_PIVOT_OFFSET := Vector2(0.0, -4.0)
 const SHOOTER_MUZZLE_LENGTH := 28.0
 const SHOOTER_LINE_LENGTH := 900.0
@@ -53,6 +54,7 @@ const VERTICAL_PLATFORM_PASSENGER_ALPHA := 0.42
 const TOOL_SELECT := "select"
 const TOOL_SOLID_RECT := "solid_rect"
 const TOOL_PLAYER_SPAWN := "player_spawn"
+const TOOL_DOUBLE_JUMP_PICKUP := "double_jump_pickup"
 const TOOL_PATROL_ENEMY := "patrol_enemy"
 const TOOL_SHOVE_ENEMY := "shove_enemy"
 const TOOL_SHOOTER_ENEMY := "shooter_enemy"
@@ -65,6 +67,7 @@ const SUPPORTED_TOOLS := [
 	TOOL_SELECT,
 	TOOL_SOLID_RECT,
 	TOOL_PLAYER_SPAWN,
+	TOOL_DOUBLE_JUMP_PICKUP,
 	TOOL_PATROL_ENEMY,
 	TOOL_SHOVE_ENEMY,
 	TOOL_SHOOTER_ENEMY,
@@ -87,6 +90,7 @@ const ACTOR_OBJECT_TYPES := [
 ]
 const POINT_OBJECT_TYPES := [
 	TOOL_PLAYER_SPAWN,
+	TOOL_DOUBLE_JUMP_PICKUP,
 	TOOL_PATROL_ENEMY,
 	TOOL_SHOVE_ENEMY,
 	TOOL_SHOOTER_ENEMY,
@@ -100,6 +104,7 @@ const DRAW_ORDER := [
 	TOOL_TOGGLE_WALL,
 	TOOL_VERTICAL_PLATFORM,
 	TOOL_CATAPULT_PLATFORM,
+	TOOL_DOUBLE_JUMP_PICKUP,
 	TOOL_PLAYER_SPAWN,
 	TOOL_PATROL_ENEMY,
 	TOOL_SHOVE_ENEMY,
@@ -108,6 +113,7 @@ const DRAW_ORDER := [
 ]
 const HIT_ORDER := [
 	TOOL_HINGE,
+	TOOL_DOUBLE_JUMP_PICKUP,
 	TOOL_SHOOTER_ENEMY,
 	TOOL_SHOVE_ENEMY,
 	TOOL_PATROL_ENEMY,
@@ -175,6 +181,9 @@ const COLOR_TOGGLE_INACTIVE := Color(0.278, 0.345, 0.459, 0.2)
 const COLOR_TOGGLE_EDGE := Color(0.439, 0.827, 0.816, 0.9)
 const COLOR_HINGE_OUTER := Color(0.925, 0.58, 0.267, 1.0)
 const COLOR_HINGE_INNER := Color(0.302, 0.125, 0.098, 1.0)
+const COLOR_DOUBLE_JUMP_OUTER := Color(0.439, 0.878, 0.816, 1.0)
+const COLOR_DOUBLE_JUMP_INNER := Color(0.071, 0.204, 0.251, 1.0)
+const COLOR_DOUBLE_JUMP_CHEVRON := Color(1.0, 0.82, 0.36, 1.0)
 const COLOR_LINK := Color(0.439, 0.827, 0.816, 0.38)
 const COLOR_LINK_SELECTED := Color(0.439, 0.878, 0.816, 0.95)
 const COLOR_LINK_BROKEN := Color(0.925, 0.365, 0.231, 0.95)
@@ -408,6 +417,7 @@ func _begin_primary_action(local_position: Vector2) -> void:
 			queue_redraw()
 
 		TOOL_PLAYER_SPAWN, \
+		TOOL_DOUBLE_JUMP_PICKUP, \
 		TOOL_PATROL_ENEMY, \
 		TOOL_SHOVE_ENEMY, \
 		TOOL_SHOOTER_ENEMY, \
@@ -573,6 +583,7 @@ func _moved_payload() -> Variant:
 
 	if (
 		ACTOR_HALF_EXTENTS.has(_drag_object_type)
+		or _drag_object_type == TOOL_DOUBLE_JUMP_PICKUP
 		or _drag_object_type == TOOL_CATAPULT_PLATFORM
 		or _drag_object_type == TOOL_VERTICAL_PLATFORM
 		or _drag_object_type == TOOL_HINGE
@@ -869,6 +880,16 @@ func _draw_object(
 				object_id == _selected_id
 				and not moving_this_catapult,
 				_behavior_preset(object)
+			)
+
+		TOOL_DOUBLE_JUMP_PICKUP:
+			var position_values: Variant = object.get("position")
+			if not _is_number_array(position_values, 2):
+				return
+			_draw_double_jump_pickup(
+				position_values,
+				view_rect,
+				alpha
 			)
 
 		TOOL_PLAYER_SPAWN, TOOL_PATROL_ENEMY, TOOL_SHOVE_ENEMY, TOOL_SHOOTER_ENEMY:
@@ -1879,6 +1900,57 @@ func _draw_hinge(
 	)
 
 
+func _draw_double_jump_pickup(
+	position_values: Array,
+	view_rect: Rect2,
+	alpha: float
+) -> void:
+	var position := Vector2(
+		float(position_values[0]),
+		float(position_values[1])
+	)
+	var local_center := _logical_point_to_local(position, view_rect)
+	var radius := DOUBLE_JUMP_PICKUP_HALF_EXTENTS.x * _canvas_scale()
+	var outer_points := PackedVector2Array(
+		[
+			local_center + Vector2(0.0, -radius),
+			local_center + Vector2(radius, 0.0),
+			local_center + Vector2(0.0, radius),
+			local_center + Vector2(-radius, 0.0),
+		]
+	)
+	draw_colored_polygon(
+		outer_points,
+		_with_alpha(COLOR_DOUBLE_JUMP_OUTER, alpha)
+	)
+	var inner_radius := radius * 0.62
+	var inner_points := PackedVector2Array(
+		[
+			local_center + Vector2(0.0, -inner_radius),
+			local_center + Vector2(inner_radius, 0.0),
+			local_center + Vector2(0.0, inner_radius),
+			local_center + Vector2(-inner_radius, 0.0),
+		]
+	)
+	draw_colored_polygon(
+		inner_points,
+		_with_alpha(COLOR_DOUBLE_JUMP_INNER, alpha)
+	)
+	var chevron_half_width := radius * 0.28
+	var chevron_height := radius * 0.26
+	for offset_y: float in [-radius * 0.24, radius * 0.28]:
+		draw_colored_polygon(
+			PackedVector2Array(
+				[
+					local_center + Vector2(0.0, offset_y - chevron_height),
+					local_center + Vector2(chevron_half_width, offset_y),
+					local_center + Vector2(-chevron_half_width, offset_y),
+				]
+			),
+			_with_alpha(COLOR_DOUBLE_JUMP_CHEVRON, alpha)
+		)
+
+
 func _draw_actor(
 	object_type: String,
 	position_values: Array,
@@ -2309,6 +2381,7 @@ func _draw_drag_preview(view_rect: Rect2) -> void:
 		and _is_number_array(_drag_preview_payload, 2)
 		and (
 			ACTOR_HALF_EXTENTS.has(_drag_object_type)
+			or _drag_object_type == TOOL_DOUBLE_JUMP_PICKUP
 			or _drag_object_type == TOOL_CATAPULT_PLATFORM
 			or _drag_object_type == TOOL_VERTICAL_PLATFORM
 			or _drag_object_type == TOOL_HINGE
@@ -2347,6 +2420,16 @@ func _draw_drag_preview(view_rect: Rect2) -> void:
 				HINGE_HALF_EXTENTS * 2.0
 			)
 			_draw_hinge(
+				position_values,
+				view_rect,
+				COLOR_GHOST.a
+			)
+		elif _drag_object_type == TOOL_DOUBLE_JUMP_PICKUP:
+			logical_rect = Rect2(
+				position - DOUBLE_JUMP_PICKUP_HALF_EXTENTS,
+				DOUBLE_JUMP_PICKUP_HALF_EXTENTS * 2.0
+			)
+			_draw_double_jump_pickup(
 				position_values,
 				view_rect,
 				COLOR_GHOST.a
@@ -2550,6 +2633,19 @@ func _bounds_for_object(object: Dictionary) -> Rect2:
 		return Rect2(
 			position - HINGE_HALF_EXTENTS,
 			HINGE_HALF_EXTENTS * 2.0
+		)
+
+	if object_type == TOOL_DOUBLE_JUMP_PICKUP:
+		var position_values: Variant = object.get("position")
+		if not _is_number_array(position_values, 2):
+			return Rect2()
+		var position := Vector2(
+			float(position_values[0]),
+			float(position_values[1])
+		)
+		return Rect2(
+			position - DOUBLE_JUMP_PICKUP_HALF_EXTENTS,
+			DOUBLE_JUMP_PICKUP_HALF_EXTENTS * 2.0
 		)
 
 	return Rect2()

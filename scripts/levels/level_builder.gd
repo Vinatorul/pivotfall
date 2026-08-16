@@ -23,6 +23,9 @@ const CATAPULT_PLATFORM_SCENE := preload(
 const VERTICAL_PLATFORM_SCENE := preload(
 	"res://scenes/vertical_platform.tscn"
 )
+const DOUBLE_JUMP_PICKUP_SCENE := preload(
+	"res://scenes/double_jump_pickup.tscn"
+)
 const TOGGLE_PLATFORM_SCENE := preload(
 	"res://scenes/toggle_platform.tscn"
 )
@@ -239,6 +242,19 @@ static func _create_object(definition: Dictionary) -> Dictionary:
 
 			platform.position = _vector_from(definition["position"])
 			return _object_success(platform, "geometry")
+
+		"double_jump_pickup":
+			var pickup := (
+				DOUBLE_JUMP_PICKUP_SCENE.instantiate()
+				as DoubleJumpPickup
+			)
+			if not is_instance_valid(pickup):
+				return _object_failure(
+					"Could not instantiate double_jump_pickup."
+				)
+
+			pickup.position = _vector_from(definition["position"])
+			return _object_success(pickup, "geometry")
 
 		"toggle_platform":
 			var platform := (
