@@ -44,6 +44,8 @@ const MAX_SUPPORT_WARNING_GAP := 64.0
 const MIN_SHOVE_RUNWAY := 48.0
 const TOGGLE_PLATFORM_HEIGHT := 20
 const MIN_TOGGLE_PLATFORM_WIDTH := 20
+const SPIKE_TRAP_HEIGHT := 20
+const MIN_SPIKE_TRAP_WIDTH := 20
 const TOGGLE_WALL_WIDTH := 20
 const MIN_TOGGLE_WALL_HEIGHT := 20
 const CATAPULT_SIZE := Vector2i(180, 20)
@@ -72,6 +74,7 @@ const ROOT_KEYS := [
 ]
 const CANVAS_KEYS := ["width", "height", "grid_size"]
 const SOLID_RECT_KEYS := ["id", "type", "rect", "one_way"]
+const SPIKE_TRAP_KEYS := ["id", "type", "rect"]
 const PLAYER_SPAWN_KEYS := ["id", "type", "position"]
 const PATROL_ENEMY_KEYS := [
 	"id",
@@ -116,6 +119,7 @@ const TOGGLE_WALL_KEYS := [
 const HINGE_KEYS := ["id", "type", "position", "target_id"]
 const SUPPORTED_TYPES := [
 	"solid_rect",
+	"spike_trap",
 	"player_spawn",
 	"patrol_enemy",
 	"shove_enemy",
@@ -301,6 +305,7 @@ static func validate_and_normalize(raw: Variant) -> Dictionary:
 		declared_object_ids,
 		errors
 	)
+	_validate_spike_trap_placements(normalized_objects, errors)
 	_validate_vertical_platform_corridors(normalized_objects, errors)
 	_validate_actor_placements(normalized_objects, errors)
 	normalized["objects"] = normalized_objects
@@ -461,6 +466,50 @@ static func _validate_object(
 					"type": object_type,
 					"rect": rect,
 					"one_way": one_way,
+				},
+			}
+
+		"spike_trap":
+			_reject_unknown_keys(
+				object,
+				SPIKE_TRAP_KEYS,
+				path,
+				errors
+			)
+			var rect: Variant = null
+			if _require_key(object, "rect", path, errors):
+				rect = _read_int_array(
+					object["rect"],
+					"%s.rect" % path,
+					4,
+					errors
+				)
+				if rect != null:
+					_validate_rect_bounds(rect, canvas_size, path, errors)
+					_validate_spike_trap_playfield_bounds(
+						rect,
+						object_id,
+						errors
+					)
+					if rect[2] < MIN_SPIKE_TRAP_WIDTH:
+						errors.append(
+							"%s.rect width must be at least %d."
+							% [path, MIN_SPIKE_TRAP_WIDTH]
+						)
+					if rect[3] != SPIKE_TRAP_HEIGHT:
+						errors.append(
+							"%s.rect height must be exactly %d."
+							% [path, SPIKE_TRAP_HEIGHT]
+						)
+
+			if errors.size() != error_count_before:
+				return {"ok": false, "data": {}}
+			return {
+				"ok": true,
+				"data": {
+					"id": object_id,
+					"type": object_type,
+					"rect": rect,
 				},
 			}
 
@@ -1010,6 +1059,30 @@ static func _validate_toggle_platform_playfield_bounds(
 		)
 
 
+static func _validate_spike_trap_playfield_bounds(
+	rect: Array,
+	object_id: String,
+	errors: Array[String]
+) -> void:
+	var x: int = rect[0]
+	var y: int = rect[1]
+	var width: int = rect[2]
+	var height: int = rect[3]
+	if (
+		x < PLAYFIELD_LEFT
+		or y < PLAYFIELD_TOP
+		or x + width > PLAYFIELD_RIGHT
+		or y + height > PLAYFIELD_BOTTOM
+	):
+		errors.append(
+			(
+				"Object '%s' collision bounds must fit inside "
+				+ "the runtime playfield."
+			)
+			% object_id
+		)
+
+
 static func _validate_catapult_playfield_bounds(
 	point: Array,
 	object_id: String,
@@ -1098,6 +1171,51 @@ static func _validate_vertical_platform_corridors(
 			)
 
 
+static func _validate_spike_trap_placements(
+	objects: Array[Dictionary],
+	errors: Array[String]
+) -> void:
+	for spike_index in objects.size():
+		var spike: Dictionary = objects[spike_index]
+		if spike["type"] != "spike_trap":
+			continue
+		var values: Array = spike["rect"]
+		var spike_rect := Rect2(
+			float(values[0]),
+			float(values[1]),
+			float(values[2]),
+			float(values[3])
+		)
+		for other_index in objects.size():
+			if other_index == spike_index:
+				continue
+			var other: Dictionary = objects[other_index]
+			var other_rect := Rect2()
+			if other["type"] == "spike_trap":
+				if other_index < spike_index:
+					continue
+				var other_values: Array = other["rect"]
+				other_rect = Rect2(
+					float(other_values[0]),
+					float(other_values[1]),
+					float(other_values[2]),
+					float(other_values[3])
+				)
+			else:
+				other_rect = _mechanism_collision_rect(other)
+			if (
+				other_rect.size == Vector2.ZERO
+				or not _rects_overlap_strictly(spike_rect, other_rect)
+			):
+				continue
+			errors.append(
+				(
+					"Spike trap '%s' overlaps %s '%s'."
+				)
+				% [spike["id"], other["type"], other["id"]]
+			)
+
+
 static func _validate_links(
 	objects: Array[Dictionary],
 	declared_object_ids: Dictionary,
@@ -1143,6 +1261,7 @@ static func _validate_actor_placements(
 ) -> void:
 	var solids: Array[Dictionary] = []
 	var lift_sweeps: Array[Dictionary] = []
+	var spike_traps: Array[Dictionary] = []
 	for object: Dictionary in objects:
 		var support := _support_definition(object)
 		if not support.is_empty():
@@ -1156,6 +1275,8 @@ static func _validate_actor_placements(
 					),
 				}
 			)
+		elif object["type"] == "spike_trap":
+			spike_traps.append(object)
 
 	for object: Dictionary in objects:
 		var object_type: String = object["type"]
@@ -1214,6 +1335,23 @@ static func _validate_actor_placements(
 						+ "vertical platform '%s' future sweep."
 					)
 					% [object["id"], sweep["id"]]
+				)
+
+		for spike: Dictionary in spike_traps:
+			var spike_values: Array = spike["rect"]
+			var spike_rect := Rect2(
+				float(spike_values[0]),
+				float(spike_values[1]),
+				float(spike_values[2]),
+				float(spike_values[3])
+			)
+			if _rects_overlap_strictly(actor_rect, spike_rect):
+				errors.append(
+					(
+						"Object '%s' collision bounds overlap "
+						+ "spike trap '%s'."
+					)
+					% [object["id"], spike["id"]]
 				)
 
 

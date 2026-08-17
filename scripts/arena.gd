@@ -40,24 +40,32 @@ func _input(event: InputEvent) -> void:
 
 
 func _on_death_zone_body_entered(body: Node2D) -> void:
+	resolve_lethal_hazard(body)
+
+
+func resolve_lethal_hazard(
+	body: Node2D,
+	player_cause: int = Player.DefeatCause.FALL,
+	effect_direction := Vector2.ZERO
+) -> bool:
 	if body is Player:
 		if is_ancestor_of(body):
-			body.receive_lethal_hit(Player.DefeatCause.FALL)
-		return
+			return body.receive_lethal_hit(player_cause, effect_direction)
+		return false
 
 	if (
 		restart_scheduled
 		or not is_ancestor_of(body)
 		or not body.is_in_group("enemies")
 	):
-		return
+		return false
 
 	var elimination_position := body.global_position
-	var elimination_direction := Vector2.DOWN
-	if body is CharacterBody2D:
+	var elimination_direction := effect_direction.normalized()
+	if elimination_direction.is_zero_approx() and body is CharacterBody2D:
 		elimination_direction = (body as CharacterBody2D).velocity.normalized()
-		if elimination_direction.is_zero_approx():
-			elimination_direction = Vector2.DOWN
+	if elimination_direction.is_zero_approx():
+		elimination_direction = Vector2.DOWN
 	var elimination_color := _enemy_elimination_color(body)
 
 	# queue_free() is deferred, so remove the group marker synchronously to make
@@ -87,6 +95,7 @@ func _on_death_zone_body_entered(body: Node2D) -> void:
 		elimination_color,
 		clears_arena
 	)
+	return true
 
 
 func _connect_player_defeat_signals() -> void:
@@ -117,11 +126,13 @@ func _on_player_defeated(
 		return
 
 	var fell_into_pit := cause == Player.DefeatCause.FALL
-	status_label.text = (
-		"ПАДЕНИЕ  /  ПЕРЕЗАПУСК..."
-		if fell_into_pit
-		else "ПОРАЖЕНИЕ  /  ПЕРЕЗАПУСК..."
-	)
+	match cause:
+		Player.DefeatCause.FALL:
+			status_label.text = "ПАДЕНИЕ  /  ПЕРЕЗАПУСК..."
+		Player.DefeatCause.HAZARD:
+			status_label.text = "ШИПЫ  /  ПЕРЕЗАПУСК..."
+		_:
+			status_label.text = "ПОРАЖЕНИЕ  /  ПЕРЕЗАПУСК..."
 	_schedule_outcome(fall_restart_delay, false, Outcome.FALL)
 	if fell_into_pit:
 		player.begin_fall_out(fall_restart_delay)

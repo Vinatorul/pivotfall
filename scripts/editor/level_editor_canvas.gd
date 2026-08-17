@@ -15,10 +15,14 @@ const LEVEL_BEHAVIOR_PRESETS := preload(
 const LOGICAL_SIZE := Vector2(960.0, 540.0)
 const DEFAULT_GRID_SIZE := 20
 const DEFAULT_SOLID_SIZE := Vector2i(120, 20)
+const DEFAULT_SPIKE_TRAP_SIZE := Vector2i(120, 20)
 const DEFAULT_TOGGLE_SIZE := Vector2i(160, 20)
 const DEFAULT_TOGGLE_WALL_SIZE := Vector2i(20, 160)
+const MIN_SPIKE_TRAP_WIDTH := 20
 const MIN_TOGGLE_WIDTH := 20
 const MIN_TOGGLE_WALL_HEIGHT := 20
+const SPIKE_TRAP_TOOTH_WIDTH := 20.0
+const SPIKE_TRAP_BASE_HEIGHT := 4.0
 const PIT_TOP := 496.0
 const FIXED_BORDER_SIZE := 32.0
 const DRAG_THRESHOLD := 4.0
@@ -53,6 +57,7 @@ const VERTICAL_PLATFORM_PASSENGER_ALPHA := 0.42
 
 const TOOL_SELECT := "select"
 const TOOL_SOLID_RECT := "solid_rect"
+const TOOL_SPIKE_TRAP := "spike_trap"
 const TOOL_PLAYER_SPAWN := "player_spawn"
 const TOOL_DOUBLE_JUMP_PICKUP := "double_jump_pickup"
 const TOOL_PATROL_ENEMY := "patrol_enemy"
@@ -66,6 +71,7 @@ const TOOL_HINGE := "hinge"
 const SUPPORTED_TOOLS := [
 	TOOL_SELECT,
 	TOOL_SOLID_RECT,
+	TOOL_SPIKE_TRAP,
 	TOOL_PLAYER_SPAWN,
 	TOOL_DOUBLE_JUMP_PICKUP,
 	TOOL_PATROL_ENEMY,
@@ -79,6 +85,7 @@ const SUPPORTED_TOOLS := [
 ]
 const RECT_OBJECT_TYPES := [
 	TOOL_SOLID_RECT,
+	TOOL_SPIKE_TRAP,
 	TOOL_TOGGLE_PLATFORM,
 	TOOL_TOGGLE_WALL,
 ]
@@ -104,6 +111,7 @@ const DRAW_ORDER := [
 	TOOL_TOGGLE_WALL,
 	TOOL_VERTICAL_PLATFORM,
 	TOOL_CATAPULT_PLATFORM,
+	TOOL_SPIKE_TRAP,
 	TOOL_DOUBLE_JUMP_PICKUP,
 	TOOL_PLAYER_SPAWN,
 	TOOL_PATROL_ENEMY,
@@ -119,6 +127,7 @@ const HIT_ORDER := [
 	TOOL_PATROL_ENEMY,
 	TOOL_PLAYER_SPAWN,
 	TOOL_CATAPULT_PLATFORM,
+	TOOL_SPIKE_TRAP,
 	TOOL_TOGGLE_PLATFORM,
 	TOOL_TOGGLE_WALL,
 	TOOL_VERTICAL_PLATFORM,
@@ -149,6 +158,9 @@ const COLOR_SOLID := Color(0.235, 0.302, 0.416, 1.0)
 const COLOR_SOLID_EDGE := Color(0.392, 0.455, 0.584, 1.0)
 const COLOR_ONE_WAY_SOLID := Color(0.267, 0.365, 0.498, 1.0)
 const COLOR_ONE_WAY_EDGE := Color(0.439, 0.827, 0.816, 0.9)
+const COLOR_SPIKE_TRAP := Color(0.961, 0.306, 0.267, 1.0)
+const COLOR_SPIKE_TRAP_BASE := Color(0.635, 0.18, 0.239, 1.0)
+const COLOR_SPIKE_TRAP_ZONE := Color(0.961, 0.306, 0.267, 0.16)
 const COLOR_PLAYER := Color(0.251, 0.878, 0.816, 1.0)
 const COLOR_PLAYER_FACE := Color(0.071, 0.204, 0.251, 1.0)
 const COLOR_PATROL := Color(0.973, 0.58, 0.267, 1.0)
@@ -401,7 +413,10 @@ func _begin_primary_action(local_position: Vector2) -> void:
 			selection_requested.emit(object_id)
 			_begin_move_drag(hit_object, local_position, logical_position)
 
-		TOOL_SOLID_RECT, TOOL_TOGGLE_PLATFORM, TOOL_TOGGLE_WALL:
+		TOOL_SOLID_RECT, \
+		TOOL_SPIKE_TRAP, \
+		TOOL_TOGGLE_PLATFORM, \
+		TOOL_TOGGLE_WALL:
 			_drag_active = true
 			_drag_kind = _tool
 			_drag_press_local = local_position
@@ -483,6 +498,15 @@ func _update_drag(local_position: Vector2) -> void:
 			true
 		)
 		_drag_preview_payload = _solid_rect_from_drag(
+			_drag_start_logical,
+			snapped_current
+		)
+	elif _drag_kind == TOOL_SPIKE_TRAP:
+		var snapped_current := _snap_logical_point(
+			_drag_current_logical,
+			true
+		)
+		_drag_preview_payload = _spike_trap_rect_from_drag(
 			_drag_start_logical,
 			snapped_current
 		)
@@ -822,6 +846,12 @@ func _draw_object(
 				bool(object.get("one_way", false))
 			)
 
+		TOOL_SPIKE_TRAP:
+			var rect_values: Variant = object.get("rect")
+			if not _is_number_array(rect_values, 4):
+				return
+			_draw_spike_trap(rect_values, view_rect, alpha)
+
 		TOOL_TOGGLE_PLATFORM:
 			var rect_values: Variant = object.get("rect")
 			if not _is_number_array(rect_values, 4):
@@ -983,6 +1013,66 @@ func _draw_solid(
 	draw_rect(
 		_logical_rect_to_local(logical_edge, view_rect),
 		_with_alpha(edge_color, alpha)
+	)
+
+
+func _draw_spike_trap(
+	rect_values: Array,
+	view_rect: Rect2,
+	alpha: float
+) -> void:
+	var logical_rect := _rect_from_payload(rect_values)
+	var local_rect := _logical_rect_to_local(logical_rect, view_rect)
+	draw_rect(
+		local_rect,
+		_with_alpha(COLOR_SPIKE_TRAP_ZONE, alpha)
+	)
+
+	var tooth_count := maxi(
+		int(round(logical_rect.size.x / SPIKE_TRAP_TOOTH_WIDTH)),
+		1
+	)
+	var tooth_width := logical_rect.size.x / float(tooth_count)
+	var spike_points := PackedVector2Array(
+		[
+			Vector2(
+				logical_rect.position.x,
+				logical_rect.end.y
+			)
+		]
+	)
+	for tooth_index in tooth_count:
+		var tooth_left := (
+			logical_rect.position.x
+			+ float(tooth_index) * tooth_width
+		)
+		spike_points.append(
+			Vector2(
+				tooth_left + tooth_width * 0.5,
+				logical_rect.position.y
+			)
+		)
+		spike_points.append(
+			Vector2(tooth_left + tooth_width, logical_rect.end.y)
+		)
+	draw_colored_polygon(
+		_logical_points_to_local(spike_points, view_rect),
+		_with_alpha(COLOR_SPIKE_TRAP, alpha)
+	)
+
+	var logical_base := Rect2(
+		Vector2(
+			logical_rect.position.x,
+			logical_rect.end.y - SPIKE_TRAP_BASE_HEIGHT
+		),
+		Vector2(
+			logical_rect.size.x,
+			minf(SPIKE_TRAP_BASE_HEIGHT, logical_rect.size.y)
+		)
+	)
+	draw_rect(
+		_logical_rect_to_local(logical_base, view_rect),
+		_with_alpha(COLOR_SPIKE_TRAP_BASE, alpha)
 	)
 
 
@@ -2354,7 +2444,13 @@ func _draw_drag_preview(view_rect: Rect2) -> void:
 		and _is_number_array(_drag_preview_payload, 4)
 	):
 		logical_rect = _rect_from_payload(_drag_preview_payload)
-		if _drag_kind == TOOL_TOGGLE_PLATFORM:
+		if _drag_kind == TOOL_SPIKE_TRAP:
+			_draw_spike_trap(
+				_drag_preview_payload,
+				view_rect,
+				COLOR_GHOST.a
+			)
+		elif _drag_kind == TOOL_TOGGLE_PLATFORM:
 			_draw_toggle_platform(
 				_drag_preview_payload,
 				true,
@@ -2493,7 +2589,13 @@ func _draw_drag_preview(view_rect: Rect2) -> void:
 		and _is_number_array(_drag_preview_payload, 4)
 	):
 		logical_rect = _rect_from_payload(_drag_preview_payload)
-		if _drag_object_type == TOOL_TOGGLE_PLATFORM:
+		if _drag_object_type == TOOL_SPIKE_TRAP:
+			_draw_spike_trap(
+				_drag_preview_payload,
+				view_rect,
+				COLOR_GHOST.a
+			)
+		elif _drag_object_type == TOOL_TOGGLE_PLATFORM:
 			_draw_toggle_platform(
 				_drag_preview_payload,
 				bool(
@@ -2673,7 +2775,10 @@ static func _behavior_preset(object: Dictionary) -> String:
 func _payload_for_object(object: Dictionary) -> Variant:
 	var object_type := str(object.get("type", ""))
 	match object_type:
-		TOOL_SOLID_RECT, TOOL_TOGGLE_PLATFORM, TOOL_TOGGLE_WALL:
+		TOOL_SOLID_RECT, \
+		TOOL_SPIKE_TRAP, \
+		TOOL_TOGGLE_PLATFORM, \
+		TOOL_TOGGLE_WALL:
 			var rect_values: Variant = object.get("rect")
 			if _is_number_array(rect_values, 4):
 				return _duplicate_payload(rect_values)
@@ -2719,6 +2824,41 @@ func _solid_rect_from_drag(
 		_round_to_int(top),
 		_round_to_int(right - left),
 		_round_to_int(bottom - top),
+	]
+
+
+func _spike_trap_rect_from_drag(
+	start: Vector2,
+	current: Vector2
+) -> Array:
+	var grid_size := float(_grid_size())
+	var minimum_width := maxf(
+		grid_size,
+		float(MIN_SPIKE_TRAP_WIDTH)
+	)
+	var end_x := current.x
+	if is_equal_approx(end_x, start.x):
+		end_x += grid_size
+	end_x = clampf(end_x, 0.0, LOGICAL_SIZE.x)
+
+	var left := minf(start.x, end_x)
+	var right := maxf(start.x, end_x)
+	if right - left < minimum_width:
+		if left + minimum_width <= LOGICAL_SIZE.x:
+			right = left + minimum_width
+		else:
+			left = maxf(0.0, right - minimum_width)
+
+	var top := clampf(
+		start.y,
+		0.0,
+		LOGICAL_SIZE.y - float(DEFAULT_SPIKE_TRAP_SIZE.y)
+	)
+	return [
+		_round_to_int(left),
+		_round_to_int(top),
+		_round_to_int(right - left),
+		DEFAULT_SPIKE_TRAP_SIZE.y,
 	]
 
 
@@ -2794,6 +2934,26 @@ func _toggle_wall_rect_from_drag(
 
 func _default_rect(start: Vector2, object_type: String) -> Array:
 	var grid_size := _grid_size()
+	if object_type == TOOL_SPIKE_TRAP:
+		var spike_width := mini(
+			DEFAULT_SPIKE_TRAP_SIZE.x,
+			int(LOGICAL_SIZE.x)
+		)
+		var spike_height := DEFAULT_SPIKE_TRAP_SIZE.y
+		var spike_left := mini(
+			_round_to_int(start.x),
+			int(LOGICAL_SIZE.x) - spike_width
+		)
+		var spike_top := mini(
+			_round_to_int(start.y),
+			int(LOGICAL_SIZE.y) - spike_height
+		)
+		return [
+			maxi(spike_left, 0),
+			maxi(spike_top, 0),
+			spike_width,
+			spike_height,
+		]
 	if object_type == TOOL_TOGGLE_PLATFORM:
 		var toggle_width := mini(
 			DEFAULT_TOGGLE_SIZE.x,

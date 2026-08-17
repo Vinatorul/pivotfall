@@ -139,14 +139,21 @@ func _run() -> void:
 		is_instance_valid(selector)
 		and selector_entries.size() == catalog.size()
 		and is_instance_valid(selector_list)
-		and "[13]" in selector_list.text
-		and "Arena 13 / Двойной прыжок" in selector_list.text,
+		and "[14]" in selector_list.text
+		and "Arena 14 / Шипы" in selector_list.text
+		and selector_list.get_content_height() <= selector_list.size.y,
 		(
-			"Debug selector did not expose all thirteen built-in arenas: "
-			+ "selector=%s entries=%d text=%s"
+			"Debug selector did not expose all fourteen built-in arenas: "
+			+ "selector=%s entries=%d content=%s height=%s text=%s"
 			% [
 				is_instance_valid(selector),
 				selector_entries.size(),
+				(
+					selector_list.get_content_height()
+					if is_instance_valid(selector_list)
+					else -1
+				),
+				selector_list.size.y if is_instance_valid(selector_list) else -1,
 				selector_list.text if is_instance_valid(selector_list) else "",
 			]
 		)

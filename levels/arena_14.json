@@ -1,0 +1,48 @@
+{
+	"schema_version": 1,
+	"level_id": "arena_14_data",
+	"title": "GRAYBOX  /  DATA ARENA 14  /  ШИПЫ",
+	"objective": "ПОДБЕРИ УСИЛИТЕЛЬ  /  ПЕРЕПРЫГНИ ШИПЫ  /  СТОЛКНИ ВРАГА",
+	"clear_message": "DATA ARENA 14 ПРОЙДЕНА  /  ПЕРЕЗАПУСК...",
+	"canvas": {
+		"width": 960,
+		"height": 540,
+		"grid_size": 20
+	},
+	"objects": [
+		{
+			"id": "left_floor",
+			"type": "solid_rect",
+			"rect": [32, 496, 348, 44],
+			"one_way": false
+		},
+		{
+			"id": "right_floor",
+			"type": "solid_rect",
+			"rect": [600, 496, 328, 44],
+			"one_way": false
+		},
+		{
+			"id": "center_spikes",
+			"type": "spike_trap",
+			"rect": [380, 476, 220, 20]
+		},
+		{
+			"id": "player_start",
+			"type": "player_spawn",
+			"position": [100, 450]
+		},
+		{
+			"id": "double_jump_1",
+			"type": "double_jump_pickup",
+			"position": [220, 450]
+		},
+		{
+			"id": "patrol_1",
+			"type": "patrol_enemy",
+			"position": [660, 450],
+			"direction": 1,
+			"speed": 20
+		}
+	]
+}

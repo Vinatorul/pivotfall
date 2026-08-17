@@ -30,6 +30,7 @@ enum LocomotionPose {
 enum DefeatCause {
 	COMBAT,
 	FALL,
+	HAZARD,
 }
 
 @export_category("Movement")
@@ -198,7 +199,7 @@ func _physics_process(delta: float) -> void:
 		_update_clear_celebration_animation(delta)
 		return
 
-	if is_defeated and defeat_cause == DefeatCause.COMBAT:
+	if is_defeated and _uses_combat_defeat(defeat_cause):
 		if combat_defeat_hold_frames_remaining > 0:
 			combat_defeat_hold_frames_remaining -= 1
 			return
@@ -352,6 +353,10 @@ func unlock_double_jump() -> bool:
 	return true
 
 
+static func _uses_combat_defeat(cause: int) -> bool:
+	return cause == DefeatCause.COMBAT or cause == DefeatCause.HAZARD
+
+
 func receive_lethal_hit(
 	cause: int = DefeatCause.COMBAT,
 	impact_direction := Vector2.ZERO
@@ -359,11 +364,12 @@ func receive_lethal_hit(
 	if is_defeated or is_clear_celebrating:
 		return false
 
+	var uses_combat_defeat := _uses_combat_defeat(cause)
 	is_defeated = true
 	defeat_cause = cause
 	defeat_impact_direction = impact_direction.normalized()
 	if (
-		cause == DefeatCause.COMBAT
+		uses_combat_defeat
 		and defeat_impact_direction.is_zero_approx()
 	):
 		defeat_impact_direction = Vector2(facing_direction, 0.0)
@@ -372,7 +378,7 @@ func receive_lethal_hit(
 	jump_requested = false
 	attack_requested = false
 	_finish_attack()
-	if cause == DefeatCause.COMBAT:
+	if uses_combat_defeat:
 		combat_defeat_hold_frames_remaining = (
 			combat_defeat_hit_stop_frames
 		)
