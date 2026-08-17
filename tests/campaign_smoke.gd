@@ -12,6 +12,7 @@ const LEVEL_STORAGE := preload(
 const RUNNER_SCENE := preload(
 	"res://scenes/campaign_runner.tscn"
 )
+const ARENA_SELECT_PATH := "res://scenes/arena_select.tscn"
 
 const EXPECTED_LEVEL_IDS: Array[String] = [
 	"arena_01_data",
@@ -53,6 +54,8 @@ func _run() -> void:
 		and bool(campaign_result.get("ok", false))
 	):
 		await _test_runner_lifecycle(campaign_result)
+		await _cleanup_current_scene()
+		await _test_replay_lifecycle(campaign_result)
 
 	await _cleanup_current_scene()
 	_cleanup_campaign_progress()
@@ -623,6 +626,225 @@ func _test_runner_lifecycle(campaign_result: Dictionary) -> void:
 		_expect(false, "New campaign Arena 01 intro did not finish.")
 
 
+func _test_replay_lifecycle(campaign_result: Dictionary) -> void:
+	var entries: Array[Dictionary] = []
+	for raw_entry: Variant in campaign_result.get("entries", []):
+		if typeof(raw_entry) == TYPE_DICTIONARY:
+			entries.append(
+				(raw_entry as Dictionary).duplicate(true)
+			)
+	if entries.size() < 4:
+		_expect(false, "Replay smoke requires at least four arenas.")
+		return
+
+	var reset := progress_store.reset_progress(entries)
+	var unlocked_second := progress_store.record_level_started(
+		entries,
+		str(entries[1]["id"])
+	)
+	var unlocked_third := progress_store.record_level_started(
+		entries,
+		str(entries[2]["id"])
+	)
+	_expect(
+		bool(reset["ok"])
+		and bool(unlocked_second["ok"])
+		and bool(unlocked_third["ok"]),
+		"Could not prepare replay progress through Arena 03."
+	)
+	if (
+		not bool(reset["ok"])
+		or not bool(unlocked_second["ok"])
+		or not bool(unlocked_third["ok"])
+	):
+		return
+
+	var progress_bytes := FileAccess.get_file_as_bytes(
+		progress_store.get_storage_path()
+	)
+	var prepared := progress_store.prepare_replay(
+		entries,
+		str(entries[1]["id"])
+	)
+	_expect(
+		bool(prepared["ok"])
+		and FileAccess.get_file_as_bytes(
+			progress_store.get_storage_path()
+		) == progress_bytes,
+		"Preparing replay changed campaign save bytes."
+	)
+	if not bool(prepared["ok"]):
+		return
+
+	var selector := root.get_node_or_null("DebugLevelSelector")
+	if is_instance_valid(selector):
+		selector.call(
+			"remember_requested_campaign_level_id",
+			str(entries[-1]["id"])
+		)
+
+	var runner := RUNNER_SCENE.instantiate() as CampaignRunner
+	_expect(is_instance_valid(runner), "Could not instantiate replay runner.")
+	if not is_instance_valid(runner):
+		return
+	runner.intro_duration = 0.01
+	root.add_child(runner)
+	current_scene = runner
+	await process_frame
+
+	var consumed_again := progress_store.consume_launch_request()
+	_expect(
+		runner.get_current_level_id() == str(entries[1]["id"])
+		and runner.is_replay_mode()
+		and not runner.is_tracking_progress()
+		and runner.intro_meta.text
+		== "ПОВТОР  /  АРЕНА 2 / %d" % entries.size()
+		and runner.progress_label.text
+		== "ПОВТОР  /  АРЕНА  2 / %d" % entries.size()
+		and runner.call("_pause_arena_text")
+		== "ПОВТОР  /  АРЕНА 2 / %d" % entries.size()
+		and bool(runner.current_runtime.get("_campaign_has_next"))
+		and str(consumed_again["level_id"]).is_empty()
+		and not bool(consumed_again["track_progress"])
+		and not bool(consumed_again["replay"])
+		and FileAccess.get_file_as_bytes(
+			progress_store.get_storage_path()
+		) == progress_bytes,
+		"Replay launch did not consume its request or expose replay HUD state."
+	)
+	_expect_selector_id(str(entries[1]["id"]))
+	if not await _wait_for_intro_end(runner):
+		_expect(false, "Replay Arena 02 intro did not finish.")
+		return
+
+	var arena_02_runtime_id := runner.current_runtime.get_instance_id()
+	runner.current_runtime.campaign_advance_requested.emit()
+	var advanced := await _wait_for_runtime(
+		runner,
+		str(entries[2]["id"]),
+		arena_02_runtime_id
+	)
+	_expect(
+		advanced
+		and runner.is_replay_mode()
+		and not runner.is_tracking_progress()
+		and not bool(runner.current_runtime.get("_campaign_has_next"))
+		and runner.current_runtime.clear_message
+		== CampaignRunner.REPLAY_CLEAR_MESSAGE
+		and runner.progress_label.text
+		== "ПОВТОР  /  АРЕНА  3 / %d" % entries.size()
+		and FileAccess.get_file_as_bytes(
+			progress_store.get_storage_path()
+		) == progress_bytes,
+		"Replay did not advance to its unlocked boundary without saving."
+	)
+	if not advanced:
+		return
+	if not await _wait_for_intro_end(runner):
+		_expect(false, "Replay boundary intro did not finish.")
+		return
+
+	runner.campaign_data["final_behavior"] = "restart_final_level"
+	runner.current_runtime.campaign_completed_requested.emit()
+	var completed := await _wait_for_completion(runner)
+	_expect(
+		completed
+		and runner.is_replay_mode()
+		and runner.get_current_level_id() == str(entries[2]["id"])
+		and runner.completion_title.text == "ПОВТОР ЗАВЕРШЁН"
+		and runner.completion_count.text == "3 / %d" % entries.size()
+		and runner.completion_subtitle.text
+		== "ПРОГРЕСС КАМПАНИИ НЕ ИЗМЕНЁН"
+		and runner.completion_restart_button.text == "ВЫБОР АРЕН"
+		and runner.completion_main_menu_button.text == "В МЕНЮ"
+		and root.get_viewport().gui_get_focus_owner()
+		== runner.completion_restart_button
+		and FileAccess.get_file_as_bytes(
+			progress_store.get_storage_path()
+		) == progress_bytes,
+		"Replay boundary did not show a save-safe replay completion."
+	)
+	if not completed:
+		return
+
+	await _press_physical_key(KEY_R)
+	await _wait_frames(2)
+	_expect(
+		runner.is_campaign_complete()
+		and runner.is_replay_mode()
+		and not is_instance_valid(runner.current_runtime)
+		and FileAccess.get_file_as_bytes(
+			progress_store.get_storage_path()
+		) == progress_bytes,
+		"Physical R restarted or saved a completed replay."
+	)
+
+	runner.completion_restart_button.pressed.emit()
+	var arena_select := await _wait_for_scene(ARENA_SELECT_PATH)
+	_expect(
+		is_instance_valid(arena_select)
+		and FileAccess.get_file_as_bytes(
+			progress_store.get_storage_path()
+		) == progress_bytes,
+		"Replay completion primary action did not return to arena selection."
+	)
+
+	await _cleanup_current_scene()
+	var same_level_prepared := progress_store.prepare_replay(
+		entries,
+		str(entries[2]["id"])
+	)
+	var debug_runner := RUNNER_SCENE.instantiate() as CampaignRunner
+	_expect(
+		bool(same_level_prepared.get("ok", false))
+		and is_instance_valid(debug_runner),
+		"Could not prepare the replay-to-debug regression check."
+	)
+	if (
+		not bool(same_level_prepared.get("ok", false))
+		or not is_instance_valid(debug_runner)
+	):
+		return
+	debug_runner.intro_duration = 0.01
+	root.add_child(debug_runner)
+	current_scene = debug_runner
+	await process_frame
+
+	var replay_runtime_id := (
+		debug_runner.current_runtime.get_instance_id()
+	)
+	var debug_opened := debug_runner.open_level_by_id(
+		str(entries[2]["id"])
+	)
+	var debug_replaced := await _wait_for_runtime(
+		debug_runner,
+		str(entries[2]["id"]),
+		replay_runtime_id
+	)
+	_expect(
+		debug_opened
+		and debug_replaced
+		and not debug_runner.is_replay_mode()
+		and not debug_runner.is_tracking_progress()
+		and bool(
+			debug_runner.current_runtime.get(
+				"_campaign_has_next"
+			)
+		)
+		and debug_runner.current_runtime.clear_message
+		!= CampaignRunner.REPLAY_CLEAR_MESSAGE
+		and debug_runner.progress_label.text
+		== "КАМПАНИЯ  3 / %d" % entries.size()
+		and FileAccess.get_file_as_bytes(
+			progress_store.get_storage_path()
+		) == progress_bytes,
+		(
+			"Opening the same replay arena through debug did not "
+			+ "rebuild a normal untracked runtime."
+		)
+	)
+
+
 func _expect_intro(
 	runner: CampaignRunner,
 	expected_title: String,
@@ -713,6 +935,18 @@ func _wait_for_runtime(
 		):
 			return true
 	return false
+
+
+func _wait_for_scene(scene_path: String) -> Node:
+	for _frame in 180:
+		await process_frame
+		await physics_frame
+		if (
+			is_instance_valid(current_scene)
+			and current_scene.scene_file_path == scene_path
+		):
+			return current_scene
+	return null
 
 
 func _expect_runtime(

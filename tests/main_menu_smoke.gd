@@ -172,6 +172,26 @@ func _run() -> void:
 	)
 	if is_instance_valid(final_menu):
 		_expect_menu_ready(final_menu, selector)
+		_expect(
+			_complete_campaign(final_menu.campaign_entries),
+			"Could not prepare completed progress for the menu check."
+		)
+		var completed_menu := await _replace_with_menu(final_menu)
+		_expect(
+			is_instance_valid(completed_menu)
+			and completed_menu.progress_completed
+			and completed_menu.continue_button.disabled
+			and completed_menu.arena_select_button.visible
+			and not completed_menu.arena_select_button.disabled
+			and root.get_viewport().gui_get_focus_owner()
+			== completed_menu.arena_select_button,
+			(
+				"Completed progress did not expose and focus "
+				+ "Arena Select."
+			)
+		)
+		if is_instance_valid(completed_menu):
+			_expect_menu_ready(completed_menu, selector)
 
 	_finish()
 
@@ -183,6 +203,9 @@ func _expect_menu_ready(menu: Node, selector: Node) -> void:
 	var brand_title := menu.get_node_or_null(
 		"Panel/Title"
 	) as Label
+	var subtitle := menu.get_node_or_null(
+		"Panel/Subtitle"
+	) as Label
 	_expect(
 		is_instance_valid(brand_kicker)
 		and brand_kicker.text == "PUSH  /  PIVOT  /  SURVIVE"
@@ -191,7 +214,16 @@ func _expect_menu_ready(menu: Node, selector: Node) -> void:
 		"Main menu does not show the Pivotfall brand."
 	)
 	_expect(
-		menu.continue_button.text.begins_with("ПРОДОЛЖИТЬ")
+		(
+			menu.continue_button.text.begins_with("ПРОДОЛЖИТЬ")
+			or (
+				menu.progress_completed
+				and menu.continue_button.text == "КАМПАНИЯ ПРОЙДЕНА"
+			)
+		)
+		and menu.arena_select_button.text == "ВЫБОР АРЕН"
+		and menu.arena_select_button.visible == menu.has_valid_progress
+		and menu.arena_select_button.disabled != menu.has_valid_progress
 		and menu.new_game_button.text == "НОВАЯ ИГРА"
 		and menu.editor_button.text == "РЕДАКТОР УРОВНЕЙ"
 		and menu.exit_button.text == "ВЫХОД"
@@ -201,11 +233,22 @@ func _expect_menu_ready(menu: Node, selector: Node) -> void:
 		"Main menu buttons or state are incomplete."
 	)
 	_expect(
+		is_instance_valid(subtitle)
+		and subtitle.text == "ACTION PUZZLE  /  %d АРЕН" % (
+			menu.campaign_entries.size()
+		),
+		"Main menu arena count does not come from the manifest."
+	)
+	_expect(
 		root.get_viewport().gui_get_focus_owner()
 		== (
 			menu.continue_button
 			if not menu.continue_button.disabled
-			else menu.new_game_button
+			else (
+				menu.arena_select_button
+				if menu.arena_select_button.visible
+				else menu.new_game_button
+			)
 		),
 		"Main menu did not focus its first available campaign action."
 	)
@@ -215,6 +258,31 @@ func _expect_menu_ready(menu: Node, selector: Node) -> void:
 		and not selector.hint.visible,
 		"Main menu did not suppress the debug selector."
 	)
+
+
+func _complete_campaign(entries: Array[Dictionary]) -> bool:
+	for index in range(1, entries.size()):
+		var advanced := progress_store.record_level_started(
+			entries,
+			str(entries[index].get("id", ""))
+		)
+		if not bool(advanced.get("ok", false)):
+			return false
+	var completed := progress_store.mark_completed(entries)
+	return bool(completed.get("ok", false))
+
+
+func _replace_with_menu(previous: Node) -> MainMenu:
+	current_scene = null
+	if is_instance_valid(previous):
+		previous.queue_free()
+		await previous.tree_exited
+
+	var menu := MAIN_MENU_SCENE.instantiate() as MainMenu
+	root.add_child(menu)
+	current_scene = menu
+	await process_frame
+	return menu
 
 
 func _wait_for_scene(scene_path: String) -> Node:

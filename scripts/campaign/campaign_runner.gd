@@ -14,8 +14,12 @@ const LEVEL_RUNTIME_SCENE := preload(
 	"res://scenes/level_runtime_arena.tscn"
 )
 const MAIN_MENU_SCENE_PATH := "res://scenes/main_menu.tscn"
+const ARENA_SELECT_SCENE_PATH := "res://scenes/arena_select.tscn"
 const COMPLETION_CLEAR_MESSAGE := (
 	"КАМПАНИЯ ПРОЙДЕНА  /  ФИНАЛ..."
+)
+const REPLAY_CLEAR_MESSAGE := (
+	"ПОВТОР ЗАВЕРШЁН  /  ВЫБОР АРЕН..."
 )
 
 enum Phase {
@@ -39,7 +43,11 @@ enum Phase {
 @onready var intro_title: Label = $CampaignUI/Intro/Panel/Title
 @onready var intro_meta: Label = $CampaignUI/Intro/Panel/Meta
 @onready var completion_ui: Control = $CampaignUI/Completion
+@onready var completion_title: Label = $CampaignUI/Completion/Panel/Title
 @onready var completion_count: Label = $CampaignUI/Completion/Panel/Count
+@onready var completion_subtitle: Label = (
+	$CampaignUI/Completion/Panel/Subtitle
+)
 @onready var completion_hint: Label = $CampaignUI/Completion/Panel/Hint
 @onready var completion_restart_button: Button = (
 	$CampaignUI/Completion/Panel/Restart
@@ -64,6 +72,8 @@ var phase := Phase.BOOTING
 var _snapshots_by_id: Dictionary = {}
 var _intro_generation := 0
 var _tracks_progress := false
+var _replay_mode := false
+var _replay_end_index := -1
 
 
 func _ready() -> void:
@@ -71,7 +81,9 @@ func _ready() -> void:
 	pause_menu.restart_requested.connect(restart_current_level)
 	pause_menu.main_menu_requested.connect(return_to_main_menu)
 	mobile_controls.pause_requested.connect(open_pause_menu)
-	completion_restart_button.pressed.connect(restart_campaign)
+	completion_restart_button.pressed.connect(
+		_on_completion_primary_pressed
+	)
 	completion_main_menu_button.pressed.connect(return_to_main_menu)
 	mobile_controls.set_active(false)
 	if DisplayServer.is_touchscreen_available():
@@ -108,21 +120,59 @@ func _ready() -> void:
 
 	var start_index := 0
 	var launch_request := _consume_progress_launch_request()
-	var tracked_level_id := str(
+	var requested_level_id := str(
 		launch_request.get("level_id", "")
 	)
-	if bool(launch_request.get("track_progress", false)):
-		var tracked_index := _entry_index_by_id(tracked_level_id)
+	var track_progress := bool(
+		launch_request.get("track_progress", false)
+	)
+	var replay_requested := bool(
+		launch_request.get("replay", false)
+	)
+	if track_progress and replay_requested:
+		_show_failure(
+			["Campaign launch request has conflicting modes."]
+		)
+		return
+	if track_progress:
+		var tracked_index := _entry_index_by_id(requested_level_id)
 		if tracked_index < 0:
 			_show_failure(
 				[
 					"Saved campaign level '%s' is unavailable."
-					% tracked_level_id
+					% requested_level_id
 				]
 			)
 			return
 		start_index = tracked_index
 		_tracks_progress = true
+	elif replay_requested:
+		var replay_end_level_id := str(
+			launch_request.get("highest_unlocked_level_id", "")
+		)
+		var replay_start_index := _entry_index_by_id(
+			requested_level_id
+		)
+		var replay_end_index := _entry_index_by_id(
+			replay_end_level_id
+		)
+		if (
+			replay_start_index < 0
+			or replay_end_index < 0
+			or replay_start_index > replay_end_index
+		):
+			_show_failure(
+				[
+					(
+						"Replay launch request '%s' -> '%s' is invalid."
+						% [requested_level_id, replay_end_level_id]
+					)
+				]
+			)
+			return
+		start_index = replay_start_index
+		_replay_mode = true
+		_replay_end_index = replay_end_index
 	else:
 		var requested_id := _requested_campaign_level_id()
 		if not requested_id.is_empty():
@@ -187,11 +237,15 @@ func open_level_by_id(level_id: String) -> bool:
 	):
 		return false
 
+	var was_replay_mode := _replay_mode
 	_tracks_progress = false
+	_replay_mode = false
+	_replay_end_index = -1
 	if (
 		target_index == current_level_index
 		and is_instance_valid(current_runtime)
 		and not campaign_completed
+		and not was_replay_mode
 	):
 		_remember_campaign_level_id(level_id)
 		return true
@@ -225,9 +279,14 @@ func is_tracking_progress() -> bool:
 	return _tracks_progress
 
 
+func is_replay_mode() -> bool:
+	return _replay_mode
+
+
 func restart_campaign() -> bool:
 	if (
 		not campaign_completed
+		or _replay_mode
 		or transitioning
 		or campaign_entries.is_empty()
 	):
@@ -298,12 +357,22 @@ func restart_current_level() -> bool:
 
 
 func return_to_main_menu() -> bool:
+	return _return_to_scene(MAIN_MENU_SCENE_PATH, "main menu")
+
+
+func return_to_arena_select() -> bool:
+	if not _replay_mode or not campaign_completed:
+		return false
+	return _return_to_scene(ARENA_SELECT_SCENE_PATH, "arena selector")
+
+
+func _return_to_scene(scene_path: String, description: String) -> bool:
 	if transitioning:
 		return false
-	if not ResourceLoader.exists(MAIN_MENU_SCENE_PATH):
+	if not ResourceLoader.exists(scene_path):
 		push_error(
-			"Main menu scene does not exist: %s"
-			% MAIN_MENU_SCENE_PATH
+			"%s scene does not exist: %s"
+			% [description.capitalize(), scene_path]
 		)
 		return false
 
@@ -316,7 +385,7 @@ func return_to_main_menu() -> bool:
 	transitioning = true
 	phase = Phase.REPLACING
 	var change_error := get_tree().change_scene_to_file(
-		MAIN_MENU_SCENE_PATH
+		scene_path
 	)
 	if change_error == OK:
 		transition_generation += 1
@@ -330,14 +399,15 @@ func return_to_main_menu() -> bool:
 	elif previous_phase == Phase.PLAYING:
 		_set_runtime_active(true)
 	push_error(
-		"Could not open main menu '%s' (error %d)."
-		% [MAIN_MENU_SCENE_PATH, change_error]
+		"Could not open %s '%s' (error %d)."
+		% [description, scene_path, change_error]
 	)
 	return false
 
 
 func _pause_arena_text() -> String:
-	return "АРЕНА %d / %d" % [
+	return "%sАРЕНА %d / %d" % [
+		"ПОВТОР  /  " if _replay_mode else "",
 		current_level_index + 1,
 		campaign_entries.size(),
 	]
@@ -424,7 +494,7 @@ func _spawn_runtime(
 
 	runtime.configure_campaign_snapshot(
 		snapshot_json,
-		index + 1 < campaign_entries.size(),
+		_has_next_level(index),
 		str(campaign_data.get("advance_message", ""))
 	)
 	runtime.campaign_advance_requested.connect(
@@ -442,7 +512,11 @@ func _spawn_runtime(
 	runtime_host.add_child(runtime)
 	if runtime.level_loaded:
 		if _is_completion_final_index(index):
-			runtime.clear_message = COMPLETION_CLEAR_MESSAGE
+			runtime.clear_message = (
+				REPLAY_CLEAR_MESSAGE
+				if _replay_mode
+				else COMPLETION_CLEAR_MESSAGE
+			)
 		failure_ui.visible = false
 		_update_progress(index)
 		if show_intro:
@@ -523,6 +597,9 @@ func _on_advance_requested(
 		return
 
 	var next_index := current_level_index + 1
+	if _replay_mode and next_index > _replay_end_index:
+		_show_completion()
+		return
 	if next_index >= campaign_entries.size():
 		next_index = current_level_index
 	_replace_runtime(next_index, true, true)
@@ -533,6 +610,10 @@ func _on_completed_requested(
 	generation: int
 ) -> void:
 	if not _is_current_request(runtime, generation):
+		return
+
+	if _replay_mode:
+		_show_completion()
 		return
 
 	if (
@@ -575,7 +656,8 @@ func _begin_intro(index: int, generation: int) -> void:
 	intro_title.text = str(
 		campaign_entries[index].get("title", "ARENA")
 	).to_upper()
-	intro_meta.text = "АРЕНА %d / %d" % [
+	intro_meta.text = "%sАРЕНА %d / %d" % [
+		"ПОВТОР  /  " if _replay_mode else "",
 		index + 1,
 		campaign_entries.size(),
 	]
@@ -623,7 +705,8 @@ func _cancel_intro() -> void:
 
 
 func _update_progress(index: int) -> void:
-	var progress_text := "КАМПАНИЯ  %d / %d" % [
+	var progress_text := "%s  %d / %d" % [
+		"ПОВТОР  /  АРЕНА" if _replay_mode else "КАМПАНИЯ",
 		index + 1,
 		campaign_entries.size(),
 	]
@@ -637,10 +720,32 @@ func _show_completion() -> void:
 	transitioning = true
 	campaign_completed = true
 	phase = Phase.REPLACING
-	completion_count.text = "%d / %d" % [
-		campaign_entries.size(),
-		campaign_entries.size(),
-	]
+	if _replay_mode:
+		completion_title.text = "ПОВТОР ЗАВЕРШЁН"
+		completion_count.text = "%d / %d" % [
+			current_level_index + 1,
+			campaign_entries.size(),
+		]
+		completion_subtitle.text = "ПРОГРЕСС КАМПАНИИ НЕ ИЗМЕНЁН"
+		completion_restart_button.text = "ВЫБОР АРЕН"
+		completion_hint.text = (
+			"ВЫБЕРИТЕ ДЕЙСТВИЕ"
+			if DisplayServer.is_touchscreen_available()
+			else "ENTER — ВЫБОР АРЕН    ESC — МЕНЮ"
+		)
+	else:
+		completion_title.text = "КАМПАНИЯ ЗАВЕРШЕНА"
+		completion_count.text = "%d / %d" % [
+			campaign_entries.size(),
+			campaign_entries.size(),
+		]
+		completion_subtitle.text = "ВСЕ АРЕНЫ ПРОЙДЕНЫ"
+		completion_restart_button.text = "СНАЧАЛА"
+		completion_hint.text = (
+			"ВЫБЕРИТЕ ДЕЙСТВИЕ"
+			if DisplayServer.is_touchscreen_available()
+			else "R — СНАЧАЛА    ESC — МЕНЮ    F1 — АРЕНЫ"
+		)
 	completion_restart_button.disabled = true
 	completion_main_menu_button.disabled = true
 	completion_ui.visible = true
@@ -688,11 +793,26 @@ func _set_runtime_active(active: bool) -> void:
 
 
 func _is_completion_final_index(index: int) -> bool:
+	if _replay_mode:
+		return index == _replay_end_index
 	return (
 		index == campaign_entries.size() - 1
 		and str(campaign_data.get("final_behavior", ""))
 		== CAMPAIGN_DATA_VALIDATOR.FINAL_BEHAVIOR_SHOW_COMPLETION
 	)
+
+
+func _has_next_level(index: int) -> bool:
+	if _replay_mode:
+		return index < _replay_end_index
+	return index + 1 < campaign_entries.size()
+
+
+func _on_completion_primary_pressed() -> void:
+	if _replay_mode:
+		return_to_arena_select()
+	else:
+		restart_campaign()
 
 
 func _is_current_request(
@@ -726,6 +846,8 @@ func _consume_progress_launch_request() -> Dictionary:
 		return {
 			"level_id": "",
 			"track_progress": false,
+			"replay": false,
+			"highest_unlocked_level_id": "",
 		}
 	return progress_store.consume_launch_request()
 
