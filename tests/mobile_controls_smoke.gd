@@ -14,6 +14,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
+	_expect_explicit_project_input_contract()
 	_expect(
 		bool(
 			ProjectSettings.get_setting(
@@ -131,6 +132,31 @@ func _run() -> void:
 	)
 
 	_finish()
+
+
+func _expect_explicit_project_input_contract() -> void:
+	var project_config := ConfigFile.new()
+	var load_error := project_config.load("res://project.godot")
+	_expect(
+		load_error == OK,
+		"project.godot could not be loaded to verify the touch input contract."
+	)
+	if load_error != OK:
+		return
+	_expect(
+		project_config.has_section_key(
+			"input_devices",
+			"pointing/emulate_mouse_from_touch"
+		)
+		and project_config.get_value(
+			"input_devices",
+			"pointing/emulate_mouse_from_touch"
+		) == true,
+		(
+			"project.godot must explicitly keep "
+			+ "input_devices/pointing/emulate_mouse_from_touch=true."
+		)
+	)
 
 
 func _expect_button_contracts(controls: MobileControls) -> void:

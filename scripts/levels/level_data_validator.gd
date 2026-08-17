@@ -52,7 +52,8 @@ const VERTICAL_PLATFORM_SIZE := Vector2i(80, 20)
 const VERTICAL_PLATFORM_TRAVEL := 136
 const VERTICAL_PLATFORM_MINIMUM_Y := 82
 const HINGE_RADIUS := 18
-const DOUBLE_JUMP_PICKUP_RADIUS := 12
+# ceil(12px glow * 105% pulse + 2px bob).
+const DOUBLE_JUMP_PICKUP_ANIMATED_CLEARANCE := 15
 const ACTOR_HALF_EXTENTS := {
 	"player_spawn": Vector2i(14, 20),
 	"patrol_enemy": Vector2i(15, 18),
@@ -736,7 +737,7 @@ static func _validate_object(
 					)
 					_validate_radial_playfield_bounds(
 						position,
-						DOUBLE_JUMP_PICKUP_RADIUS,
+						DOUBLE_JUMP_PICKUP_ANIMATED_CLEARANCE,
 						object_id,
 						errors
 					)

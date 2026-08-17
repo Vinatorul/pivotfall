@@ -78,21 +78,53 @@ func _test_schema_and_round_trip() -> void:
 	)
 
 	var edge_position := _make_level()
-	_object_by_id(edge_position, "double_jump")["position"] = [44, 44]
+	_object_by_id(edge_position, "double_jump")["position"] = [47, 47]
 	var edge_result: Dictionary = (
 		LEVEL_DATA_VALIDATOR.validate_and_normalize(edge_position)
 	)
 	_expect(
 		bool(edge_result.get("ok", false)),
-		"Validator rejected a pickup whose 12px radius touches the playfield edge."
+		(
+			"Validator rejected a pickup whose 15px animated visual "
+			+ "clearance touches the minimum playfield edges."
+		)
+	)
+
+	var opposite_edge_position := _make_level()
+	_object_by_id(
+		opposite_edge_position,
+		"double_jump"
+	)["position"] = [913, 525]
+	var opposite_edge_result: Dictionary = (
+		LEVEL_DATA_VALIDATOR.validate_and_normalize(
+			opposite_edge_position
+		)
+	)
+	_expect(
+		bool(opposite_edge_result.get("ok", false)),
+		(
+			"Validator rejected a pickup whose 15px animated visual "
+			+ "clearance touches the maximum playfield edges."
+		)
 	)
 
 	var outside_playfield := _make_level()
-	_object_by_id(outside_playfield, "double_jump")["position"] = [43, 44]
+	_object_by_id(outside_playfield, "double_jump")["position"] = [46, 47]
 	_expect_invalid_with(
 		outside_playfield,
 		"runtime playfield",
-		"double_jump_pickup outside the runtime playfield"
+		"double_jump_pickup outside the minimum runtime playfield edge"
+	)
+
+	var outside_opposite_edge := _make_level()
+	_object_by_id(
+		outside_opposite_edge,
+		"double_jump"
+	)["position"] = [914, 526]
+	_expect_invalid_with(
+		outside_opposite_edge,
+		"runtime playfield",
+		"double_jump_pickup outside the maximum runtime playfield edges"
 	)
 
 	var missing_position := _make_level()
@@ -140,6 +172,35 @@ func _test_builder_collection_and_jump_contract() -> void:
 		if is_instance_valid(collision)
 		else null
 	)
+	var base_visual_radius := 0.0
+	if is_instance_valid(pickup):
+		for point: Vector2 in pickup.glow.polygon:
+			base_visual_radius = maxf(
+				base_visual_radius,
+				maxf(absf(point.x), absf(point.y))
+			)
+	var base_visual_scale := 0.0
+	var base_visual_offset := 0.0
+	if is_instance_valid(pickup):
+		base_visual_scale = maxf(
+			absf(pickup.base_visual_scale.x),
+			absf(pickup.base_visual_scale.y)
+		)
+		base_visual_offset = maxf(
+			absf(pickup.base_visual_position.x),
+			absf(pickup.base_visual_position.y)
+		)
+	var animated_visual_extent := int(
+		ceil(
+			base_visual_offset
+			+ base_visual_radius
+			* base_visual_scale
+			* (1.0 + pickup.pulse_scale)
+			+ pickup.bob_height
+		)
+		if is_instance_valid(pickup)
+		else 0.0
+	)
 	_expect(
 		runtime.level_loaded
 		and is_instance_valid(player)
@@ -150,6 +211,21 @@ func _test_builder_collection_and_jump_contract() -> void:
 		and is_instance_valid(circle)
 		and is_equal_approx(circle.radius, 12.0),
 		"Builder did not register the canonical double-jump pickup scene."
+	)
+	_expect(
+		animated_visual_extent == 15
+		and (
+			LEVEL_DATA_VALIDATOR.DOUBLE_JUMP_PICKUP_ANIMATED_CLEARANCE
+			== animated_visual_extent
+		),
+		(
+			"Validator clearance does not cover the pickup's animated "
+			+ "visual extent: validator=%d, visual=%d."
+		)
+		% [
+			LEVEL_DATA_VALIDATOR.DOUBLE_JUMP_PICKUP_ANIMATED_CLEARANCE,
+			animated_visual_extent,
+		]
 	)
 	if (
 		not is_instance_valid(player)

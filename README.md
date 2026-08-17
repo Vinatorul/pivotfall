@@ -135,6 +135,16 @@ Arena 01 и не является точкой входа кампании:
 godot --path . res://scenes/level_runtime_arena.tscn
 ```
 
+После свежего checkout перед первым smoke-тестом нужно один раз собрать
+кэш ресурсов и реестр `class_name`:
+
+```sh
+godot --headless --path . --import
+```
+
+Без этого шага запуск `--script` может выдать parse errors на свежем
+checkout.
+
 Smoke-тест базового формата уровня, validator, builder, победы, падения и
 standalone restart:
 
@@ -171,7 +181,8 @@ godot --headless --fixed-fps 60 --path . \
   --script res://tests/pause_menu_smoke.gd
 ```
 
-Отдельный мобильный smoke-тест проверяет размеры зон касания, настоящий
+Отдельный мобильный smoke-тест проверяет размеры зон касания, явный
+проектный контракт `pointing/emulate_mouse_from_touch=true`, настоящий
 мультитач, независимое отпускание действий, очистку ввода при скрытии и связь
 экранных кнопок с движением и атакой игрока:
 
@@ -248,11 +259,12 @@ godot --headless --fixed-fps 60 --path . \
 ```
 
 Вертикальный срез усилителя проверяет закрытый JSON-контракт, границы его
-фиксированного радиуса, builder и регистрацию сцены, подбор только игроком,
-один дополнительный прыжок до следующего приземления, сброс вместе с runtime
-и полный маршрут через редактор и embedded playtest:
+анимированного визуального контура, builder и регистрацию сцены, подбор
+только игроком, один дополнительный прыжок до следующего приземления, сброс
+вместе с runtime и полный маршрут через редактор и embedded playtest:
 
 ```sh
+godot --headless --path . --import && \
 godot --headless --fixed-fps 60 --path . \
   --script res://tests/double_jump_pickup_smoke.gd
 ```
@@ -289,9 +301,10 @@ godot --headless --fixed-fps 60 --path . \
 
 Gameplay smoke-тест Arena 13 проверяет точную композицию урока, невозможность
 достичь верхней платформы одиночным прыжком, подбор усилителя, воздушный
-прыжок и победу над стрелком:
+прыжок и победу над стрелком под настоящим огнём:
 
 ```sh
+godot --headless --path . --import && \
 godot --headless --fixed-fps 60 --path . \
   --script res://tests/double_jump_arena_smoke.gd
 ```
