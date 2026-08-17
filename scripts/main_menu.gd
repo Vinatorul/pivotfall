@@ -5,15 +5,18 @@ const CAMPAIGN_STORAGE := preload(
 	"res://scripts/campaign/campaign_storage.gd"
 )
 const CAMPAIGN_SCENE_PATH := "res://scenes/campaign_runner.tscn"
+const ARENA_SELECT_SCENE_PATH := "res://scenes/arena_select.tscn"
 const LEVEL_EDITOR_SCENE_PATH := "res://scenes/level_editor.tscn"
 const STATUS_ERROR_COLOR := Color(0.949, 0.427, 0.471, 1.0)
 const STATUS_INFO_COLOR := Color(0.439, 0.827, 0.816, 1.0)
 
 @onready var continue_button: Button = $Panel/Continue
+@onready var arena_select_button: Button = $Panel/ArenaSelect
 @onready var new_game_button: Button = $Panel/NewGame
 @onready var editor_button: Button = $Panel/Editor
 @onready var exit_button: Button = $Panel/Exit
 @onready var status_label: Label = $Panel/Status
+@onready var subtitle_label: Label = $Panel/Subtitle
 @onready var footer_label: Label = $Footer
 @onready var new_game_confirm: Control = $NewGameConfirm
 @onready var confirm_message: Label = (
@@ -34,6 +37,7 @@ var progress_completed := false
 
 func _ready() -> void:
 	continue_button.pressed.connect(_continue_game)
+	arena_select_button.pressed.connect(_open_arena_select)
 	new_game_button.pressed.connect(_start_new_game)
 	editor_button.pressed.connect(_open_level_editor)
 	exit_button.pressed.connect(_quit_game)
@@ -124,6 +128,17 @@ func _start_new_game() -> void:
 		_open_new_game_confirmation()
 		return
 	_begin_new_game()
+
+
+func _open_arena_select() -> void:
+	if (
+		transitioning
+		or confirming_new_game
+		or not has_valid_progress
+	):
+		return
+	_clear_debug_level_request()
+	_change_scene(ARENA_SELECT_SCENE_PATH, "arena selection")
 
 
 func _begin_new_game() -> void:
@@ -273,12 +288,17 @@ func _load_campaign_and_progress() -> void:
 			campaign_entries.append(
 				(raw_entry as Dictionary).duplicate(true)
 			)
+	subtitle_label.text = "ACTION PUZZLE  /  %d АРЕН" % (
+		campaign_entries.size()
+	)
 	_refresh_progress_state()
 
 
 func _refresh_progress_state() -> void:
 	continue_button.text = "ПРОДОЛЖИТЬ"
 	continue_button.disabled = true
+	arena_select_button.visible = false
+	arena_select_button.disabled = true
 	has_existing_save = false
 	has_valid_progress = false
 	progress_completed = false
@@ -302,6 +322,8 @@ func _refresh_progress_state() -> void:
 
 	has_existing_save = true
 	has_valid_progress = true
+	arena_select_button.visible = true
+	arena_select_button.disabled = false
 	var progress: Dictionary = loaded["data"]
 	progress_completed = bool(progress["completed"])
 	var current_index := _campaign_index_for_id(
@@ -354,6 +376,7 @@ func _available_menu_buttons() -> Array[Button]:
 	var buttons: Array[Button] = []
 	for button: Button in [
 		continue_button,
+		arena_select_button,
 		new_game_button,
 		editor_button,
 		exit_button,

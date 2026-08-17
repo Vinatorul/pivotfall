@@ -106,13 +106,21 @@ func _test_missing_and_round_trip() -> void:
 			"arena_01_data"
 		)
 		and request["level_id"] == "arena_01_data"
-		and bool(request["track_progress"]),
+		and bool(request["track_progress"])
+		and not bool(request["replay"])
+		and str(
+			request["highest_unlocked_level_id"]
+		).is_empty(),
 		"New Game did not create canonical Arena 01 progress."
 	)
 	var consumed_again := progress_store.consume_launch_request()
 	_expect(
 		str(consumed_again["level_id"]).is_empty()
-		and not bool(consumed_again["track_progress"]),
+		and not bool(consumed_again["track_progress"])
+		and not bool(consumed_again["replay"])
+		and str(
+			consumed_again["highest_unlocked_level_id"]
+		).is_empty(),
 		"Campaign launch request was not one-shot."
 	)
 
@@ -149,8 +157,136 @@ func _test_missing_and_round_trip() -> void:
 	_expect(
 		bool(continued["ok"])
 		and request["level_id"] == "arena_03_data"
-		and bool(request["track_progress"]),
+		and bool(request["track_progress"])
+		and not bool(request["replay"])
+		and str(
+			request["highest_unlocked_level_id"]
+		).is_empty(),
 		"Continue did not prepare the saved current arena."
+	)
+
+	var completed_level_id := str(campaign_entries[0]["id"])
+	var current_level_id := str(campaign_entries[1]["id"])
+	var unlocked_level_id := str(campaign_entries[2]["id"])
+	var locked_level_id := str(campaign_entries[3]["id"])
+	var replay_state := progress_store.record_level_started(
+		campaign_entries,
+		current_level_id
+	)
+	var bytes_before_replay := FileAccess.get_file_as_bytes(
+		_progress_path()
+	)
+
+	var completed_replay := progress_store.prepare_replay(
+		campaign_entries,
+		completed_level_id
+	)
+	request = progress_store.consume_launch_request()
+	_expect(
+		bool(replay_state["ok"])
+		and bool(completed_replay["ok"])
+		and request["level_id"] == completed_level_id
+		and not bool(request["track_progress"])
+		and bool(request["replay"])
+		and request["highest_unlocked_level_id"]
+		== unlocked_level_id
+		and FileAccess.get_file_as_bytes(_progress_path())
+		== bytes_before_replay,
+		"Replay did not accept a completed arena without saving."
+	)
+
+	var current_replay := progress_store.prepare_replay(
+		campaign_entries,
+		current_level_id
+	)
+	request = progress_store.consume_launch_request()
+	_expect(
+		bool(current_replay["ok"])
+		and request["level_id"] == current_level_id
+		and not bool(request["track_progress"])
+		and bool(request["replay"])
+		and request["highest_unlocked_level_id"]
+		== unlocked_level_id
+		and FileAccess.get_file_as_bytes(_progress_path())
+		== bytes_before_replay,
+		"Replay did not accept the current arena without saving."
+	)
+
+	var unlocked_replay := progress_store.prepare_replay(
+		campaign_entries,
+		unlocked_level_id
+	)
+	request = progress_store.consume_launch_request()
+	var replay_consumed_again := (
+		progress_store.consume_launch_request()
+	)
+	_expect(
+		bool(unlocked_replay["ok"])
+		and request["level_id"] == unlocked_level_id
+		and not bool(request["track_progress"])
+		and bool(request["replay"])
+		and request["highest_unlocked_level_id"]
+		== unlocked_level_id
+		and str(replay_consumed_again["level_id"]).is_empty()
+		and not bool(replay_consumed_again["track_progress"])
+		and not bool(replay_consumed_again["replay"])
+		and str(
+			replay_consumed_again[
+				"highest_unlocked_level_id"
+			]
+		).is_empty()
+		and FileAccess.get_file_as_bytes(_progress_path())
+		== bytes_before_replay,
+		"Unlocked replay request was not safe and one-shot."
+	)
+
+	var queued_replay := progress_store.prepare_replay(
+		campaign_entries,
+		current_level_id
+	)
+	var locked_replay := progress_store.prepare_replay(
+		campaign_entries,
+		locked_level_id
+	)
+	request = progress_store.consume_launch_request()
+	_expect(
+		bool(queued_replay["ok"])
+		and not bool(locked_replay["ok"])
+		and bool(locked_replay["exists"])
+		and str(request["level_id"]).is_empty()
+		and not bool(request["track_progress"])
+		and not bool(request["replay"])
+		and str(
+			request["highest_unlocked_level_id"]
+		).is_empty()
+		and FileAccess.get_file_as_bytes(_progress_path())
+		== bytes_before_replay,
+		"Locked replay did not reject and clear a stale request."
+	)
+
+	var final_level_id := str(campaign_entries[-1]["id"])
+	_write_json(
+		_progress_path(),
+		_progress_data(final_level_id, final_level_id, true)
+	)
+	var completed_bytes_before_replay := (
+		FileAccess.get_file_as_bytes(_progress_path())
+	)
+	var completed_save_replay := progress_store.prepare_replay(
+		campaign_entries,
+		final_level_id
+	)
+	request = progress_store.consume_launch_request()
+	_expect(
+		bool(completed_save_replay["ok"])
+		and request["level_id"] == final_level_id
+		and not bool(request["track_progress"])
+		and bool(request["replay"])
+		and request["highest_unlocked_level_id"]
+		== final_level_id
+		and FileAccess.get_file_as_bytes(_progress_path())
+		== completed_bytes_before_replay,
+		"Completed progress could not prepare replay without saving."
 	)
 
 
@@ -608,9 +744,16 @@ func _test_menu_and_runner_integration() -> void:
 		bool(completed["ok"])
 		and menu.continue_button.disabled
 		and menu.continue_button.text == "КАМПАНИЯ ПРОЙДЕНА"
-		and "14 ИЗ 14" in menu.status_label.text
+		and menu.arena_select_button.visible
+		and not menu.arena_select_button.disabled
+		and (
+			"%d ИЗ %d" % [
+				campaign_entries.size(),
+				campaign_entries.size(),
+			]
+		) in menu.status_label.text
 		and root.get_viewport().gui_get_focus_owner()
-		== menu.new_game_button,
+		== menu.arena_select_button,
 		"Completed progress did not produce the completed menu state."
 	)
 

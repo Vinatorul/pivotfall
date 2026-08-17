@@ -19,6 +19,8 @@ const ROOT_KEYS := [
 var _storage_path := DEFAULT_STORAGE_PATH
 var _pending_level_id := ""
 var _pending_tracking := false
+var _pending_replay := false
+var _pending_highest_unlocked_level_id := ""
 
 
 func load_progress(entries: Array[Dictionary]) -> Dictionary:
@@ -78,6 +80,48 @@ func prepare_continue(entries: Array[Dictionary]) -> Dictionary:
 		return _failure(["Campaign progress is already complete."], true)
 
 	_prepare_launch(str(progress["current_level_id"]), true)
+	return loaded
+
+
+func prepare_replay(
+	entries: Array[Dictionary],
+	level_id: String
+) -> Dictionary:
+	cancel_launch_request()
+	var loaded := load_progress(entries)
+	if not bool(loaded["ok"]):
+		return loaded
+	if not bool(loaded["exists"]):
+		return _failure(["Campaign progress does not exist."])
+
+	var ids_result := _campaign_level_ids(entries)
+	if not bool(ids_result["ok"]):
+		return ids_result
+	var level_ids: Array[String] = ids_result["ids"]
+	var target_index := level_ids.find(level_id)
+	if target_index < 0:
+		return _failure(
+			["Campaign level '%s' is not available." % level_id],
+			true
+		)
+
+	var progress: Dictionary = loaded["data"]
+	var highest_level_id := str(
+		progress["highest_unlocked_level_id"]
+	)
+	var highest_index := level_ids.find(highest_level_id)
+	if target_index > highest_index:
+		return _failure(
+			["Campaign replay cannot open a locked level."],
+			true
+		)
+
+	_prepare_launch(
+		level_id,
+		false,
+		true,
+		highest_level_id
+	)
 	return loaded
 
 
@@ -154,6 +198,10 @@ func consume_launch_request() -> Dictionary:
 	var request := {
 		"level_id": _pending_level_id,
 		"track_progress": _pending_tracking,
+		"replay": _pending_replay,
+		"highest_unlocked_level_id": (
+			_pending_highest_unlocked_level_id
+		),
 	}
 	cancel_launch_request()
 	return request
@@ -162,6 +210,8 @@ func consume_launch_request() -> Dictionary:
 func cancel_launch_request() -> void:
 	_pending_level_id = ""
 	_pending_tracking = false
+	_pending_replay = false
+	_pending_highest_unlocked_level_id = ""
 
 
 func configure_storage_path_for_tests(path: String) -> bool:
@@ -205,9 +255,18 @@ func clear_progress() -> Dictionary:
 	return _success(false, {}, [])
 
 
-func _prepare_launch(level_id: String, track_progress: bool) -> void:
+func _prepare_launch(
+	level_id: String,
+	track_progress: bool,
+	replay: bool = false,
+	highest_unlocked_level_id: String = ""
+) -> void:
 	_pending_level_id = level_id
 	_pending_tracking = track_progress
+	_pending_replay = replay
+	_pending_highest_unlocked_level_id = (
+		highest_unlocked_level_id
+	)
 
 
 func _new_progress(entries: Array[Dictionary]) -> Dictionary:
