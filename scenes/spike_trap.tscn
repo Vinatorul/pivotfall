@@ -1,0 +1,16 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/spike_trap.gd" id="1_spike"]
+
+[node name="SpikeTrap" type="Area2D"]
+collision_layer = 0
+collision_mask = 6
+monitoring = true
+monitorable = false
+script = ExtResource("1_spike")
+
+[node name="Spikes" type="Polygon2D" parent="."]
+
+[node name="Base" type="Polygon2D" parent="."]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]

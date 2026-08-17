@@ -22,6 +22,7 @@ const PLAYTEST_SCENE := preload(
 
 const TOOL_SELECT := "select"
 const TOOL_SOLID := "solid_rect"
+const TOOL_SPIKE_TRAP := "spike_trap"
 const TOOL_PLAYER := "player_spawn"
 const TOOL_DOUBLE_JUMP_PICKUP := "double_jump_pickup"
 const TOOL_PATROL := "patrol_enemy"
@@ -55,6 +56,9 @@ const TOOL_HINGE := "hinge"
 )
 @onready var solid_button: Button = (
 	$EditorView/PalettePanel/ToolScroll/ToolList/SolidButton
+)
+@onready var spike_button: Button = (
+	$EditorView/PalettePanel/ToolScroll/ToolList/SpikeButton
 )
 @onready var player_button: Button = (
 	$EditorView/PalettePanel/ToolScroll/ToolList/PlayerButton
@@ -272,6 +276,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_set_tool(TOOL_SELECT)
 		KEY_1:
 			_set_tool(TOOL_SOLID)
+		KEY_K:
+			_set_tool(TOOL_SPIKE_TRAP)
 		KEY_2:
 			_set_tool(TOOL_PLAYER)
 		KEY_J:
@@ -320,6 +326,7 @@ func _connect_ui() -> void:
 	for button: Button in [
 		select_button,
 		solid_button,
+		spike_button,
 		player_button,
 		double_jump_button,
 		patrol_button,
@@ -335,6 +342,7 @@ func _connect_ui() -> void:
 
 	select_button.pressed.connect(_set_tool.bind(TOOL_SELECT))
 	solid_button.pressed.connect(_set_tool.bind(TOOL_SOLID))
+	spike_button.pressed.connect(_set_tool.bind(TOOL_SPIKE_TRAP))
 	player_button.pressed.connect(_set_tool.bind(TOOL_PLAYER))
 	double_jump_button.pressed.connect(
 		_set_tool.bind(TOOL_DOUBLE_JUMP_PICKUP)
@@ -501,6 +509,7 @@ func _set_tool(tool: String) -> void:
 	canvas.set_tool(tool)
 	select_button.set_pressed_no_signal(tool == TOOL_SELECT)
 	solid_button.set_pressed_no_signal(tool == TOOL_SOLID)
+	spike_button.set_pressed_no_signal(tool == TOOL_SPIKE_TRAP)
 	player_button.set_pressed_no_signal(tool == TOOL_PLAYER)
 	double_jump_button.set_pressed_no_signal(
 		tool == TOOL_DOUBLE_JUMP_PICKUP
@@ -525,6 +534,8 @@ func _palette_button_for_tool(tool: String) -> Button:
 	match tool:
 		TOOL_SOLID:
 			return solid_button
+		TOOL_SPIKE_TRAP:
+			return spike_button
 		TOOL_PLAYER:
 			return player_button
 		TOOL_DOUBLE_JUMP_PICKUP:
@@ -568,6 +579,16 @@ func _place_object(object_type: String, payload: Variant) -> void:
 					"type": TOOL_SOLID,
 					"rect": (payload as Array).duplicate(),
 					"one_way": false,
+				}
+			)
+		TOOL_SPIKE_TRAP:
+			var object_id := draft.make_unique_id("spikes")
+			selected_id = object_id
+			draft.add_object(
+				{
+					"id": object_id,
+					"type": TOOL_SPIKE_TRAP,
+					"rect": (payload as Array).duplicate(),
 				}
 			)
 		TOOL_PLAYER:
@@ -701,6 +722,7 @@ func _move_object(object_id: String, payload: Variant) -> void:
 		"rect"
 		if object.get("type", "") in [
 			TOOL_SOLID,
+			TOOL_SPIKE_TRAP,
 			TOOL_TOGGLE,
 			TOOL_WALL,
 		]
@@ -878,6 +900,13 @@ func _refresh_inspector_hint() -> void:
 		)
 		inspector_hint.modulate = Color(0.439, 0.827, 0.816)
 		return
+	if selected.get("type", "") == TOOL_SPIKE_TRAP:
+		inspector_hint.text = (
+			"СМЕРТЕЛЬНАЯ ЛОВУШКА / ВЫСОТА 20 PX\n"
+			+ "Не является опорой и не блокирует выстрелы."
+		)
+		inspector_hint.modulate = Color(0.961, 0.306, 0.267)
+		return
 	if selected.get("type", "") == TOOL_DOUBLE_JUMP_PICKUP:
 		inspector_hint.text = (
 			"ПОДБОР ОТКРЫВАЕТ ДВОЙНОЙ ПРЫЖОК\n"
@@ -932,7 +961,12 @@ func _duplicate_selected() -> void:
 	var duplicate := object.duplicate(true)
 	var new_id := draft.make_unique_id("%s_copy" % object["id"])
 	duplicate["id"] = new_id
-	if duplicate["type"] in [TOOL_SOLID, TOOL_TOGGLE, TOOL_WALL]:
+	if duplicate["type"] in [
+		TOOL_SOLID,
+		TOOL_SPIKE_TRAP,
+		TOOL_TOGGLE,
+		TOOL_WALL,
+	]:
 		var rect: Array = duplicate["rect"]
 		rect[0] = clampi(rect[0] + 20, 0, 960 - rect[2])
 		rect[1] = clampi(rect[1] + 20, 0, 540 - rect[3])
@@ -1131,7 +1165,12 @@ func _nudge_selected(direction: Vector2i, fine: bool) -> void:
 	).get("grid_size", 20)
 	var amount := 1 if fine else grid_size
 	var delta := direction * amount
-	if object["type"] in [TOOL_SOLID, TOOL_TOGGLE, TOOL_WALL]:
+	if object["type"] in [
+		TOOL_SOLID,
+		TOOL_SPIKE_TRAP,
+		TOOL_TOGGLE,
+		TOOL_WALL,
+	]:
 		var rect: Array = object["rect"]
 		rect[0] = clampi(rect[0] + delta.x, 0, 960 - rect[2])
 		rect[1] = clampi(rect[1] + delta.y, 0, 540 - rect[3])
@@ -1810,7 +1849,7 @@ func _rebuild_inspector() -> void:
 	_add_readonly_property("TYPE", str(object["type"]))
 	_add_readonly_property("ID", str(object["id"]))
 	match object["type"]:
-		TOOL_SOLID, TOOL_TOGGLE, TOOL_WALL:
+		TOOL_SOLID, TOOL_SPIKE_TRAP, TOOL_TOGGLE, TOOL_WALL:
 			var rect: Array = object["rect"]
 			_add_numeric_property("X", "rect:0", rect[0])
 			_add_numeric_property("Y", "rect:1", rect[1])
@@ -1820,6 +1859,9 @@ func _rebuild_inspector() -> void:
 				_add_collision_property(
 					bool(object.get("one_way", false))
 				)
+			elif object["type"] == TOOL_SPIKE_TRAP:
+				_add_numeric_property("WIDTH", "rect:2", rect[2])
+				_add_readonly_property("HEIGHT", "20")
 			elif object["type"] == TOOL_TOGGLE:
 				_add_numeric_property("WIDTH", "rect:2", rect[2])
 				_add_readonly_property("HEIGHT", "20")

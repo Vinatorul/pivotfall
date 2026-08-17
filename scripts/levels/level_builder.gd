@@ -7,6 +7,7 @@ const LEVEL_BEHAVIOR_PRESETS := preload(
 const SOLID_RECT_SCENE := preload(
 	"res://scenes/level_solid_rect.tscn"
 )
+const SPIKE_TRAP_SCENE := preload("res://scenes/spike_trap.tscn")
 const PLAYER_SCENE := preload("res://scenes/player.tscn")
 const PATROL_ENEMY_SCENE := preload(
 	"res://scenes/patrol_enemy.tscn"
@@ -76,6 +77,21 @@ static func build_into(arena: Node, data: Dictionary) -> Dictionary:
 			node.free()
 			_discard_placements(placements)
 			return _failure(errors)
+		if node is SpikeTrap:
+			var hazard_resolver := Callable(arena, "resolve_lethal_hazard")
+			if not hazard_resolver.is_valid():
+				errors.append(
+					"Runtime arena cannot resolve spike_trap hazards."
+				)
+				node.free()
+				_discard_placements(placements)
+				return _failure(errors)
+			(node as SpikeTrap).body_entered.connect(
+				hazard_resolver.bind(
+					Player.DefeatCause.HAZARD,
+					Vector2.UP
+				)
+			)
 		var parent := (
 			geometry_parent
 			if build_result["parent"] == "geometry"
@@ -131,6 +147,24 @@ static func _create_object(definition: Dictionary) -> Dictionary:
 				bool(definition.get("one_way", false))
 			)
 			return _object_success(solid, "geometry")
+
+		"spike_trap":
+			var spike := SPIKE_TRAP_SCENE.instantiate() as SpikeTrap
+			if not is_instance_valid(spike):
+				return _object_failure(
+					"Could not instantiate spike_trap."
+				)
+
+			var values: Array = definition["rect"]
+			spike.configure(
+				Rect2(
+					float(values[0]),
+					float(values[1]),
+					float(values[2]),
+					float(values[3])
+				)
+			)
+			return _object_success(spike, "geometry")
 
 		"player_spawn":
 			var player := PLAYER_SCENE.instantiate() as Player

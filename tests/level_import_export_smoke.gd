@@ -292,6 +292,13 @@ func _make_level(level_id: String, title: String) -> Dictionary:
 		return {}
 	var data: Dictionary = result["data"]
 	data["title"] = title
+	data["objects"].append(
+		{
+			"id": "shared_spikes",
+			"type": "spike_trap",
+			"rect": [420, 476, 120, 20],
+		}
+	)
 	var normalized: Dictionary = LEVEL_DATA_CODEC.encode(data)
 	if not bool(normalized.get("ok", false)):
 		failures.append("Could not normalize level fixture '%s'." % level_id)

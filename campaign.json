@@ -68,6 +68,11 @@
 			"level_id": "arena_13_data",
 			"path": "res://levels/arena_13.json",
 			"catalog_title": "Arena 13 / Двойной прыжок"
+		},
+		{
+			"level_id": "arena_14_data",
+			"path": "res://levels/arena_14.json",
+			"catalog_title": "Arena 14 / Шипы"
 		}
 	]
 }

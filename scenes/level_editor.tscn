@@ -151,6 +151,18 @@ layout_mode = 2
 toggle_mode = true
 text = "1  ПОЛ"
 
+[node name="HazardsLabel" type="Label" parent="EditorView/PalettePanel/ToolScroll/ToolList"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.439, 0.502, 0.616, 1)
+theme_override_font_sizes/font_size = 10
+text = "ОПАСНОСТИ"
+
+[node name="SpikeButton" type="Button" parent="EditorView/PalettePanel/ToolScroll/ToolList"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+toggle_mode = true
+text = "K  ШИПЫ"
+
 [node name="SpawnLabel" type="Label" parent="EditorView/PalettePanel/ToolScroll/ToolList"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.439, 0.502, 0.616, 1)
