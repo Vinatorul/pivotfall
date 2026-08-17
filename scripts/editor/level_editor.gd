@@ -23,6 +23,7 @@ const PLAYTEST_SCENE := preload(
 const TOOL_SELECT := "select"
 const TOOL_SOLID := "solid_rect"
 const TOOL_PLAYER := "player_spawn"
+const TOOL_DOUBLE_JUMP_PICKUP := "double_jump_pickup"
 const TOOL_PATROL := "patrol_enemy"
 const TOOL_SHOVE := "shove_enemy"
 const TOOL_SHOOTER := "shooter_enemy"
@@ -57,6 +58,9 @@ const TOOL_HINGE := "hinge"
 )
 @onready var player_button: Button = (
 	$EditorView/PalettePanel/ToolScroll/ToolList/PlayerButton
+)
+@onready var double_jump_button: Button = (
+	$EditorView/PalettePanel/ToolScroll/ToolList/DoubleJumpButton
 )
 @onready var patrol_button: Button = (
 	$EditorView/PalettePanel/ToolScroll/ToolList/PatrolButton
@@ -270,6 +274,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_set_tool(TOOL_SOLID)
 		KEY_2:
 			_set_tool(TOOL_PLAYER)
+		KEY_J:
+			_set_tool(TOOL_DOUBLE_JUMP_PICKUP)
 		KEY_3:
 			_set_tool(TOOL_PATROL)
 		KEY_4:
@@ -315,6 +321,7 @@ func _connect_ui() -> void:
 		select_button,
 		solid_button,
 		player_button,
+		double_jump_button,
 		patrol_button,
 		shove_button,
 		shooter_button,
@@ -329,6 +336,9 @@ func _connect_ui() -> void:
 	select_button.pressed.connect(_set_tool.bind(TOOL_SELECT))
 	solid_button.pressed.connect(_set_tool.bind(TOOL_SOLID))
 	player_button.pressed.connect(_set_tool.bind(TOOL_PLAYER))
+	double_jump_button.pressed.connect(
+		_set_tool.bind(TOOL_DOUBLE_JUMP_PICKUP)
+	)
 	patrol_button.pressed.connect(_set_tool.bind(TOOL_PATROL))
 	shove_button.pressed.connect(_set_tool.bind(TOOL_SHOVE))
 	shooter_button.pressed.connect(_set_tool.bind(TOOL_SHOOTER))
@@ -492,6 +502,9 @@ func _set_tool(tool: String) -> void:
 	select_button.set_pressed_no_signal(tool == TOOL_SELECT)
 	solid_button.set_pressed_no_signal(tool == TOOL_SOLID)
 	player_button.set_pressed_no_signal(tool == TOOL_PLAYER)
+	double_jump_button.set_pressed_no_signal(
+		tool == TOOL_DOUBLE_JUMP_PICKUP
+	)
 	patrol_button.set_pressed_no_signal(tool == TOOL_PATROL)
 	shove_button.set_pressed_no_signal(tool == TOOL_SHOVE)
 	shooter_button.set_pressed_no_signal(tool == TOOL_SHOOTER)
@@ -514,6 +527,8 @@ func _palette_button_for_tool(tool: String) -> Button:
 			return solid_button
 		TOOL_PLAYER:
 			return player_button
+		TOOL_DOUBLE_JUMP_PICKUP:
+			return double_jump_button
 		TOOL_PATROL:
 			return patrol_button
 		TOOL_SHOVE:
@@ -574,6 +589,16 @@ func _place_object(object_type: String, payload: Variant) -> void:
 					{"position": (payload as Array).duplicate()}
 				)
 			_set_tool(TOOL_SELECT)
+		TOOL_DOUBLE_JUMP_PICKUP:
+			var object_id := draft.make_unique_id("double_jump")
+			selected_id = object_id
+			draft.add_object(
+				{
+					"id": object_id,
+					"type": TOOL_DOUBLE_JUMP_PICKUP,
+					"position": (payload as Array).duplicate(),
+				}
+			)
 		TOOL_PATROL:
 			var object_id := draft.make_unique_id("patrol")
 			selected_id = object_id
@@ -852,6 +877,13 @@ func _refresh_inspector_hint() -> void:
 			+ "Шарнир включает и убирает ворота."
 		)
 		inspector_hint.modulate = Color(0.439, 0.827, 0.816)
+		return
+	if selected.get("type", "") == TOOL_DOUBLE_JUMP_PICKUP:
+		inspector_hint.text = (
+			"ПОДБОР ОТКРЫВАЕТ ДВОЙНОЙ ПРЫЖОК\n"
+			+ "До конца текущей арены."
+		)
+		inspector_hint.modulate = Color(1.0, 0.82, 0.36)
 		return
 	if selected.get("type", "") == TOOL_HINGE:
 		var target_id := str(selected.get("target_id", ""))
@@ -1800,7 +1832,7 @@ func _rebuild_inspector() -> void:
 				_add_start_state_property(
 					bool(object.get("starts_active", true))
 				)
-		TOOL_PLAYER:
+		TOOL_PLAYER, TOOL_DOUBLE_JUMP_PICKUP:
 			var position: Array = object["position"]
 			_add_numeric_property("X", "position:0", position[0])
 			_add_numeric_property("Y", "position:1", position[1])

@@ -139,10 +139,10 @@ func _run() -> void:
 		is_instance_valid(selector)
 		and selector_entries.size() == catalog.size()
 		and is_instance_valid(selector_list)
-		and "[12]" in selector_list.text
-		and "Arena 12 / Ворота" in selector_list.text,
+		and "[13]" in selector_list.text
+		and "Arena 13 / Двойной прыжок" in selector_list.text,
 		(
-			"Debug selector did not expose all twelve built-in arenas: "
+			"Debug selector did not expose all thirteen built-in arenas: "
 			+ "selector=%s entries=%d text=%s"
 			% [
 				is_instance_valid(selector),

@@ -63,6 +63,11 @@
 			"level_id": "arena_12_data",
 			"path": "res://levels/arena_12.json",
 			"catalog_title": "Arena 12 / Ворота"
+		},
+		{
+			"level_id": "arena_13_data",
+			"path": "res://levels/arena_13.json",
+			"catalog_title": "Arena 13 / Двойной прыжок"
 		}
 	]
 }

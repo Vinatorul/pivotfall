@@ -1,0 +1,42 @@
+{
+	"schema_version": 1,
+	"level_id": "arena_13_data",
+	"title": "GRAYBOX  /  DATA ARENA 13  /  ДВОЙНОЙ ПРЫЖОК",
+	"objective": "ПОДБЕРИ УСИЛИТЕЛЬ  /  ПРЫГНИ ЕЩЁ РАЗ В ВОЗДУХЕ",
+	"clear_message": "DATA ARENA 13 ПРОЙДЕНА  /  ПЕРЕЗАПУСК...",
+	"canvas": {
+		"width": 960,
+		"height": 540,
+		"grid_size": 20
+	},
+	"objects": [
+		{
+			"id": "left_floor",
+			"type": "solid_rect",
+			"rect": [32, 496, 328, 44],
+			"one_way": false
+		},
+		{
+			"id": "upper_platform",
+			"type": "solid_rect",
+			"rect": [400, 300, 400, 20],
+			"one_way": true
+		},
+		{
+			"id": "player_start",
+			"type": "player_spawn",
+			"position": [120, 450]
+		},
+		{
+			"id": "double_jump_1",
+			"type": "double_jump_pickup",
+			"position": [240, 450]
+		},
+		{
+			"id": "shooter_1",
+			"type": "shooter_enemy",
+			"position": [740, 260],
+			"behavior_preset": "standard"
+		}
+	]
+}

@@ -11,6 +11,7 @@ signal defeated(
 	cause: int,
 	impact_direction: Vector2
 )
+signal double_jump_unlocked
 
 const IMPACT_BURST_SCRIPT := preload(
 	"res://scripts/effects/impact_burst.gd"
@@ -108,6 +109,8 @@ var gravity: float = float(
 	ProjectSettings.get_setting("physics/2d/default_gravity", 1500.0)
 )
 var jump_requested := false
+var has_double_jump := false
+var air_jump_available := false
 var attack_requested := false
 var facing_direction := 1.0
 var attack_time_remaining := 0.0
@@ -265,14 +268,22 @@ func _physics_process(delta: float) -> void:
 		_start_attack()
 	attack_requested = false
 
-	if is_on_floor():
-		if wants_to_jump and not controls_locked:
+	var accepted_jump := false
+	if wants_to_jump and not controls_locked:
+		if is_on_floor():
 			velocity.y = jump_velocity
-	else:
+			accepted_jump = true
+		elif has_double_jump and air_jump_available:
+			velocity.y = jump_velocity
+			air_jump_available = false
+			accepted_jump = true
+	if not is_on_floor() and not accepted_jump:
 		velocity.y = minf(velocity.y + gravity * delta, maximum_fall_speed)
 
 	var landing_speed := maxf(velocity.y, 0.0)
 	move_and_slide()
+	if is_on_floor():
+		air_jump_available = has_double_jump
 	_update_locomotion_animation(
 		delta,
 		was_grounded,
@@ -327,6 +338,18 @@ func receive_impulse(impulse: Vector2) -> void:
 	knockback_time_remaining = knockback_lock_time
 	jump_requested = false
 	attack_requested = false
+
+
+func unlock_double_jump() -> bool:
+	if is_defeated or is_clear_celebrating:
+		return false
+	if has_double_jump:
+		return true
+
+	has_double_jump = true
+	air_jump_available = true
+	double_jump_unlocked.emit()
+	return true
 
 
 func receive_lethal_hit(
