@@ -111,9 +111,31 @@ func _test_double_jump_arena_solution() -> void:
 	):
 		return
 
-	# Keep the smoke focused on the intended traversal rather than projectile
-	# timing. The enemy still has to be reached and eliminated by a real attack.
-	shooter.line_length = 0.0
+	var projectile_shots: Array[Dictionary] = []
+	var projectile_impacts: Array[Dictionary] = []
+	shooter.shot_fired.connect(
+		func(projectile: ShooterProjectile) -> void:
+			projectile_shots.append(
+				{
+					"direction": projectile.direction,
+					"inside_arena": arena.is_ancestor_of(projectile),
+				}
+			)
+			projectile.impacted.connect(
+				func(collider: CollisionObject2D) -> void:
+					projectile_impacts.append(
+						{
+							"id": str(
+								collider.get_meta(
+									"level_object_id",
+									""
+								)
+							),
+						}
+					)
+			)
+	)
+
 	var settled := await _wait_until_grounded(player)
 	_expect(settled, "Arena 13 player did not settle on the start floor.")
 	if not settled:
@@ -156,6 +178,40 @@ func _test_double_jump_arena_solution() -> void:
 		"Player did not reach the Arena 13 takeoff edge."
 	)
 	if not reached_takeoff or not player.is_on_floor():
+		return
+
+	# Start the exposed traversal immediately after a real authored shot has
+	# struck the upper platform. This verifies the cover geometry and gives the
+	# player a deterministic cooldown window without muting the shooter.
+	var cover_impacts_before := _count_impacts_with_id(
+		projectile_impacts,
+		"upper_platform"
+	)
+	var saw_cover_shot := false
+	for _frame in range(180):
+		await physics_frame
+		if not is_instance_valid(player) or player.is_defeated:
+			break
+		if (
+			_count_impacts_with_id(
+				projectile_impacts,
+				"upper_platform"
+			) > cover_impacts_before
+		):
+			saw_cover_shot = true
+			break
+	_expect(
+		saw_cover_shot
+		and not projectile_shots.is_empty()
+		and bool(projectile_shots.back().get("inside_arena", false))
+		and not player.is_defeated,
+		(
+			"Arena 13 shooter did not fire a real arena-owned projectile "
+			+ "into the authored upper-platform cover: shots=%s impacts=%s."
+		)
+		% [projectile_shots, projectile_impacts]
+	)
+	if not saw_cover_shot or player.is_defeated:
 		return
 
 	await _set_physical_key(KEY_D, true)
@@ -240,7 +296,11 @@ func _test_double_jump_arena_solution() -> void:
 		bool(hit_shooter["value"])
 		and arena.enemies_remaining == 0
 		and arena.pending_outcome == Arena.Outcome.CLEAR,
-		"Arena 13 shooter was not knocked from the upper route for CLEAR."
+		(
+			"Arena 13 shooter was not knocked from the upper route for "
+			+ "CLEAR under live fire: shots=%s impacts=%s."
+		)
+		% [projectile_shots, projectile_impacts]
 	)
 
 
@@ -256,6 +316,17 @@ func _object_by_id(data: Dictionary, object_id: String) -> Dictionary:
 		if object.get("id", "") == object_id:
 			return object
 	return {}
+
+
+func _count_impacts_with_id(
+	impacts: Array[Dictionary],
+	object_id: String
+) -> int:
+	var count := 0
+	for impact: Dictionary in impacts:
+		if impact.get("id", "") == object_id:
+			count += 1
+	return count
 
 
 func _walk_right_until(
