@@ -1,0 +1,97 @@
+{
+	"schema_version": 1,
+	"level_id": "arena_15_data",
+	"title": "GRAYBOX  /  DATA ARENA 15  /  ДОМИНО",
+	"objective": "ЗАМАНИ ВЫСТРЕЛ  /  ДОЖДИСЬ ФИКСАЦИИ  /  УКЛОНИСЬ  /  ОДНА ПУЛЯ — ДВЕ ЦЕЛИ",
+	"clear_message": "DATA ARENA 15 ПРОЙДЕНА  /  ДОМИНО СРАБОТАЛО",
+	"canvas": {
+		"width": 960,
+		"height": 540,
+		"grid_size": 20
+	},
+	"objects": [
+		{
+			"id": "right_floor",
+			"type": "solid_rect",
+			"rect": [360, 496, 180, 44],
+			"one_way": false
+		},
+		{
+			"id": "bait_platform",
+			"type": "solid_rect",
+			"rect": [540, 410, 80, 20],
+			"one_way": true
+		},
+		{
+			"id": "dodge_platform",
+			"type": "solid_rect",
+			"rect": [540, 330, 80, 20],
+			"one_way": true
+		},
+		{
+			"id": "patrol_floor",
+			"type": "solid_rect",
+			"rect": [660, 458, 100, 20],
+			"one_way": false
+		},
+		{
+			"id": "spike_base",
+			"type": "solid_rect",
+			"rect": [780, 478, 148, 18],
+			"one_way": false
+		},
+		{
+			"id": "start_sight_blocker",
+			"type": "solid_rect",
+			"rect": [320, 340, 20, 40],
+			"one_way": false
+		},
+		{
+			"id": "lane_wall_upper",
+			"type": "solid_rect",
+			"rect": [620, 0, 20, 392],
+			"one_way": false
+		},
+		{
+			"id": "lane_wall_lower",
+			"type": "solid_rect",
+			"rect": [620, 428, 20, 112],
+			"one_way": false
+		},
+		{
+			"id": "shooter_platform",
+			"type": "toggle_platform",
+			"rect": [60, 260, 58, 20],
+			"starts_active": true
+		},
+		{
+			"id": "patrol_spikes",
+			"type": "spike_trap",
+			"rect": [780, 458, 148, 20]
+		},
+		{
+			"id": "player_start",
+			"type": "player_spawn",
+			"position": [500, 450]
+		},
+		{
+			"id": "domino_hinge",
+			"type": "hinge",
+			"position": [260, 289],
+			"target_id": "shooter_platform"
+		},
+		{
+			"id": "patrol_target",
+			"type": "patrol_enemy",
+			"position": [690, 440],
+			"direction": 1,
+			"speed": 20
+		},
+		{
+			"id": "shooter_source",
+			"type": "shooter_enemy",
+			"position": [100, 210],
+			"behavior_preset": "exam"
+		}
+	]
+}
