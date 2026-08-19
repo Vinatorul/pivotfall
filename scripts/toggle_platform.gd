@@ -36,6 +36,8 @@ const MAX_EJECTION_BODIES := 512
 var is_active := true
 var is_transitioning := false
 var pending_active := true
+var queued_active := true
+var has_queued_active := false
 var platform_size := DEFAULT_SIZE
 var is_vertical_wall := false
 var warning_pulse := MECHANISM_WARNING_PULSE.new()
@@ -47,6 +49,8 @@ func _ready() -> void:
 	warning_pulse.bind(outline)
 	is_active = starts_active
 	pending_active = is_active
+	queued_active = is_active
+	has_queued_active = false
 	collision_shape.disabled = not is_active
 	_apply_state_visual()
 
@@ -75,9 +79,29 @@ func configure(
 func request_toggle() -> bool:
 	if is_transitioning:
 		return false
+	return _start_transition(not is_active)
 
+
+func request_active(desired: bool) -> bool:
+	if is_transitioning:
+		_coalesce_active_request(desired)
+		return true
+	if desired == is_active:
+		return true
+	return _start_transition(desired)
+
+
+func _coalesce_active_request(desired: bool) -> void:
+	if desired == pending_active and not has_queued_active:
+		return
+	queued_active = desired
+	has_queued_active = true
+
+
+func _start_transition(desired: bool) -> bool:
 	is_transitioning = true
-	pending_active = not is_active
+	pending_active = desired
+	has_queued_active = false
 	_apply_warning_visual()
 	warning_pulse.begin(transition_time)
 	get_tree().create_timer(
@@ -100,10 +124,29 @@ func _finish_toggle() -> void:
 		_apply_ejection_plan(ejection_plan["entries"])
 	is_active = pending_active
 	collision_shape.set_deferred("disabled", not is_active)
+	_complete_transition()
+
+
+func _complete_transition() -> void:
+	var queued_request: Variant = _take_queued_request()
 	is_transitioning = false
 	_apply_state_visual()
 	toggled.emit(is_active)
 	toggle_completed.emit(is_active)
+	_apply_queued_request(queued_request)
+
+
+func _take_queued_request() -> Variant:
+	if not has_queued_active:
+		return null
+	has_queued_active = false
+	return queued_active
+
+
+func _apply_queued_request(queued_request: Variant) -> void:
+	if queued_request == null or is_transitioning:
+		return
+	request_active(bool(queued_request))
 
 
 func _build_ejection_plan() -> Dictionary:
@@ -248,7 +291,6 @@ func _apply_ejection_plan(entries: Array[Dictionary]) -> void:
 
 
 func _begin_blocked_feedback() -> void:
-	pending_active = is_active
 	body_visual.color = BLOCKED_COLOR
 	edge_visual.color = BLOCKED_COLOR
 	outline.default_color = BLOCKED_COLOR
@@ -261,10 +303,13 @@ func _begin_blocked_feedback() -> void:
 
 func _finish_blocked_feedback() -> void:
 	warning_pulse.finish()
+	var queued_request: Variant = _take_queued_request()
+	pending_active = is_active
 	is_transitioning = false
 	_apply_state_visual()
 	toggle_blocked.emit()
 	toggle_completed.emit(is_active)
+	_apply_queued_request(queued_request)
 
 
 func _apply_state_visual() -> void:

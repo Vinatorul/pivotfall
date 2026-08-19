@@ -31,6 +31,7 @@ func _run() -> void:
 	_test_missing_and_round_trip()
 	_test_validation_and_recovery()
 	_test_arena_13_completed_migration()
+	_test_arena_15_completed_migration()
 	await _test_menu_and_runner_integration()
 	_finish()
 
@@ -399,7 +400,7 @@ func _test_validation_and_recovery() -> void:
 	progress_store.clear_progress()
 	_write_json(
 		_progress_path(),
-		_progress_data("arena_14_data", "arena_14_data")
+		_progress_data("arena_15_data", "arena_15_data")
 	)
 	var unfinished_former_final := progress_store.load_progress(
 		campaign_entries
@@ -407,9 +408,9 @@ func _test_validation_and_recovery() -> void:
 	_expect(
 		bool(unfinished_former_final["ok"])
 		and unfinished_former_final["data"]
-		== _progress_data("arena_14_data", "arena_14_data")
+		== _progress_data("arena_15_data", "arena_15_data")
 		and unfinished_former_final["warnings"].is_empty(),
-		"Unfinished Arena 14 progress was incorrectly migrated."
+		"Unfinished Arena 15 progress was incorrectly migrated."
 	)
 
 	progress_store.clear_progress()
@@ -475,7 +476,7 @@ func _test_validation_and_recovery() -> void:
 	progress_store.clear_progress()
 	_write_json(
 		_progress_path(),
-		_progress_data("arena_15_data", "arena_15_data", true)
+		_progress_data("arena_16_data", "arena_16_data", true)
 	)
 	var completed_current_final := progress_store.load_progress(
 		campaign_entries
@@ -483,7 +484,7 @@ func _test_validation_and_recovery() -> void:
 	_expect(
 		bool(completed_current_final["ok"])
 		and completed_current_final["data"]
-		== _progress_data("arena_15_data", "arena_15_data", true)
+		== _progress_data("arena_16_data", "arena_16_data", true)
 		and completed_current_final["warnings"].is_empty(),
 		"Completed current final progress was incorrectly migrated."
 	)
@@ -612,6 +613,35 @@ func _test_arena_13_completed_migration() -> void:
 		== _progress_data("arena_14_data", "arena_14_data")
 		and not migrated["warnings"].is_empty(),
 		"Completed Arena 13 progress did not unlock Arena 14."
+	)
+
+
+func _test_arena_15_completed_migration() -> void:
+	progress_store.clear_progress()
+	_write_json(
+		_progress_path(),
+		_progress_data("arena_15_data", "arena_15_data", true)
+	)
+	var migrated := progress_store.load_progress(campaign_entries)
+	_expect(
+		bool(migrated["ok"])
+		and migrated["data"]
+		== _progress_data("arena_16_data", "arena_16_data")
+		and not migrated["warnings"].is_empty(),
+		"Completed Arena 15 progress did not unlock Arena 16."
+	)
+	var started := progress_store.record_level_started(
+		campaign_entries,
+		"arena_16_data"
+	)
+	var reloaded := progress_store.load_progress(campaign_entries)
+	_expect(
+		bool(started["ok"])
+		and bool(reloaded["ok"])
+		and reloaded["data"]
+		== _progress_data("arena_16_data", "arena_16_data")
+		and reloaded["warnings"].is_empty(),
+		"Starting Arena 16 did not persist its one-time unlock."
 	)
 
 

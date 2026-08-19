@@ -21,9 +21,11 @@ const DEFAULT_SOLID_SIZE := Vector2i(120, 20)
 const DEFAULT_SPIKE_TRAP_SIZE := Vector2i(120, 20)
 const DEFAULT_TOGGLE_SIZE := Vector2i(160, 20)
 const DEFAULT_TOGGLE_WALL_SIZE := Vector2i(20, 160)
+const DEFAULT_PRESSURE_PLATE_SIZE := Vector2i(80, 20)
 const MIN_SPIKE_TRAP_WIDTH := 20
 const MIN_TOGGLE_WIDTH := 20
 const MIN_TOGGLE_WALL_HEIGHT := 20
+const MIN_PRESSURE_PLATE_WIDTH := 40
 const SPIKE_TRAP_TOOTH_WIDTH := 20.0
 const SPIKE_TRAP_BASE_HEIGHT := 4.0
 const PIT_TOP := 496.0
@@ -77,10 +79,12 @@ const TOOL_VERTICAL_PLATFORM := (
 const TOOL_TOGGLE_PLATFORM := LEVEL_OBJECT_CATALOG.TYPE_TOGGLE_PLATFORM
 const TOOL_TOGGLE_WALL := LEVEL_OBJECT_CATALOG.TYPE_TOGGLE_WALL
 const TOOL_HINGE := LEVEL_OBJECT_CATALOG.TYPE_HINGE
+const TOOL_PRESSURE_PLATE := LEVEL_OBJECT_CATALOG.TYPE_PRESSURE_PLATE
 const DRAW_ORDER := [
 	TOOL_SOLID_RECT,
 	TOOL_TOGGLE_PLATFORM,
 	TOOL_TOGGLE_WALL,
+	TOOL_PRESSURE_PLATE,
 	TOOL_VERTICAL_PLATFORM,
 	TOOL_CATAPULT_PLATFORM,
 	TOOL_SPIKE_TRAP,
@@ -93,6 +97,7 @@ const DRAW_ORDER := [
 ]
 const HIT_ORDER := [
 	TOOL_HINGE,
+	TOOL_PRESSURE_PLATE,
 	TOOL_DOUBLE_JUMP_PICKUP,
 	TOOL_SHOOTER_ENEMY,
 	TOOL_SHOVE_ENEMY,
@@ -151,12 +156,17 @@ const COLOR_TOGGLE_INACTIVE := Color(0.278, 0.345, 0.459, 0.2)
 const COLOR_TOGGLE_EDGE := Color(0.439, 0.827, 0.816, 0.9)
 const COLOR_HINGE_OUTER := Color(0.925, 0.58, 0.267, 1.0)
 const COLOR_HINGE_INNER := Color(0.302, 0.125, 0.098, 1.0)
+const COLOR_PRESSURE_PLATE := Color(0.498, 0.408, 0.188, 1.0)
+const COLOR_PRESSURE_PLATE_EDGE := Color(1.0, 0.82, 0.36, 1.0)
+const COLOR_PRESSURE_PLATE_OFF := Color(0.718, 0.376, 0.925, 0.9)
 const COLOR_DOUBLE_JUMP_OUTER := Color(0.439, 0.878, 0.816, 1.0)
 const COLOR_DOUBLE_JUMP_INNER := Color(0.071, 0.204, 0.251, 1.0)
 const COLOR_DOUBLE_JUMP_CHEVRON := Color(1.0, 0.82, 0.36, 1.0)
 const COLOR_LINK := Color(0.439, 0.827, 0.816, 0.38)
 const COLOR_LINK_SELECTED := Color(0.439, 0.878, 0.816, 0.95)
 const COLOR_LINK_BROKEN := Color(0.925, 0.365, 0.231, 0.95)
+const COLOR_PRESSURE_LINK := Color(1.0, 0.82, 0.36, 0.52)
+const COLOR_PRESSURE_LINK_SELECTED := Color(1.0, 0.9, 0.52, 1.0)
 const COLOR_SELECTION := Color(0.439, 0.827, 0.816, 1.0)
 const COLOR_GHOST := Color(1.0, 0.82, 0.36, 0.44)
 const COLOR_GHOST_OUTLINE := Color(1.0, 0.82, 0.36, 1.0)
@@ -323,7 +333,7 @@ func _gui_input(event: InputEvent) -> void:
 					button_event.position,
 					true
 				)
-				var target := _hit_test_hinge_target(
+				var target := _hit_test_link_target(
 					logical_position
 				)
 				link_target_requested.emit(
@@ -346,7 +356,7 @@ func _gui_input(event: InputEvent) -> void:
 			link_motion.position,
 			true
 		)
-		var target := _hit_test_hinge_target(
+		var target := _hit_test_link_target(
 			_link_cursor_logical
 		)
 		_link_hover_id = str(target.get("id", ""))
@@ -471,6 +481,15 @@ func _update_drag(local_position: Vector2) -> void:
 			true
 		)
 		_drag_preview_payload = _toggle_wall_rect_from_drag(
+			_drag_start_logical,
+			snapped_current
+		)
+	elif _drag_kind == TOOL_PRESSURE_PLATE:
+		var snapped_current := _snap_logical_point(
+			_drag_current_logical,
+			true
+		)
+		_drag_preview_payload = _pressure_plate_rect_from_drag(
 			_drag_start_logical,
 			snapped_current
 		)
@@ -667,72 +686,80 @@ func _draw_fixed_geometry(view_rect: Rect2) -> void:
 
 func _draw_links(view_rect: Rect2) -> void:
 	for object: Variant in _objects():
-		if (
-			typeof(object) != TYPE_DICTIONARY
-			or object.get("type", "") != TOOL_HINGE
-		):
+		if typeof(object) != TYPE_DICTIONARY:
 			continue
-
 		var source := object as Dictionary
-		var source_position := _object_anchor(source)
-		var target := _find_object(str(source.get("target_id", "")))
-		var selected := str(source.get("id", "")) == _selected_id
-		if (
-			not target.is_empty()
-			and _is_hinge_target_type(
-				str(target.get("type", ""))
-			)
-		):
-			var target_position := _object_anchor(target)
-			var color := (
-				COLOR_LINK_SELECTED if selected else COLOR_LINK
-			)
-			_draw_logical_link(
-				source_position,
-				target_position,
-				color,
-				3.0 if selected else 2.0,
-				view_rect
-			)
+		if not _is_link_source_type(str(source.get("type", ""))):
 			continue
+		_draw_stored_link(source, view_rect)
+	_draw_pending_link(view_rect)
 
-		var stub_direction := (
-			Vector2.LEFT
-			if source_position.x > LOGICAL_SIZE.x - 64.0
-			else Vector2.RIGHT
-		)
-		var stub_end := source_position + stub_direction * 36.0
+
+func _draw_stored_link(source: Dictionary, view_rect: Rect2) -> void:
+	var source_type := str(source.get("type", ""))
+	var source_position := _object_anchor(source)
+	var target := _find_object(str(source.get("target_id", "")))
+	var selected := str(source.get("id", "")) == _selected_id
+	if not target.is_empty() and _is_link_target_type(
+		source_type, str(target.get("type", ""))
+	):
 		_draw_logical_link(
 			source_position,
-			stub_end,
-			COLOR_LINK_BROKEN,
-			2.0,
+			_object_anchor(target),
+			_link_color(source_type, selected),
+			3.0 if selected else 2.0,
 			view_rect
 		)
-		var local_end := _logical_point_to_local(stub_end, view_rect)
-		var cross_size := 5.0
-		draw_line(
-			local_end - Vector2(cross_size, cross_size),
-			local_end + Vector2(cross_size, cross_size),
-			COLOR_LINK_BROKEN,
-			2.0
-		)
-		draw_line(
-			local_end + Vector2(-cross_size, cross_size),
-			local_end + Vector2(cross_size, -cross_size),
-			COLOR_LINK_BROKEN,
-			2.0
-		)
+		return
+	_draw_broken_link(source_position, view_rect)
 
+
+func _draw_broken_link(source_position: Vector2, view_rect: Rect2) -> void:
+	var stub_direction := (
+		Vector2.LEFT
+		if source_position.x > LOGICAL_SIZE.x - 64.0
+		else Vector2.RIGHT
+	)
+	var stub_end := source_position + stub_direction * 36.0
+	_draw_logical_link(
+		source_position,
+		stub_end,
+		COLOR_LINK_BROKEN,
+		2.0,
+		view_rect
+	)
+	_draw_broken_link_cross(
+		_logical_point_to_local(stub_end, view_rect)
+	)
+
+
+func _draw_broken_link_cross(local_end: Vector2) -> void:
+	var cross_size := 5.0
+	draw_line(
+		local_end - Vector2(cross_size, cross_size),
+		local_end + Vector2(cross_size, cross_size),
+		COLOR_LINK_BROKEN,
+		2.0
+	)
+	draw_line(
+		local_end + Vector2(-cross_size, cross_size),
+		local_end + Vector2(cross_size, -cross_size),
+		COLOR_LINK_BROKEN,
+		2.0
+	)
+
+
+func _draw_pending_link(view_rect: Rect2) -> void:
 	if _link_source_id.is_empty():
 		return
 	var link_source := _find_object(_link_source_id)
 	if link_source.is_empty():
 		return
+	var link_source_type := str(link_source.get("type", ""))
 	_draw_logical_link(
 		_object_anchor(link_source),
 		_link_cursor_logical,
-		COLOR_LINK_SELECTED,
+		_link_color(link_source_type, true),
 		3.0,
 		view_rect
 	)
@@ -762,7 +789,7 @@ func _draw_link_target_hover(view_rect: Rect2) -> void:
 		return
 	draw_rect(
 		_logical_rect_to_local(bounds, view_rect).grow(3.0),
-		COLOR_LINK_SELECTED,
+		_link_color(_link_source_type(), true),
 		false,
 		3.0
 	)
@@ -791,6 +818,17 @@ func _draw_object(
 			if not _is_number_array(rect_values, 4):
 				return
 			_draw_spike_trap(rect_values, view_rect, alpha)
+
+		TOOL_PRESSURE_PLATE:
+			var rect_values: Variant = object.get("rect")
+			if not _is_number_array(rect_values, 4):
+				return
+			_draw_pressure_plate(
+				rect_values,
+				bool(object.get("active_while_pressed", true)),
+				view_rect,
+				alpha
+			)
 
 		TOOL_TOGGLE_PLATFORM:
 			var rect_values: Variant = object.get("rect")
@@ -1028,6 +1066,35 @@ func _draw_toggle_platform(
 		view_rect,
 		alpha,
 		false
+	)
+
+
+func _draw_pressure_plate(
+	rect_values: Array,
+	active_while_pressed: bool,
+	view_rect: Rect2,
+	alpha: float
+) -> void:
+	var logical_rect := _rect_from_payload(rect_values)
+	var local_rect := _logical_rect_to_local(logical_rect, view_rect)
+	var body_color := (
+		COLOR_PRESSURE_PLATE
+		if active_while_pressed
+		else COLOR_PRESSURE_PLATE_OFF
+	)
+	draw_rect(local_rect, _with_alpha(body_color, alpha))
+	draw_rect(
+		local_rect,
+		_with_alpha(COLOR_PRESSURE_PLATE_EDGE, alpha),
+		false,
+		2.0
+	)
+	var pad := local_rect.grow(-3.0)
+	draw_line(
+		Vector2(pad.position.x, pad.get_center().y),
+		Vector2(pad.end.x, pad.get_center().y),
+		_with_alpha(COLOR_PRESSURE_PLATE_EDGE, alpha),
+		2.0
 	)
 
 
@@ -2420,6 +2487,13 @@ func _draw_drag_preview(view_rect: Rect2) -> void:
 				view_rect,
 				COLOR_GHOST.a
 			)
+		elif _drag_kind == TOOL_PRESSURE_PLATE:
+			_draw_pressure_plate(
+				_drag_preview_payload,
+				true,
+				view_rect,
+				COLOR_GHOST.a
+			)
 		else:
 			_draw_solid(
 				_drag_preview_payload,
@@ -2567,6 +2641,18 @@ func _draw_drag_preview(view_rect: Rect2) -> void:
 				view_rect,
 				COLOR_GHOST.a
 			)
+		elif _drag_object_type == TOOL_PRESSURE_PLATE:
+			_draw_pressure_plate(
+				_drag_preview_payload,
+				bool(
+					_find_object(_drag_object_id).get(
+						"active_while_pressed",
+						true
+					)
+				),
+				view_rect,
+				COLOR_GHOST.a
+			)
 		else:
 			var dragged_object := _find_object(_drag_object_id)
 			_draw_solid(
@@ -2606,12 +2692,13 @@ func _hit_test(logical_position: Vector2) -> Dictionary:
 	return {}
 
 
-func _hit_test_hinge_target(
+func _hit_test_link_target(
 	logical_position: Vector2
 ) -> Dictionary:
 	var objects := _objects()
+	var source_type := _link_source_type()
 	for object_type: String in HIT_ORDER:
-		if not _is_hinge_target_type(object_type):
+		if not _is_link_target_type(source_type, object_type):
 			continue
 		for index in range(objects.size() - 1, -1, -1):
 			var object: Variant = objects[index]
@@ -2629,10 +2716,50 @@ func _hit_test_hinge_target(
 	return {}
 
 
+func _hit_test_hinge_target(logical_position: Vector2) -> Dictionary:
+	return _hit_test_link_target(logical_position)
+
+
+func _link_source_type() -> String:
+	return str(_find_object(_link_source_id).get("type", ""))
+
+
+static func _is_link_source_type(object_type: String) -> bool:
+	return object_type in [TOOL_HINGE, TOOL_PRESSURE_PLATE]
+
+
+func _is_link_target_type(
+	source_type: String,
+	target_type: String
+) -> bool:
+	if source_type == TOOL_HINGE:
+		return _is_hinge_target_type(target_type)
+	if source_type == TOOL_PRESSURE_PLATE:
+		return _is_pressure_target_type(target_type)
+	return false
+
+
+static func _link_color(source_type: String, selected: bool) -> Color:
+	if source_type == TOOL_PRESSURE_PLATE:
+		return (
+			COLOR_PRESSURE_LINK_SELECTED
+			if selected
+			else COLOR_PRESSURE_LINK
+		)
+	return COLOR_LINK_SELECTED if selected else COLOR_LINK
+
+
 func _is_hinge_target_type(object_type: String) -> bool:
 	return LEVEL_OBJECT_CATALOG.is_in_category(
 		object_type,
 		LEVEL_OBJECT_CATALOG.Category.HINGE_TARGET
+	)
+
+
+static func _is_pressure_target_type(object_type: String) -> bool:
+	return LEVEL_OBJECT_CATALOG.is_in_category(
+		object_type,
+		LEVEL_OBJECT_CATALOG.Category.PRESSURE_TARGET
 	)
 
 
@@ -2904,6 +3031,19 @@ func _toggle_wall_rect_from_drag(
 	]
 
 
+func _pressure_plate_rect_from_drag(
+	start: Vector2,
+	current: Vector2
+) -> Array:
+	var rect := _toggle_rect_from_drag(start, current)
+	if int(rect[2]) >= MIN_PRESSURE_PLATE_WIDTH:
+		return rect
+	rect[2] = MIN_PRESSURE_PLATE_WIDTH
+	if int(rect[0]) + MIN_PRESSURE_PLATE_WIDTH > int(LOGICAL_SIZE.x):
+		rect[0] = int(LOGICAL_SIZE.x) - MIN_PRESSURE_PLATE_WIDTH
+	return rect
+
+
 func _default_rect(start: Vector2, object_type: String) -> Array:
 	var grid_size := _grid_size()
 	if object_type == TOOL_SPIKE_TRAP:
@@ -2966,6 +3106,8 @@ func _default_rect(start: Vector2, object_type: String) -> Array:
 			wall_width,
 			wall_height,
 		]
+	if object_type == TOOL_PRESSURE_PLATE:
+		return _default_pressure_plate_rect(start)
 
 	var width := mini(
 		maxi(DEFAULT_SOLID_SIZE.x, grid_size),
@@ -2978,6 +3120,28 @@ func _default_rect(start: Vector2, object_type: String) -> Array:
 	var left := mini(_round_to_int(start.x), int(LOGICAL_SIZE.x) - width)
 	var top := mini(_round_to_int(start.y), int(LOGICAL_SIZE.y) - height)
 	return [maxi(left, 0), maxi(top, 0), width, height]
+
+
+func _default_pressure_plate_rect(start: Vector2) -> Array:
+	var width := mini(
+		DEFAULT_PRESSURE_PLATE_SIZE.x,
+		int(LOGICAL_SIZE.x)
+	)
+	var height := DEFAULT_PRESSURE_PLATE_SIZE.y
+	var left := mini(
+		_round_to_int(start.x),
+		int(LOGICAL_SIZE.x) - width
+	)
+	var top := mini(
+		_round_to_int(start.y),
+		int(LOGICAL_SIZE.y) - height
+	)
+	return [
+		maxi(left, 0),
+		maxi(top, 0),
+		width,
+		height,
+	]
 
 
 func _object_anchor(object: Dictionary) -> Vector2:

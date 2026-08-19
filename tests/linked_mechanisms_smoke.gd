@@ -34,6 +34,7 @@ func _run() -> void:
 	_test_invalid_links()
 	_test_link_warnings_and_fan_in()
 	_test_builder_rolls_back_invalid_links()
+	_test_pressure_builder_link()
 	await _test_toggle_lifecycle()
 	await _test_arena_02_builder_and_real_clear()
 	await _test_arena_02_editor_lifecycle()
@@ -470,6 +471,52 @@ func _test_builder_rolls_back_invalid_links() -> void:
 		"Builder left a partially assembled arena after a bad link."
 	)
 	arena.free()
+
+
+func _test_pressure_builder_link() -> void:
+	var data := _make_linked_level()
+	_append_pressure_fixture(data)
+	var arena := RUNTIME_SCENE.instantiate() as LevelRuntimeArena
+	var result: Dictionary = LEVEL_BUILDER.build_into(arena, data)
+	var objects: Dictionary = result.get("objects", {})
+	var plate := objects.get("weight_plate") as PressurePlate
+	var target := objects.get("pressure_bridge") as TogglePlatform
+	var pressure_cable := arena.get_node_or_null(
+		"Geometry/LevelObjects/PressureLink_weight_plate"
+	) as Line2D
+	var hinge_cable := arena.get_node_or_null(
+		"Geometry/LevelObjects/Link_bridge_hinge"
+	) as Line2D
+	_expect(
+		bool(result.get("ok", false))
+		and is_instance_valid(plate)
+		and plate.target == target
+		and is_instance_valid(pressure_cable)
+		and is_instance_valid(hinge_cable)
+		and pressure_cable.default_color != hinge_cable.default_color,
+		"Builder did not create a distinct pressure target cable."
+	)
+	arena.free()
+
+
+func _append_pressure_fixture(data: Dictionary) -> void:
+	data["objects"].append(
+		{
+			"id": "pressure_bridge",
+			"type": "toggle_platform",
+			"rect": [620, 400, 120, 20],
+			"starts_active": false,
+		}
+	)
+	data["objects"].append(
+		{
+			"id": "weight_plate",
+			"type": "pressure_plate",
+			"rect": [620, 380, 80, 20],
+			"target_id": "pressure_bridge",
+			"active_while_pressed": true,
+		}
+	)
 
 
 func _test_toggle_lifecycle() -> void:

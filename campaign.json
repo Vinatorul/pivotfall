@@ -78,6 +78,11 @@
 			"level_id": "arena_15_data",
 			"path": "res://levels/arena_15.json",
 			"catalog_title": "Arena 15 / Домино"
+		},
+		{
+			"level_id": "arena_16_data",
+			"path": "res://levels/arena_16.json",
+			"catalog_title": "Arena 16 / Противовес"
 		}
 	]
 }

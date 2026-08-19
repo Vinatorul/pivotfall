@@ -77,7 +77,7 @@ layout_mode = 0
 offset_left = 26.0
 offset_top = 98.0
 offset_right = 454.0
-offset_bottom = 390.0
+offset_bottom = 410.0
 mouse_filter = 2
 theme_override_colors/default_color = Color(0.651, 0.714, 0.82, 1)
 theme_override_constants/line_separation = 1
@@ -90,18 +90,18 @@ scroll_active = false
 [node name="Divider" type="ColorRect" parent="Menu/Panel"]
 layout_mode = 0
 offset_left = 26.0
-offset_top = 400.0
+offset_top = 418.0
 offset_right = 454.0
-offset_bottom = 402.0
+offset_bottom = 420.0
 mouse_filter = 2
 color = Color(0.235, 0.302, 0.416, 1)
 
 [node name="Help" type="Label" parent="Menu/Panel"]
 layout_mode = 0
 offset_left = 26.0
-offset_top = 414.0
+offset_top = 430.0
 offset_right = 454.0
-offset_bottom = 474.0
+offset_bottom = 490.0
 theme_override_colors/font_color = Color(0.651, 0.714, 0.82, 1)
 theme_override_font_sizes/font_size = 13
 text = "1–9, 0=10 — быстро    UP DOWN — все    E — редактор\nEnter / Space — открыть    F1 / Esc — закрыть"

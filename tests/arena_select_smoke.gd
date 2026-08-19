@@ -12,6 +12,7 @@ const MAIN_MENU_SCENE := preload(
 const ARENA_SELECT_PATH := "res://scenes/arena_select.tscn"
 const MAIN_MENU_PATH := "res://scenes/main_menu.tscn"
 const CAMPAIGN_PATH := "res://scenes/campaign_runner.tscn"
+const EXPECTED_ARENA_COUNT := 16
 
 var failures: Array[String] = []
 var progress_store: CampaignProgressStore
@@ -75,6 +76,12 @@ func _run() -> void:
 			campaign_entries.append(
 				(raw_entry as Dictionary).duplicate(true)
 			)
+	_expect(
+		campaign_entries.size() == EXPECTED_ARENA_COUNT
+		and str(campaign_entries[-1].get("id", ""))
+		== "arena_16_data",
+		"Arena Select manifest did not expose Arena 16 as the final entry."
+	)
 
 	var started := progress_store.begin_new_game(campaign_entries)
 	_expect(
@@ -247,6 +254,7 @@ func _run() -> void:
 				+ "or focus the final arena."
 			)
 		)
+		await _test_completed_final_replay(selector)
 
 	var completed_menu := await _replace_with_main_menu()
 	_expect(
@@ -262,12 +270,33 @@ func _run() -> void:
 	_finish()
 
 
+func _test_completed_final_replay(selector: Node) -> void:
+	var completed_bytes := FileAccess.get_file_as_bytes(
+		progress_store.get_storage_path()
+	)
+	await _click_mouse(selector.arena_buttons[-1])
+	var final_replay := await _wait_for_scene(CAMPAIGN_PATH)
+	_expect(
+		is_instance_valid(final_replay)
+		and final_replay is CampaignRunner
+		and (final_replay as CampaignRunner).get_current_level_id()
+		== "arena_16_data"
+		and (final_replay as CampaignRunner).is_replay_mode()
+		and not (final_replay as CampaignRunner).is_tracking_progress()
+		and FileAccess.get_file_as_bytes(
+			progress_store.get_storage_path()
+		) == completed_bytes,
+		"Arena 16 replay changed completed campaign progress."
+	)
+
+
 func _expect_selector_ready(selector: Node) -> void:
 	_expect(
 		is_instance_valid(selector)
 		and selector.scene_file_path == ARENA_SELECT_PATH
 		and selector.has_valid_progress
 		and selector.arena_grid.columns == 3
+		and selector.arena_buttons.size() == EXPECTED_ARENA_COUNT
 		and selector.arena_buttons.size() == campaign_entries.size(),
 		"Arena Select did not build the manifest-driven grid."
 	)

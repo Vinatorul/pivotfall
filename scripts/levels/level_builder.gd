@@ -34,8 +34,12 @@ const TOGGLE_PLATFORM_SCENE := preload(
 	"res://scenes/toggle_platform.tscn"
 )
 const HINGE_SCENE := preload("res://scenes/hinge.tscn")
+const PRESSURE_PLATE_SCENE := preload(
+	"res://scenes/pressure_plate.tscn"
+)
 
 const LINK_COLOR := Color(0.439, 0.827, 0.816, 0.48)
+const PRESSURE_LINK_COLOR := Color(1.0, 0.82, 0.36, 0.62)
 const LINK_WIDTH := 3.0
 
 
@@ -348,9 +352,33 @@ static func _create_object(definition: Dictionary) -> Dictionary:
 			hinge.position = _vector_from(definition["position"])
 			return _object_success(hinge, "geometry")
 
+		LEVEL_OBJECT_CATALOG.TYPE_PRESSURE_PLATE:
+			return _create_pressure_plate(definition)
+
 	return _object_failure(
 		"Builder does not support object type '%s'." % object_type
 	)
+
+
+static func _create_pressure_plate(definition: Dictionary) -> Dictionary:
+	var plate := (
+		PRESSURE_PLATE_SCENE.instantiate() as PressurePlate
+	)
+	if not is_instance_valid(plate):
+		return _object_failure(
+			"Could not instantiate pressure_plate."
+		)
+	var values: Array = definition["rect"]
+	plate.configure(
+		Rect2(
+			float(values[0]),
+			float(values[1]),
+			float(values[2]),
+			float(values[3])
+		),
+		bool(definition["active_while_pressed"])
+	)
+	return _object_success(plate, "geometry")
 
 
 static func _apply_shove_preset(
@@ -446,58 +474,125 @@ static func _resolve_links(
 ) -> Dictionary:
 	var errors: Array[String] = []
 	for definition: Dictionary in definitions:
-		if definition["type"] != LEVEL_OBJECT_CATALOG.TYPE_HINGE:
-			continue
-
-		var source_id: String = definition["id"]
-		var target_id: String = definition["target_id"]
-		var source := objects_by_id.get(source_id) as Node
-		var target := objects_by_id.get(target_id) as Node
-		if not source is Hinge:
-			errors.append(
-				"Object '%s' is not a hinge during link resolution."
-				% source_id
-			)
-			continue
-		if (
-			not target is TogglePlatform
-			and not target is RotatingPlatform
-			and not target is VerticalPlatform
-		):
-			errors.append(
-				(
-					"Hinge '%s' target '%s' is missing or is not "
-					+ "a supported mechanism."
-				)
-				% [source_id, target_id]
-			)
-			continue
-
-		(source as Hinge).configure_target(target)
-		var cable := _create_link_line(
-			source as Node2D,
-			target as Node2D,
-			source_id
+		var error := _resolve_link(
+			definition,
+			objects_by_id,
+			placements,
+			geometry_parent
 		)
-		placements.append(
-			{"parent": geometry_parent, "node": cable}
-		)
+		if not error.is_empty():
+			errors.append(error)
 
 	if not errors.is_empty():
 		return {"ok": false, "errors": errors}
 	return {"ok": true, "errors": [] as Array[String]}
 
 
+static func _resolve_link(
+	definition: Dictionary,
+	objects_by_id: Dictionary,
+	placements: Array[Dictionary],
+	geometry_parent: Node
+) -> String:
+	match str(definition["type"]):
+		LEVEL_OBJECT_CATALOG.TYPE_HINGE:
+			return _resolve_hinge_link(
+				definition, objects_by_id, placements, geometry_parent
+			)
+		LEVEL_OBJECT_CATALOG.TYPE_PRESSURE_PLATE:
+			return _resolve_pressure_link(
+				definition, objects_by_id, placements, geometry_parent
+			)
+	return ""
+
+
+static func _resolve_hinge_link(
+	definition: Dictionary,
+	objects_by_id: Dictionary,
+	placements: Array[Dictionary],
+	geometry_parent: Node
+) -> String:
+	var source_id: String = definition["id"]
+	var target_id: String = definition["target_id"]
+	var source := objects_by_id.get(source_id) as Node
+	var target := objects_by_id.get(target_id) as Node
+	if not source is Hinge:
+		return "Object '%s' is not a hinge during link resolution." % source_id
+	if not _is_hinge_target(target):
+		return (
+			"Hinge '%s' target '%s' is missing or is not a supported mechanism."
+			% [source_id, target_id]
+		)
+	(source as Hinge).configure_target(target)
+	_append_link(
+		placements, geometry_parent, source, target, source_id, LINK_COLOR
+	)
+	return ""
+
+
+static func _resolve_pressure_link(
+	definition: Dictionary,
+	objects_by_id: Dictionary,
+	placements: Array[Dictionary],
+	geometry_parent: Node
+) -> String:
+	var source_id: String = definition["id"]
+	var target_id: String = definition["target_id"]
+	var source := objects_by_id.get(source_id) as Node
+	var target := objects_by_id.get(target_id) as Node
+	if not source is PressurePlate:
+		return (
+			"Object '%s' is not a pressure plate during link resolution."
+			% source_id
+		)
+	if not target is TogglePlatform:
+		return (
+			"Pressure plate '%s' target '%s' is missing or incompatible."
+			% [source_id, target_id]
+		)
+	(source as PressurePlate).configure_target(target as TogglePlatform)
+	_append_link(
+		placements, geometry_parent, source, target, source_id,
+		PRESSURE_LINK_COLOR, "PressureLink"
+	)
+	return ""
+
+
+static func _is_hinge_target(target: Node) -> bool:
+	return (
+		target is TogglePlatform
+		or target is RotatingPlatform
+		or target is VerticalPlatform
+	)
+
+
+static func _append_link(
+	placements: Array[Dictionary],
+	parent: Node,
+	source: Node2D,
+	target: Node2D,
+	source_id: String,
+	color: Color,
+	prefix := "Link"
+) -> void:
+	var cable := _create_link_line(
+		source, target, source_id, color, prefix
+	)
+	placements.append({"parent": parent, "node": cable})
+
+
 static func _create_link_line(
 	source: Node2D,
 	target: Node2D,
-	source_id: String
+	source_id: String,
+	color: Color,
+	prefix: String
 ) -> Line2D:
 	var cable := Line2D.new()
-	cable.name = StringName("Link_%s" % source_id)
+	cable.name = StringName("%s_%s" % [prefix, source_id])
 	cable.z_index = -2
 	cable.width = LINK_WIDTH
-	cable.default_color = LINK_COLOR
+	cable.default_color = color
 	cable.points = PackedVector2Array(
 		[source.position, target.position]
 	)

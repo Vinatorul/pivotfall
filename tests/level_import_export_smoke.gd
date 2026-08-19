@@ -78,6 +78,10 @@ func _test_export(editor: LevelEditor) -> void:
 			and decoded["data"] == data,
 			"Export did not produce the canonical current level JSON."
 		)
+		_expect(
+			_has_object_type(decoded.get("data", {}), "pressure_plate"),
+			"Pressure plate disappeared from exported canonical JSON."
+		)
 	_expect(
 		editor.draft.is_dirty()
 		and editor.draft.can_undo() == history_before
@@ -292,6 +296,7 @@ func _make_level(level_id: String, title: String) -> Dictionary:
 		return {}
 	var data: Dictionary = result["data"]
 	data["title"] = title
+	_append_shared_pressure_fixture(data)
 	data["objects"].append(
 		{
 			"id": "shared_spikes",
@@ -304,6 +309,33 @@ func _make_level(level_id: String, title: String) -> Dictionary:
 		failures.append("Could not normalize level fixture '%s'." % level_id)
 		return data
 	return normalized["data"]
+
+
+func _append_shared_pressure_fixture(data: Dictionary) -> void:
+	data["objects"].append(
+		{
+			"id": "shared_bridge",
+			"type": "toggle_platform",
+			"rect": [600, 436, 120, 20],
+			"starts_active": false,
+		}
+	)
+	data["objects"].append(
+		{
+			"id": "shared_plate",
+			"type": "pressure_plate",
+			"rect": [420, 436, 80, 20],
+			"target_id": "shared_bridge",
+			"active_while_pressed": true,
+		}
+	)
+
+
+func _has_object_type(data: Dictionary, object_type: String) -> bool:
+	for object: Dictionary in data.get("objects", []):
+		if object.get("type", "") == object_type:
+			return true
+	return false
 
 
 func _new_level_id(kind: String) -> String:
