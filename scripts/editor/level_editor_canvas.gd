@@ -2716,6 +2716,10 @@ func _hit_test_link_target(
 	return {}
 
 
+func _hit_test_hinge_target(logical_position: Vector2) -> Dictionary:
+	return _hit_test_link_target(logical_position)
+
+
 func _link_source_type() -> String:
 	return str(_find_object(_link_source_id).get("type", ""))
 
