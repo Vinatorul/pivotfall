@@ -13,6 +13,7 @@ const CATEGORIES: Array[LevelObjectCatalog.Category] = [
 	CATALOG.Category.ENEMY,
 	CATALOG.Category.SUPPORT,
 	CATALOG.Category.HINGE_TARGET,
+	CATALOG.Category.PRESSURE_TARGET,
 	CATALOG.Category.PROJECTILE_BLOCKER,
 ]
 const EXPECTED_ACTOR_EXTENTS := {
@@ -65,6 +66,7 @@ func _test_catalog_contract() -> void:
 	_test_category_entries(supported)
 	_test_shape_partition(supported)
 	_test_actor_contract(supported)
+	_test_pressure_contract()
 	_test_copy_contract()
 	_test_canvas_order(EDITOR_CANVAS.DRAW_ORDER, "draw")
 	_test_canvas_order(EDITOR_CANVAS.HIT_ORDER, "hit")
@@ -117,6 +119,28 @@ func _test_actor_contract(supported: Array[String]) -> void:
 		)
 	for type_id: String in enemies:
 		_expect(actors.has(type_id), "Enemy '%s' is not classified as an actor." % type_id)
+
+
+func _test_pressure_contract() -> void:
+	var targets: Array[String] = CATALOG.category_types(
+		CATALOG.Category.PRESSURE_TARGET
+	)
+	_expect(
+		_same_string_set(
+			targets,
+			[CATALOG.TYPE_TOGGLE_PLATFORM, CATALOG.TYPE_TOGGLE_WALL]
+		),
+		"Pressure-target types must contain only toggle platforms and walls."
+	)
+	for category: LevelObjectCatalog.Category in [
+		CATALOG.Category.SUPPORT,
+		CATALOG.Category.HINGE_TARGET,
+		CATALOG.Category.PROJECTILE_BLOCKER,
+	]:
+		_expect(
+			not CATALOG.is_in_category(CATALOG.TYPE_PRESSURE_PLATE, category),
+			"pressure_plate leaked into category %s." % category
+		)
 
 
 func _test_copy_contract() -> void:
@@ -286,6 +310,13 @@ func _fixture_objects() -> Array[Dictionary]:
 		{"id": "double_jump", "type": CATALOG.TYPE_DOUBLE_JUMP_PICKUP, "position": [360, 200]},
 		{"id": "bridge", "type": CATALOG.TYPE_TOGGLE_PLATFORM, "rect": [520, 400, 120, 20]},
 		{"id": "gate", "type": CATALOG.TYPE_TOGGLE_WALL, "rect": [700, 300, 20, 140]},
+		{
+			"id": "plate",
+			"type": CATALOG.TYPE_PRESSURE_PLATE,
+			"rect": [600, 476, 80, 20],
+			"target_id": "gate",
+			"active_while_pressed": false,
+		},
 		{"id": "hinge", "type": CATALOG.TYPE_HINGE, "position": [480, 300], "target_id": "bridge"},
 	]
 	return objects

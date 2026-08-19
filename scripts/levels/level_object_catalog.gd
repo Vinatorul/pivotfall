@@ -12,6 +12,7 @@ const TYPE_VERTICAL_PLATFORM: String = "vertical_platform"
 const TYPE_DOUBLE_JUMP_PICKUP: String = "double_jump_pickup"
 const TYPE_TOGGLE_PLATFORM: String = "toggle_platform"
 const TYPE_TOGGLE_WALL: String = "toggle_wall"
+const TYPE_PRESSURE_PLATE: String = "pressure_plate"
 const TYPE_HINGE: String = "hinge"
 
 enum Category {
@@ -21,6 +22,7 @@ enum Category {
 	ENEMY,
 	SUPPORT,
 	HINGE_TARGET,
+	PRESSURE_TARGET,
 	PROJECTILE_BLOCKER,
 }
 
@@ -36,6 +38,7 @@ const _SUPPORTED_TYPES: Array[String] = [
 	TYPE_DOUBLE_JUMP_PICKUP,
 	TYPE_TOGGLE_PLATFORM,
 	TYPE_TOGGLE_WALL,
+	TYPE_PRESSURE_PLATE,
 	TYPE_HINGE,
 ]
 const _RECT_TYPES: Array[String] = [
@@ -43,6 +46,7 @@ const _RECT_TYPES: Array[String] = [
 	TYPE_SPIKE_TRAP,
 	TYPE_TOGGLE_PLATFORM,
 	TYPE_TOGGLE_WALL,
+	TYPE_PRESSURE_PLATE,
 ]
 const _POINT_TYPES: Array[String] = [
 	TYPE_PLAYER_SPAWN,
@@ -71,6 +75,10 @@ const _HINGE_TARGET_TYPES: Array[String] = [
 	TYPE_TOGGLE_WALL,
 	TYPE_CATAPULT_PLATFORM,
 	TYPE_VERTICAL_PLATFORM,
+]
+const _PRESSURE_TARGET_TYPES: Array[String] = [
+	TYPE_TOGGLE_PLATFORM,
+	TYPE_TOGGLE_WALL,
 ]
 const _ACTOR_HALF_EXTENTS: Dictionary[String, Vector2i] = {
 	TYPE_PLAYER_SPAWN: Vector2i(14, 20),
@@ -102,6 +110,8 @@ static func category_types(category: Category) -> Array[String]:
 			return _copy_types(_SUPPORT_TYPES)
 		Category.HINGE_TARGET:
 			return _copy_types(_HINGE_TARGET_TYPES)
+		Category.PRESSURE_TARGET:
+			return _copy_types(_PRESSURE_TARGET_TYPES)
 	return [] as Array[String]
 
 
@@ -119,6 +129,8 @@ static func is_in_category(type_id: String, category: Category) -> bool:
 			return _SUPPORT_TYPES.has(type_id)
 		Category.HINGE_TARGET:
 			return _HINGE_TARGET_TYPES.has(type_id)
+		Category.PRESSURE_TARGET:
+			return _PRESSURE_TARGET_TYPES.has(type_id)
 	return false
 
 

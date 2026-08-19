@@ -51,6 +51,8 @@ const SPIKE_TRAP_HEIGHT := 20
 const MIN_SPIKE_TRAP_WIDTH := 20
 const TOGGLE_WALL_WIDTH := 20
 const MIN_TOGGLE_WALL_HEIGHT := 20
+const PRESSURE_PLATE_HEIGHT := 20
+const MIN_PRESSURE_PLATE_WIDTH := 40
 const CATAPULT_SIZE := Vector2i(180, 20)
 const CATAPULT_MINIMUM_Y := 94
 const VERTICAL_PLATFORM_SIZE := Vector2i(80, 20)
@@ -112,6 +114,13 @@ const TOGGLE_WALL_KEYS := [
 	"type",
 	"rect",
 	"starts_active",
+]
+const PRESSURE_PLATE_KEYS := [
+	"id",
+	"type",
+	"rect",
+	"target_id",
+	"active_while_pressed",
 ]
 const HINGE_KEYS := ["id", "type", "position", "target_id"]
 
@@ -884,6 +893,15 @@ static func _validate_object(
 				},
 			}
 
+		OBJECT_CATALOG.TYPE_PRESSURE_PLATE:
+			return _validate_pressure_plate(
+				object,
+				path,
+				object_id,
+				canvas_size,
+				errors
+			)
+
 		OBJECT_CATALOG.TYPE_HINGE:
 			_reject_unknown_keys(object, HINGE_KEYS, path, errors)
 			var position: Variant = null
@@ -930,6 +948,89 @@ static func _validate_object(
 			}
 
 	return {"ok": false, "data": {}}
+
+
+static func _validate_pressure_plate(
+	object: Dictionary,
+	path: String,
+	object_id: String,
+	canvas_size: Vector2i,
+	errors: Array[String]
+) -> Dictionary:
+	var error_count_before: int = errors.size()
+	_reject_unknown_keys(object, PRESSURE_PLATE_KEYS, path, errors)
+	var rect: Variant = _read_pressure_plate_rect(object, path, canvas_size, errors)
+	var target_id: String = _read_pressure_target_id(object, path, errors)
+	var active: Variant = _read_active_while_pressed(object, path, errors)
+	if errors.size() != error_count_before:
+		return {"ok": false, "data": {}}
+	return {
+		"ok": true,
+		"data": {
+			"id": object_id,
+			"type": OBJECT_CATALOG.TYPE_PRESSURE_PLATE,
+			"rect": rect,
+			"target_id": target_id,
+			"active_while_pressed": active,
+		},
+	}
+
+
+static func _read_pressure_plate_rect(
+	object: Dictionary,
+	path: String,
+	canvas_size: Vector2i,
+	errors: Array[String]
+) -> Variant:
+	if not _require_key(object, "rect", path, errors):
+		return null
+	var rect: Variant = _read_int_array(
+		object["rect"], "%s.rect" % path, 4, errors
+	)
+	if rect == null:
+		return null
+	_validate_rect_bounds(rect, canvas_size, path, errors)
+	_validate_toggle_platform_playfield_bounds(rect, str(object.get("id", "")), errors)
+	if rect[2] < MIN_PRESSURE_PLATE_WIDTH:
+		errors.append(
+			"%s.rect width must be at least %d."
+			% [path, MIN_PRESSURE_PLATE_WIDTH]
+		)
+	if rect[3] != PRESSURE_PLATE_HEIGHT:
+		errors.append(
+			"%s.rect height must be exactly %d."
+			% [path, PRESSURE_PLATE_HEIGHT]
+		)
+	return rect
+
+
+static func _read_pressure_target_id(
+	object: Dictionary,
+	path: String,
+	errors: Array[String]
+) -> String:
+	if not _require_key(object, "target_id", path, errors):
+		return ""
+	return _read_stable_id(
+		object["target_id"],
+		"%s.target_id" % path,
+		MAX_OBJECT_ID_LENGTH,
+		errors
+	)
+
+
+static func _read_active_while_pressed(
+	object: Dictionary,
+	path: String,
+	errors: Array[String]
+) -> Variant:
+	if not _require_key(object, "active_while_pressed", path, errors):
+		return null
+	return _read_boolean(
+		object["active_while_pressed"],
+		"%s.active_while_pressed" % path,
+		errors
+	)
 
 
 static func _validate_rect_bounds(
@@ -1198,33 +1299,136 @@ static func _validate_links(
 		objects_by_id[object["id"]] = object
 
 	for object: Dictionary in objects:
-		if object["type"] != OBJECT_CATALOG.TYPE_HINGE:
-			continue
+		if _is_link_controller(object):
+			_validate_controller_target(
+				object,
+				objects_by_id,
+				declared_object_ids,
+				errors
+			)
+	_validate_controller_conflicts(objects, errors)
 
-		var object_id: String = object["id"]
+
+static func _is_link_controller(object: Dictionary) -> bool:
+	return object["type"] in [
+		OBJECT_CATALOG.TYPE_HINGE,
+		OBJECT_CATALOG.TYPE_PRESSURE_PLATE,
+	]
+
+
+static func _validate_controller_target(
+	object: Dictionary,
+	objects_by_id: Dictionary,
+	declared_object_ids: Dictionary,
+	errors: Array[String]
+) -> void:
+	var label := _controller_label(object)
+	var object_id: String = object["id"]
+	var target_id: String = object["target_id"]
+	if _invalid_target_reference(
+		label, object_id, target_id, objects_by_id, declared_object_ids, errors
+	):
+		return
+	var target: Dictionary = objects_by_id[target_id]
+	var category := OBJECT_CATALOG.Category.HINGE_TARGET
+	if object["type"] == OBJECT_CATALOG.TYPE_PRESSURE_PLATE:
+		category = OBJECT_CATALOG.Category.PRESSURE_TARGET
+	if OBJECT_CATALOG.is_in_category(target["type"], category):
+		if object["type"] == OBJECT_CATALOG.TYPE_PRESSURE_PLATE:
+			_validate_pressure_target_state(object, target, errors)
+		return
+	var requirement := "a supported mechanism"
+	if object["type"] == OBJECT_CATALOG.TYPE_PRESSURE_PLATE:
+		requirement = "a toggle platform or wall"
+	errors.append(
+		"%s '%s' target '%s' must be %s; got '%s'."
+		% [label, object_id, target_id, requirement, target["type"]]
+	)
+
+
+static func _invalid_target_reference(
+	label: String,
+	object_id: String,
+	target_id: String,
+	objects_by_id: Dictionary,
+	declared_object_ids: Dictionary,
+	errors: Array[String]
+) -> bool:
+	if target_id == object_id:
+		errors.append("%s '%s' must not target itself." % [label, object_id])
+		return true
+	if objects_by_id.has(target_id):
+		return false
+	if not declared_object_ids.has(target_id):
+		errors.append(
+			"%s '%s' targets missing object '%s'."
+			% [label, object_id, target_id]
+		)
+	return true
+
+
+static func _controller_label(object: Dictionary) -> String:
+	if object["type"] == OBJECT_CATALOG.TYPE_PRESSURE_PLATE:
+		return "Pressure plate"
+	return "Hinge"
+
+
+static func _validate_pressure_target_state(
+	plate: Dictionary,
+	target: Dictionary,
+	errors: Array[String]
+) -> void:
+	var expected := not bool(plate["active_while_pressed"])
+	if bool(target["starts_active"]) == expected:
+		return
+	errors.append(
+		(
+			"Pressure plate '%s' target '%s' starts_active must be %s "
+			+ "for the unpressed state."
+		)
+		% [plate["id"], target["id"], expected]
+	)
+
+
+static func _validate_controller_conflicts(
+	objects: Array[Dictionary],
+	errors: Array[String]
+) -> void:
+	var claims := {}
+	for object: Dictionary in objects:
+		if not _is_link_controller(object):
+			continue
 		var target_id: String = object["target_id"]
-		if target_id == object_id:
-			errors.append(
-				"Hinge '%s' must not target itself." % object_id
-			)
-			continue
-		if not objects_by_id.has(target_id):
-			if not declared_object_ids.has(target_id):
-				errors.append(
-					"Hinge '%s' targets missing object '%s'."
-					% [object_id, target_id]
-				)
-			continue
+		if not claims.has(target_id):
+			claims[target_id] = [] as Array[Dictionary]
+		var target_claims: Array[Dictionary] = claims[target_id]
+		target_claims.append(object)
+	for target_id: String in claims:
+		_validate_target_claims(target_id, claims[target_id], errors)
 
-		var target: Dictionary = objects_by_id[target_id]
-		if not OBJECT_CATALOG.is_in_category(target["type"], OBJECT_CATALOG.Category.HINGE_TARGET):
-			errors.append(
-				(
-					"Hinge '%s' target '%s' must be a supported "
-					+ "mechanism; got '%s'."
-				)
-				% [object_id, target_id, target["type"]]
-			)
+
+static func _validate_target_claims(
+	target_id: String,
+	claims: Array[Dictionary],
+	errors: Array[String]
+) -> void:
+	var plates: Array[String] = []
+	var hinges: Array[String] = []
+	for claim: Dictionary in claims:
+		if claim["type"] == OBJECT_CATALOG.TYPE_PRESSURE_PLATE:
+			plates.append(claim["id"])
+		else:
+			hinges.append(claim["id"])
+	if plates.size() > 1:
+		errors.append(
+			"Pressure plates '%s' and '%s' both target '%s'."
+			% [plates[0], plates[1], target_id]
+		)
+	if not plates.is_empty() and not hinges.is_empty():
+		errors.append(
+			"Target '%s' has mixed hinge '%s' and pressure plate '%s' control."
+			% [target_id, hinges[0], plates[0]]
+		)
 
 
 static func _validate_actor_placements(
@@ -1343,7 +1547,10 @@ static func _collect_warnings(
 	var solids: Array[Rect2] = []
 	var targeted_platforms := {}
 	for object: Dictionary in objects:
-		if object["type"] == OBJECT_CATALOG.TYPE_HINGE:
+		if object["type"] in [
+			OBJECT_CATALOG.TYPE_HINGE,
+			OBJECT_CATALOG.TYPE_PRESSURE_PLATE,
+		]:
 			targeted_platforms[object["target_id"]] = true
 			continue
 		var support := _support_definition(object)
@@ -1493,6 +1700,7 @@ static func _mechanism_collision_rect(object: Dictionary) -> Rect2:
 		object_type == OBJECT_CATALOG.TYPE_SOLID_RECT
 		or object_type == OBJECT_CATALOG.TYPE_TOGGLE_PLATFORM
 		or object_type == OBJECT_CATALOG.TYPE_TOGGLE_WALL
+		or object_type == OBJECT_CATALOG.TYPE_PRESSURE_PLATE
 	):
 		var values: Array = object["rect"]
 		return Rect2(

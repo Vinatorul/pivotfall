@@ -1,0 +1,69 @@
+{
+	"schema_version": 1,
+	"level_id": "arena_16_data",
+	"title": "GRAYBOX  /  DATA ARENA 16  /  ПРОТИВОВЕС",
+	"objective": "СТОЛКНИ ВРАГА НА ПЛИТУ  /  ПЕРЕЙДИ МОСТ  /  УБЕРИ ОПОРУ",
+	"clear_message": "DATA ARENA 16 ПРОЙДЕНА  /  ПРОТИВОВЕС СРАБОТАЛ",
+	"canvas": {
+		"width": 960,
+		"height": 540,
+		"grid_size": 20
+	},
+	"objects": [
+		{
+			"id": "left_runway",
+			"type": "solid_rect",
+			"rect": [32, 416, 288, 20],
+			"one_way": false
+		},
+		{
+			"id": "weight_floor",
+			"type": "toggle_platform",
+			"rect": [340, 496, 100, 20],
+			"starts_active": true
+		},
+		{
+			"id": "weight_plate",
+			"type": "pressure_plate",
+			"rect": [340, 476, 100, 20],
+			"target_id": "crossing_bridge",
+			"active_while_pressed": true
+		},
+		{
+			"id": "landing",
+			"type": "solid_rect",
+			"rect": [460, 416, 60, 20],
+			"one_way": false
+		},
+		{
+			"id": "crossing_bridge",
+			"type": "toggle_platform",
+			"rect": [520, 416, 220, 20],
+			"starts_active": false
+		},
+		{
+			"id": "right_platform",
+			"type": "solid_rect",
+			"rect": [740, 416, 188, 20],
+			"one_way": false
+		},
+		{
+			"id": "player_start",
+			"type": "player_spawn",
+			"position": [120, 370]
+		},
+		{
+			"id": "patrol_weight",
+			"type": "patrol_enemy",
+			"position": [280, 370],
+			"direction": 1,
+			"speed": 20
+		},
+		{
+			"id": "release_hinge",
+			"type": "hinge",
+			"position": [840, 388],
+			"target_id": "weight_floor"
+		}
+	]
+}

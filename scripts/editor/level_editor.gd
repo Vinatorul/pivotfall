@@ -38,6 +38,7 @@ const TOOL_LIFT := LEVEL_OBJECT_CATALOG.TYPE_VERTICAL_PLATFORM
 const TOOL_TOGGLE := LEVEL_OBJECT_CATALOG.TYPE_TOGGLE_PLATFORM
 const TOOL_WALL := LEVEL_OBJECT_CATALOG.TYPE_TOGGLE_WALL
 const TOOL_HINGE := LEVEL_OBJECT_CATALOG.TYPE_HINGE
+const TOOL_PRESSURE_PLATE := LEVEL_OBJECT_CATALOG.TYPE_PRESSURE_PLATE
 
 @onready var editor_view: Control = $EditorView
 @onready var discard_dialog: ConfirmationDialog = $DiscardDialog
@@ -94,6 +95,9 @@ const TOOL_HINGE := LEVEL_OBJECT_CATALOG.TYPE_HINGE
 )
 @onready var hinge_button: Button = (
 	$EditorView/PalettePanel/ToolScroll/ToolList/HingeButton
+)
+@onready var pressure_plate_button: Button = (
+	$EditorView/PalettePanel/ToolScroll/ToolList/PressurePlateButton
 )
 @onready var duplicate_button: Button = (
 	$EditorView/PalettePanel/DuplicateButton
@@ -160,6 +164,7 @@ var pending_import_data: Dictionary = {}
 var pending_import_file_name := ""
 var loaded_user_level_id := ""
 var linking_hinge_id := ""
+var linking_pressure_plate_id := ""
 
 
 func _ready() -> void:
@@ -247,7 +252,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 
-	if key == KEY_ESCAPE and not linking_hinge_id.is_empty():
+	if key == KEY_ESCAPE and _is_linking():
 		_cancel_linking()
 		get_viewport().set_input_as_handled()
 		return
@@ -303,6 +308,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_set_tool(TOOL_LIFT)
 		KEY_0:
 			_set_tool(TOOL_WALL)
+		KEY_P:
+			_set_tool(TOOL_PRESSURE_PLATE)
 		KEY_DELETE, KEY_BACKSPACE:
 			_delete_selected()
 		KEY_LEFT:
@@ -342,6 +349,7 @@ func _connect_ui() -> void:
 		catapult_button,
 		lift_button,
 		hinge_button,
+		pressure_plate_button,
 	]:
 		button.button_group = tool_group
 
@@ -360,6 +368,9 @@ func _connect_ui() -> void:
 	catapult_button.pressed.connect(_set_tool.bind(TOOL_CATAPULT))
 	lift_button.pressed.connect(_set_tool.bind(TOOL_LIFT))
 	hinge_button.pressed.connect(_set_tool.bind(TOOL_HINGE))
+	pressure_plate_button.pressed.connect(
+		_set_tool.bind(TOOL_PRESSURE_PLATE)
+	)
 	duplicate_button.pressed.connect(_duplicate_selected)
 	delete_button.pressed.connect(_delete_selected)
 
@@ -415,6 +426,12 @@ func _on_draft_changed() -> void:
 		and draft.find_object(linking_hinge_id).is_empty()
 	):
 		linking_hinge_id = ""
+		canvas.set_link_source("")
+	if (
+		not linking_pressure_plate_id.is_empty()
+		and draft.find_object(linking_pressure_plate_id).is_empty()
+	):
+		linking_pressure_plate_id = ""
 		canvas.set_link_source("")
 
 	var document := draft.to_dictionary()
@@ -508,7 +525,7 @@ func _refresh_buttons() -> void:
 
 
 func _set_tool(tool: String) -> void:
-	if not linking_hinge_id.is_empty():
+	if _is_linking():
 		_cancel_linking(false)
 	active_tool = tool
 	canvas.set_tool(tool)
@@ -527,6 +544,9 @@ func _set_tool(tool: String) -> void:
 	catapult_button.set_pressed_no_signal(tool == TOOL_CATAPULT)
 	lift_button.set_pressed_no_signal(tool == TOOL_LIFT)
 	hinge_button.set_pressed_no_signal(tool == TOOL_HINGE)
+	pressure_plate_button.set_pressed_no_signal(
+		tool == TOOL_PRESSURE_PLATE
+	)
 	var active_button := _palette_button_for_tool(tool)
 	if is_instance_valid(active_button):
 		tool_scroll.call_deferred(
@@ -561,6 +581,8 @@ func _palette_button_for_tool(tool: String) -> Button:
 			return lift_button
 		TOOL_HINGE:
 			return hinge_button
+		TOOL_PRESSURE_PLATE:
+			return pressure_plate_button
 	return null
 
 
@@ -715,6 +737,19 @@ func _place_object(object_type: String, payload: Variant) -> void:
 				}
 			)
 			_begin_linking(object_id)
+		TOOL_PRESSURE_PLATE:
+			var object_id := draft.make_unique_id("plate")
+			selected_id = object_id
+			draft.add_object(
+				{
+					"id": object_id,
+					"type": TOOL_PRESSURE_PLATE,
+					"rect": (payload as Array).duplicate(),
+					"target_id": "",
+					"active_while_pressed": true,
+				}
+			)
+			_begin_pressure_linking(object_id)
 
 
 func _move_object(object_id: String, payload: Variant) -> void:
@@ -738,35 +773,39 @@ func _move_object(object_id: String, payload: Variant) -> void:
 
 
 func _begin_linking(hinge_id: String) -> void:
-	var hinge := draft.find_object(hinge_id)
-	if hinge.is_empty() or hinge.get("type", "") != TOOL_HINGE:
+	_begin_link_mode(hinge_id, TOOL_HINGE)
+
+
+func _begin_pressure_linking(plate_id: String) -> void:
+	_begin_link_mode(plate_id, TOOL_PRESSURE_PLATE)
+
+
+func _begin_link_mode(source_id: String, source_type: String) -> void:
+	var source := draft.find_object(source_id)
+	if source.is_empty() or source.get("type", "") != source_type:
 		return
 
 	_set_tool(TOOL_SELECT)
-	selected_id = hinge_id
+	selected_id = source_id
 	canvas.set_selected_id(selected_id)
-	var has_target := not _hinge_targets().is_empty()
-	if not has_target:
+	if _link_targets(source_type).is_empty():
 		_cancel_linking(false)
 		_rebuild_inspector()
 		_refresh_inspector_hint()
 		_set_notice(
-			"Сначала поставьте механизм, затем назначьте target.",
+			_missing_link_target_notice(source_type),
 			true
 		)
 		return
-
-	linking_hinge_id = hinge_id
-	canvas.set_link_source(hinge_id)
+	_set_linking_source(source_id, source_type)
+	canvas.set_link_source(source_id)
 	_refresh_inspector_hint()
-	_set_notice(
-		"Выберите механизм для шарнира '%s'."
-		% hinge_id
-	)
+	_set_notice(_choose_link_target_notice(source_id, source_type))
 
 
 func _on_link_target_requested(target_id: String) -> void:
-	if linking_hinge_id.is_empty():
+	var source_id := _active_link_source_id()
+	if source_id.is_empty():
 		return
 	if target_id.is_empty():
 		_set_notice(
@@ -775,44 +814,87 @@ func _on_link_target_requested(target_id: String) -> void:
 		)
 		return
 
+	var source_type := _active_link_source_type()
 	var target := draft.find_object(target_id)
-	if (
-		target.is_empty()
-		or not _is_hinge_target_type(
-			str(target.get("type", ""))
-		)
+	if not _is_link_target_type(
+		source_type, str(target.get("type", ""))
 	):
 		_set_notice(
-			(
-				"Цель шарнира должна быть "
-				+ "поддерживаемым механизмом."
-			),
+			_invalid_link_target_notice(source_type),
 			true
 		)
 		return
-
-	var hinge_id := linking_hinge_id
 	_cancel_linking(false)
-	draft.update_object(hinge_id, {"target_id": target_id})
+	draft.update_object(source_id, {"target_id": target_id})
 	_set_notice(
-		"Связь '%s' -> '%s' назначена." % [hinge_id, target_id]
+		"Связь '%s' -> '%s' назначена." % [source_id, target_id]
 	)
 
 
 func _cancel_linking(show_notice := true) -> void:
-	if linking_hinge_id.is_empty():
+	if not _is_linking():
 		return
 	linking_hinge_id = ""
+	linking_pressure_plate_id = ""
 	canvas.set_link_source("")
 	_refresh_inspector_hint()
 	if show_notice:
 		_set_notice("Выбор цели отменён.")
 
 
+func _set_linking_source(source_id: String, source_type: String) -> void:
+	linking_hinge_id = source_id if source_type == TOOL_HINGE else ""
+	linking_pressure_plate_id = (
+		source_id if source_type == TOOL_PRESSURE_PLATE else ""
+	)
+
+
+func _is_linking() -> bool:
+	return not _active_link_source_id().is_empty()
+
+
+func _active_link_source_id() -> String:
+	if not linking_hinge_id.is_empty():
+		return linking_hinge_id
+	return linking_pressure_plate_id
+
+
+func _active_link_source_type() -> String:
+	return TOOL_HINGE if not linking_hinge_id.is_empty() else TOOL_PRESSURE_PLATE
+
+
+func _missing_link_target_notice(source_type: String) -> String:
+	if source_type == TOOL_HINGE:
+		return "Сначала поставьте механизм, затем назначьте target."
+	return "Сначала поставьте платформу или ворота для плиты."
+
+
+func _choose_link_target_notice(source_id: String, source_type: String) -> String:
+	if source_type == TOOL_HINGE:
+		return "Выберите механизм для шарнира '%s'." % source_id
+	return "Выберите цель для плиты '%s'." % source_id
+
+
+func _invalid_link_target_notice(source_type: String) -> String:
+	if source_type == TOOL_HINGE:
+		return "Цель шарнира должна быть поддерживаемым механизмом."
+	return "Цель плиты должна быть платформой или воротами."
+
+
 func _hinge_targets() -> Array[Dictionary]:
+	return _link_targets(TOOL_HINGE)
+
+
+func _pressure_targets() -> Array[Dictionary]:
+	return _link_targets(TOOL_PRESSURE_PLATE)
+
+
+func _link_targets(source_type: String) -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	for object: Dictionary in draft.to_dictionary().get("objects", []):
-		if _is_hinge_target_type(str(object.get("type", ""))):
+		if _is_link_target_type(
+			source_type, str(object.get("type", ""))
+		):
 			result.append(object)
 	return result
 
@@ -824,14 +906,36 @@ func _is_hinge_target_type(object_type: String) -> bool:
 	)
 
 
+func _is_pressure_target_type(object_type: String) -> bool:
+	return LEVEL_OBJECT_CATALOG.is_in_category(
+		object_type,
+		LEVEL_OBJECT_CATALOG.Category.PRESSURE_TARGET
+	)
+
+
+func _is_link_target_type(source_type: String, target_type: String) -> bool:
+	if source_type == TOOL_HINGE:
+		return _is_hinge_target_type(target_type)
+	if source_type == TOOL_PRESSURE_PLATE:
+		return _is_pressure_target_type(target_type)
+	return false
+
+
 func _refresh_inspector_hint() -> void:
 	if not is_instance_valid(inspector_hint):
 		return
-	if not linking_hinge_id.is_empty():
+	if _is_linking():
+		var pressure_link := not linking_pressure_plate_id.is_empty()
 		inspector_hint.text = (
-			"ВЫБЕРИТЕ МЕХАНИЗМ НА ПОЛЕ\nEsc — отменить связь"
+			"ВЫБЕРИТЕ ЦЕЛЬ ДЛЯ ПЛИТЫ\nEsc — отменить связь"
+			if pressure_link
+			else "ВЫБЕРИТЕ МЕХАНИЗМ НА ПОЛЕ\nEsc — отменить связь"
 		)
-		inspector_hint.modulate = Color(0.439, 0.878, 0.816)
+		inspector_hint.modulate = (
+			Color(1.0, 0.82, 0.36)
+			if pressure_link
+			else Color(0.439, 0.878, 0.816)
+		)
 		return
 	var selected := draft.find_object(selected_id)
 	if selected.get("type", "") == TOOL_SHOVE:
@@ -915,6 +1019,18 @@ func _refresh_inspector_hint() -> void:
 		)
 		inspector_hint.modulate = Color(1.0, 0.82, 0.36)
 		return
+	if selected.get("type", "") == TOOL_PRESSURE_PLATE:
+		var target_id := str(selected.get("target_id", ""))
+		var target := draft.find_object(target_id)
+		if target_id.is_empty() or not _is_pressure_target_type(
+			str(target.get("type", ""))
+		):
+			inspector_hint.text = (
+				"TARGET НЕ НАЗНАЧЕН\n"
+				+ "Плита управляет платформой или воротами."
+			)
+			inspector_hint.modulate = Color(0.973, 0.58, 0.267)
+			return
 	if selected.get("type", "") == TOOL_HINGE:
 		var target_id := str(selected.get("target_id", ""))
 		var target := draft.find_object(target_id)
@@ -942,7 +1058,7 @@ func _delete_selected() -> void:
 	if selected_id.is_empty():
 		return
 	var deleted_id := selected_id
-	if deleted_id == linking_hinge_id:
+	if deleted_id == _active_link_source_id():
 		_cancel_linking(false)
 	selected_id = ""
 	if draft.remove_object(deleted_id):
@@ -950,7 +1066,7 @@ func _delete_selected() -> void:
 
 
 func _duplicate_selected() -> void:
-	if not linking_hinge_id.is_empty():
+	if _is_linking():
 		_cancel_linking(false)
 	var object := draft.find_object(selected_id)
 	if object.is_empty():
@@ -962,6 +1078,8 @@ func _duplicate_selected() -> void:
 	var duplicate := object.duplicate(true)
 	var new_id := draft.make_unique_id("%s_copy" % object["id"])
 	duplicate["id"] = new_id
+	if duplicate.get("type", "") == TOOL_PRESSURE_PLATE:
+		duplicate["target_id"] = ""
 	if LEVEL_OBJECT_CATALOG.is_in_category(
 		str(duplicate["type"]),
 		LEVEL_OBJECT_CATALOG.Category.RECT
@@ -1926,6 +2044,17 @@ func _add_rect_object_properties(object: Dictionary) -> void:
 			_add_start_state_property(
 				bool(object.get("starts_active", true))
 			)
+		TOOL_PRESSURE_PLATE:
+			_add_pressure_plate_properties(object, rect)
+
+
+func _add_pressure_plate_properties(object: Dictionary, rect: Array) -> void:
+	_add_numeric_property("WIDTH", "rect:2", rect[2])
+	_add_readonly_property("HEIGHT", "20")
+	_add_pressure_target_property(str(object.get("target_id", "")))
+	_add_pressed_state_property(
+		bool(object.get("active_while_pressed", true))
+	)
 
 
 func _add_readonly_property(label_text: String, value: String) -> void:
@@ -2062,6 +2191,32 @@ func _add_start_state_property(current: bool) -> void:
 	row.add_child(options)
 
 
+func _add_pressed_state_property(current: bool) -> void:
+	var target_id := selected_id
+	var row := _make_property_row("ПРИ НАЖАТИИ")
+	var options := OptionButton.new()
+	options.add_item("ВКЛ")
+	options.set_item_metadata(0, true)
+	options.add_item("ВЫКЛ")
+	options.set_item_metadata(1, false)
+	options.select(0 if current else 1)
+	options.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	options.item_selected.connect(
+		func(index: int) -> void:
+			if syncing_ui:
+				return
+			draft.update_object(
+				target_id,
+				{
+					"active_while_pressed": bool(
+						options.get_item_metadata(index)
+					)
+				}
+			)
+	)
+	row.add_child(options)
+
+
 func _add_collision_property(current_one_way: bool) -> void:
 	var target_id := selected_id
 	var row := _make_property_row("COLLISION")
@@ -2098,60 +2253,91 @@ func _behavior_preset(object: Dictionary) -> String:
 
 
 func _add_hinge_target_property(current_target_id: String) -> void:
-	var hinge_id := selected_id
+	_add_link_target_property(
+		current_target_id, TOOL_HINGE, _hinge_targets()
+	)
+
+
+func _add_pressure_target_property(current_target_id: String) -> void:
+	_add_link_target_property(
+		current_target_id, TOOL_PRESSURE_PLATE, _pressure_targets()
+	)
+
+
+func _add_link_target_property(
+	current_target_id: String,
+	source_type: String,
+	targets: Array[Dictionary]
+) -> void:
+	var source_id := selected_id
 	var row := _make_property_row("TARGET")
 	var options := OptionButton.new()
 	options.fit_to_longest_item = false
-	options.add_item("— НЕ НАЗНАЧЕНА —")
-	options.set_item_metadata(0, "")
-	options.set_item_tooltip(0, "Цель не назначена")
-	var selected_index := 0
-	var found_current_target := current_target_id.is_empty()
-	for platform: Dictionary in _hinge_targets():
-		var index := options.item_count
-		var platform_id := str(platform["id"])
-		options.add_item(platform_id)
-		options.set_item_metadata(index, platform_id)
-		options.set_item_tooltip(index, platform_id)
-		if platform_id == current_target_id:
-			selected_index = index
-			found_current_target = true
-	if not found_current_target:
-		selected_index = options.item_count
-		options.add_item("⚠ %s" % current_target_id)
-		options.set_item_metadata(selected_index, current_target_id)
-		options.set_item_tooltip(selected_index, current_target_id)
-		options.set_item_disabled(selected_index, true)
-	options.select(selected_index)
+	options.select(_populate_target_options(options, current_target_id, targets))
 	options.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	options.item_selected.connect(
 		func(index: int) -> void:
 			if syncing_ui:
 				return
 			var target_id := str(options.get_item_metadata(index))
-			_cancel_linking(false)
-			draft.update_object(
-				hinge_id,
-				{"target_id": target_id}
-			)
-			if target_id.is_empty():
-				_set_notice(
-					"Target шарнира снят; назначьте механизм.",
-					true
-				)
-			else:
-				_set_notice(
-					"Связь '%s' -> '%s' назначена."
-					% [hinge_id, target_id]
-				)
+			_set_link_target(source_id, source_type, target_id)
 	)
 	row.add_child(options)
-
 	var choose_button := Button.new()
 	choose_button.text = "ВЫБРАТЬ НА ПОЛЕ"
 	choose_button.custom_minimum_size = Vector2(184, 30)
-	choose_button.pressed.connect(_begin_linking.bind(hinge_id))
+	choose_button.pressed.connect(
+		_begin_link_mode.bind(source_id, source_type)
+	)
 	properties.add_child(choose_button)
+
+
+func _populate_target_options(
+	options: OptionButton,
+	current_target_id: String,
+	targets: Array[Dictionary]
+) -> int:
+	options.add_item("— НЕ НАЗНАЧЕНА —")
+	options.set_item_metadata(0, "")
+	options.set_item_tooltip(0, "Цель не назначена")
+	var selected_index := 0
+	var found_current := current_target_id.is_empty()
+	for target: Dictionary in targets:
+		var target_id := str(target["id"])
+		var index := options.item_count
+		options.add_item(target_id)
+		options.set_item_metadata(index, target_id)
+		options.set_item_tooltip(index, target_id)
+		if target_id == current_target_id:
+			selected_index = index
+			found_current = true
+	if found_current:
+		return selected_index
+	selected_index = options.item_count
+	options.add_item("⚠ %s" % current_target_id)
+	options.set_item_metadata(selected_index, current_target_id)
+	options.set_item_tooltip(selected_index, current_target_id)
+	options.set_item_disabled(selected_index, true)
+	return selected_index
+
+
+func _set_link_target(
+	source_id: String,
+	source_type: String,
+	target_id: String
+) -> void:
+	_cancel_linking(false)
+	draft.update_object(source_id, {"target_id": target_id})
+	if target_id.is_empty():
+		var source_name := "шарнира" if source_type == TOOL_HINGE else "плиты"
+		_set_notice(
+			"Target %s снят; назначьте механизм." % source_name,
+			true
+		)
+		return
+	_set_notice(
+		"Связь '%s' -> '%s' назначена." % [source_id, target_id]
+	)
 
 
 func _make_property_row(label_text: String) -> HBoxContainer:

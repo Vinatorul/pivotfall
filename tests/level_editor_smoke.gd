@@ -384,6 +384,14 @@ func _test_editor_workflow() -> void:
 		) == [400, 300, 20, 20],
 		"A fine editor grid created an undersized toggle platform."
 	)
+	_expect(
+		editor.canvas.call(
+			"_pressure_plate_rect_from_drag",
+			Vector2(400, 300),
+			Vector2(410, 340)
+		) == [400, 300, 40, 20],
+		"Pressure drag changed height or allowed width below 40px."
+	)
 	editor.canvas.set_document(editor.draft.to_dictionary())
 	_expect(
 		editor.draft.to_dictionary()["objects"].size() == 4,
@@ -793,6 +801,9 @@ func _test_editor_workflow() -> void:
 		) == toggle_id,
 		"Undo did not restore the deleted link target."
 	)
+	var pressure_fixture := await _test_pressure_plate_editor(editor)
+	var pressure_target_id := str(pressure_fixture.get("target_id", ""))
+	var pressure_plate_id := str(pressure_fixture.get("plate_id", ""))
 
 	temporary_editor_level_id = (
 		"editor_ui_smoke_%d" % Time.get_ticks_usec()
@@ -972,11 +983,27 @@ func _test_editor_workflow() -> void:
 	var initial_runtime_hinge := (
 		editor.playtest_runtime.get_level_object(hinge_id) as Hinge
 	)
+	var initial_runtime_plate := (
+		editor.playtest_runtime.get_level_object(pressure_plate_id)
+		as PressurePlate
+	)
+	var initial_pressure_target := (
+		editor.playtest_runtime.get_level_object(pressure_target_id)
+		as TogglePlatform
+	)
 	_expect(
 		is_instance_valid(initial_runtime_toggle)
 		and not initial_runtime_toggle.is_active
 		and initial_runtime_toggle.collision_shape.disabled,
 		"Embedded playtest ignored the platform's OFF start state."
+	)
+	_expect(
+		is_instance_valid(initial_runtime_plate)
+		and is_instance_valid(initial_pressure_target)
+		and initial_runtime_plate.target == initial_pressure_target
+		and not initial_runtime_plate.is_pressed
+		and not initial_pressure_target.is_active,
+		"Embedded playtest did not preserve the pressure-plate link."
 	)
 	if (
 		is_instance_valid(initial_runtime_toggle)
@@ -1127,6 +1154,154 @@ func _test_editor_workflow() -> void:
 			!= "res://scenes/main_menu.tscn"
 		),
 		"Game button did not restore the source scene and selector context."
+	)
+
+
+func _test_pressure_plate_editor(editor: LevelEditor) -> Dictionary:
+	var target_id := _place_pressure_target(editor)
+	var plate_id := await _place_pressure_plate(editor)
+	await _link_pressure_plate(editor, plate_id, target_id)
+	await _test_pressure_inspector(editor, plate_id, target_id)
+	_test_pressure_editing(editor, plate_id)
+	return {"target_id": target_id, "plate_id": plate_id}
+
+
+func _place_pressure_target(editor: LevelEditor) -> String:
+	editor.call("_set_tool", "toggle_platform")
+	editor.canvas.call(
+		"_begin_primary_action", Vector2(640, 300) * 0.6
+	)
+	editor.canvas.call(
+		"_finish_primary_action", Vector2(640, 300) * 0.6
+	)
+	var target_id: String = editor.selected_id
+	editor.draft.update_object(target_id, {"starts_active": false})
+	var target := editor.draft.find_object(target_id)
+	_expect(
+		target.get("rect", []) == [640, 300, 160, 20]
+		and target.get("starts_active", true) == false,
+		"Pressure-target fixture did not use an inactive platform."
+	)
+	return target_id
+
+
+func _place_pressure_plate(editor: LevelEditor) -> String:
+	editor.canvas.grab_focus()
+	await _press_physical_key(KEY_P)
+	_expect(
+		editor.active_tool == "pressure_plate"
+		and editor.pressure_plate_button.button_pressed,
+		"P did not select the pressure-plate tool."
+	)
+	editor.canvas.call(
+		"_begin_primary_action", Vector2(600, 340) * 0.6
+	)
+	editor.canvas.call(
+		"_finish_primary_action", Vector2(600, 340) * 0.6
+	)
+	await process_frame
+	var plate_id: String = editor.selected_id
+	var plate := editor.draft.find_object(plate_id)
+	_expect(
+		plate.get("rect", []) == [600, 340, 80, 20]
+		and plate.get("active_while_pressed") == true
+		and editor.linking_pressure_plate_id == plate_id,
+		"Pressure-plate tool did not create and start linking its default."
+	)
+	return plate_id
+
+
+func _link_pressure_plate(
+	editor: LevelEditor,
+	plate_id: String,
+	target_id: String
+) -> void:
+	var click := InputEventMouseButton.new()
+	click.button_index = MOUSE_BUTTON_LEFT
+	click.position = Vector2(720, 310) * 0.6
+	click.pressed = true
+	editor.canvas.call("_gui_input", click)
+	await process_frame
+	_expect(
+		editor.linking_pressure_plate_id.is_empty()
+		and editor.linking_hinge_id.is_empty()
+		and editor.draft.find_object(plate_id).get(
+			"target_id", ""
+		) == target_id
+		and bool(editor.validation_result.get("ok", false)),
+		"Pressure target selection mixed link modes or stayed invalid."
+	)
+
+
+func _test_pressure_inspector(
+	editor: LevelEditor,
+	plate_id: String,
+	target_id: String
+) -> void:
+	editor.call("_select_object", plate_id)
+	await process_frame
+	var target := _find_property_editor(editor, "TARGET") as OptionButton
+	var pressed := _find_property_editor(
+		editor, "ПРИ НАЖАТИИ"
+	) as OptionButton
+	_expect(
+		is_instance_valid(target)
+		and str(target.get_item_metadata(target.selected)) == target_id,
+		"Pressure inspector did not expose its target."
+	)
+	_expect(
+		is_instance_valid(pressed)
+		and pressed.get_item_text(0) == "ВКЛ"
+		and pressed.get_item_text(1) == "ВЫКЛ",
+		"Pressure inspector omitted the pressed-state selector."
+	)
+	await _test_pressure_state_option(editor, plate_id, pressed)
+
+
+func _test_pressure_state_option(
+	editor: LevelEditor,
+	plate_id: String,
+	pressed: OptionButton
+) -> void:
+	if not is_instance_valid(pressed):
+		return
+	pressed.select(1)
+	pressed.item_selected.emit(1)
+	await process_frame
+	_expect(
+		editor.draft.find_object(plate_id).get(
+			"active_while_pressed", true
+		) == false,
+		"Pressure inspector did not apply ВЫКЛ."
+	)
+	editor.call("_undo")
+
+
+func _test_pressure_editing(editor: LevelEditor, plate_id: String) -> void:
+	editor.call("_select_object", plate_id)
+	var plate := editor.draft.find_object(plate_id)
+	var original_x: int = plate["rect"][0]
+	var hit: Dictionary = editor.canvas.call("_hit_test", Vector2(620, 350))
+	_expect(hit.get("id", "") == plate_id, "Pressure plate hit-test missed.")
+	editor.call("_nudge_selected", Vector2i.RIGHT, false)
+	_expect(
+		editor.draft.find_object(plate_id)["rect"][0] == original_x + 20,
+		"Pressure plate did not nudge as a rect object."
+	)
+	editor.call("_undo")
+	editor.call("_duplicate_selected")
+	var duplicate_id: String = editor.selected_id
+	var duplicate := editor.draft.find_object(duplicate_id)
+	_expect(
+		duplicate_id != plate_id
+		and duplicate.get("target_id", "missing").is_empty()
+		and duplicate.get("rect", [])[0] == original_x + 20,
+		"Pressure duplicate reused a forbidden target or wrong offset."
+	)
+	editor.call("_delete_selected")
+	_expect(
+		bool(editor.validation_result.get("ok", false)),
+		"Deleting the unlinked pressure duplicate did not restore validity."
 	)
 
 

@@ -247,6 +247,12 @@ layout_mode = 2
 toggle_mode = true
 text = "5  ШАРНИР"
 
+[node name="PressurePlateButton" type="Button" parent="EditorView/PalettePanel/ToolScroll/ToolList"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+toggle_mode = true
+text = "P  ПЛИТА"
+
 [node name="EditTitle" type="Label" parent="EditorView/PalettePanel"]
 layout_mode = 0
 offset_left = 10.0
