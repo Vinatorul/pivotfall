@@ -15,6 +15,9 @@ extends RefCounted
 const LEVEL_BEHAVIOR_PRESETS := preload(
 	"res://scripts/levels/level_behavior_presets.gd"
 )
+const OBJECT_CATALOG := preload(
+	"res://scripts/levels/level_object_catalog.gd"
+)
 
 const SCHEMA_VERSION := 1
 
@@ -56,12 +59,6 @@ const VERTICAL_PLATFORM_MINIMUM_Y := 82
 const HINGE_RADIUS := 18
 # ceil(12px glow * 105% pulse + 2px bob).
 const DOUBLE_JUMP_PICKUP_ANIMATED_CLEARANCE := 15
-const ACTOR_HALF_EXTENTS := {
-	"player_spawn": Vector2i(14, 20),
-	"patrol_enemy": Vector2i(15, 18),
-	"shove_enemy": Vector2i(16, 19),
-	"shooter_enemy": Vector2i(17, 19),
-}
 
 const ROOT_KEYS := [
 	"schema_version",
@@ -117,31 +114,6 @@ const TOGGLE_WALL_KEYS := [
 	"starts_active",
 ]
 const HINGE_KEYS := ["id", "type", "position", "target_id"]
-const SUPPORTED_TYPES := [
-	"solid_rect",
-	"spike_trap",
-	"player_spawn",
-	"patrol_enemy",
-	"shove_enemy",
-	"shooter_enemy",
-	"catapult_platform",
-	"vertical_platform",
-	"double_jump_pickup",
-	"toggle_platform",
-	"toggle_wall",
-	"hinge",
-]
-const ENEMY_TYPES := [
-	"patrol_enemy",
-	"shove_enemy",
-	"shooter_enemy",
-]
-const HINGE_TARGET_TYPES := [
-	"toggle_platform",
-	"toggle_wall",
-	"catapult_platform",
-	"vertical_platform",
-]
 
 
 ## Parses JSON text, then applies the same validation as dictionary input.
@@ -285,9 +257,9 @@ static func validate_and_normalize(raw: Variant) -> Dictionary:
 
 				var normalized_object: Dictionary = object_result["data"]
 				normalized_objects.append(normalized_object)
-				if normalized_object["type"] == "player_spawn":
+				if normalized_object["type"] == OBJECT_CATALOG.TYPE_PLAYER_SPAWN:
 					player_count += 1
-				if ENEMY_TYPES.has(normalized_object["type"]):
+				if OBJECT_CATALOG.is_in_category(normalized_object["type"], OBJECT_CATALOG.Category.ENEMY):
 					enemy_count += 1
 
 	if player_count != 1:
@@ -427,14 +399,14 @@ static func _validate_object(
 			errors.append("%s.type must be a string." % path)
 		else:
 			object_type = String(object["type"])
-			if not SUPPORTED_TYPES.has(object_type):
+			if not OBJECT_CATALOG.is_supported_type(object_type):
 				errors.append(
 					"%s.type '%s' is not supported."
 					% [path, object_type]
 				)
 
 	match object_type:
-		"solid_rect":
+		OBJECT_CATALOG.TYPE_SOLID_RECT:
 			_reject_unknown_keys(object, SOLID_RECT_KEYS, path, errors)
 			var rect: Variant = null
 			var one_way := false
@@ -469,7 +441,7 @@ static func _validate_object(
 				},
 			}
 
-		"spike_trap":
+		OBJECT_CATALOG.TYPE_SPIKE_TRAP:
 			_reject_unknown_keys(
 				object,
 				SPIKE_TRAP_KEYS,
@@ -513,7 +485,7 @@ static func _validate_object(
 				},
 			}
 
-		"player_spawn":
+		OBJECT_CATALOG.TYPE_PLAYER_SPAWN:
 			_reject_unknown_keys(object, PLAYER_SPAWN_KEYS, path, errors)
 			var position: Variant = null
 			if _require_key(object, "position", path, errors):
@@ -542,7 +514,7 @@ static func _validate_object(
 				},
 			}
 
-		"patrol_enemy":
+		OBJECT_CATALOG.TYPE_PATROL_ENEMY:
 			_reject_unknown_keys(object, PATROL_ENEMY_KEYS, path, errors)
 			var position: Variant = null
 			var direction: Variant = DEFAULT_PATROL_DIRECTION
@@ -595,7 +567,7 @@ static func _validate_object(
 				},
 			}
 
-		"shove_enemy":
+		OBJECT_CATALOG.TYPE_SHOVE_ENEMY:
 			_reject_unknown_keys(object, SHOVE_ENEMY_KEYS, path, errors)
 			var position: Variant = null
 			var direction: Variant = DEFAULT_PATROL_DIRECTION
@@ -643,7 +615,7 @@ static func _validate_object(
 				},
 			}
 
-		"shooter_enemy":
+		OBJECT_CATALOG.TYPE_SHOOTER_ENEMY:
 			_reject_unknown_keys(object, SHOOTER_ENEMY_KEYS, path, errors)
 			var position: Variant = null
 			var behavior_preset := _read_behavior_preset(
@@ -678,7 +650,7 @@ static func _validate_object(
 				},
 			}
 
-		"catapult_platform":
+		OBJECT_CATALOG.TYPE_CATAPULT_PLATFORM:
 			_reject_unknown_keys(
 				object,
 				CATAPULT_PLATFORM_KEYS,
@@ -723,7 +695,7 @@ static func _validate_object(
 				},
 			}
 
-		"vertical_platform":
+		OBJECT_CATALOG.TYPE_VERTICAL_PLATFORM:
 			_reject_unknown_keys(
 				object,
 				VERTICAL_PLATFORM_KEYS,
@@ -762,7 +734,7 @@ static func _validate_object(
 				},
 			}
 
-		"double_jump_pickup":
+		OBJECT_CATALOG.TYPE_DOUBLE_JUMP_PICKUP:
 			_reject_unknown_keys(
 				object,
 				DOUBLE_JUMP_PICKUP_KEYS,
@@ -802,7 +774,7 @@ static func _validate_object(
 				},
 			}
 
-		"toggle_platform":
+		OBJECT_CATALOG.TYPE_TOGGLE_PLATFORM:
 			_reject_unknown_keys(
 				object,
 				TOGGLE_PLATFORM_KEYS,
@@ -857,7 +829,7 @@ static func _validate_object(
 				},
 			}
 
-		"toggle_wall":
+		OBJECT_CATALOG.TYPE_TOGGLE_WALL:
 			_reject_unknown_keys(
 				object,
 				TOGGLE_WALL_KEYS,
@@ -912,7 +884,7 @@ static func _validate_object(
 				},
 			}
 
-		"hinge":
+		OBJECT_CATALOG.TYPE_HINGE:
 			_reject_unknown_keys(object, HINGE_KEYS, path, errors)
 			var position: Variant = null
 			var target_id := ""
@@ -1133,7 +1105,7 @@ static func _validate_vertical_platform_corridors(
 ) -> void:
 	for lift_index in objects.size():
 		var lift: Dictionary = objects[lift_index]
-		if lift["type"] != "vertical_platform":
+		if lift["type"] != OBJECT_CATALOG.TYPE_VERTICAL_PLATFORM:
 			continue
 		var passenger_clearance := (
 			_vertical_platform_passenger_clearance_rect(
@@ -1145,7 +1117,7 @@ static func _validate_vertical_platform_corridors(
 				continue
 			var other: Dictionary = objects[other_index]
 			if (
-				other["type"] == "vertical_platform"
+				other["type"] == OBJECT_CATALOG.TYPE_VERTICAL_PLATFORM
 				and other_index < lift_index
 			):
 				continue
@@ -1177,7 +1149,7 @@ static func _validate_spike_trap_placements(
 ) -> void:
 	for spike_index in objects.size():
 		var spike: Dictionary = objects[spike_index]
-		if spike["type"] != "spike_trap":
+		if spike["type"] != OBJECT_CATALOG.TYPE_SPIKE_TRAP:
 			continue
 		var values: Array = spike["rect"]
 		var spike_rect := Rect2(
@@ -1191,7 +1163,7 @@ static func _validate_spike_trap_placements(
 				continue
 			var other: Dictionary = objects[other_index]
 			var other_rect := Rect2()
-			if other["type"] == "spike_trap":
+			if other["type"] == OBJECT_CATALOG.TYPE_SPIKE_TRAP:
 				if other_index < spike_index:
 					continue
 				var other_values: Array = other["rect"]
@@ -1226,7 +1198,7 @@ static func _validate_links(
 		objects_by_id[object["id"]] = object
 
 	for object: Dictionary in objects:
-		if object["type"] != "hinge":
+		if object["type"] != OBJECT_CATALOG.TYPE_HINGE:
 			continue
 
 		var object_id: String = object["id"]
@@ -1245,7 +1217,7 @@ static func _validate_links(
 			continue
 
 		var target: Dictionary = objects_by_id[target_id]
-		if not HINGE_TARGET_TYPES.has(target["type"]):
+		if not OBJECT_CATALOG.is_in_category(target["type"], OBJECT_CATALOG.Category.HINGE_TARGET):
 			errors.append(
 				(
 					"Hinge '%s' target '%s' must be a supported "
@@ -1266,7 +1238,7 @@ static func _validate_actor_placements(
 		var support := _support_definition(object)
 		if not support.is_empty():
 			solids.append(support)
-		if object["type"] == "vertical_platform":
+		if object["type"] == OBJECT_CATALOG.TYPE_VERTICAL_PLATFORM:
 			lift_sweeps.append(
 				{
 					"id": object["id"],
@@ -1275,12 +1247,12 @@ static func _validate_actor_placements(
 					),
 				}
 			)
-		elif object["type"] == "spike_trap":
+		elif object["type"] == OBJECT_CATALOG.TYPE_SPIKE_TRAP:
 			spike_traps.append(object)
 
 	for object: Dictionary in objects:
 		var object_type: String = object["type"]
-		if not ACTOR_HALF_EXTENTS.has(object_type):
+		if not OBJECT_CATALOG.has_actor_half_extents(object_type):
 			continue
 
 		var position_values: Array = object["position"]
@@ -1289,7 +1261,7 @@ static func _validate_actor_placements(
 			float(position_values[1])
 		)
 		var half_extents := Vector2(
-			ACTOR_HALF_EXTENTS[object_type]
+			OBJECT_CATALOG.actor_half_extents(object_type)
 		)
 		var actor_rect := Rect2(
 			origin - half_extents,
@@ -1371,7 +1343,7 @@ static func _collect_warnings(
 	var solids: Array[Rect2] = []
 	var targeted_platforms := {}
 	for object: Dictionary in objects:
-		if object["type"] == "hinge":
+		if object["type"] == OBJECT_CATALOG.TYPE_HINGE:
 			targeted_platforms[object["target_id"]] = true
 			continue
 		var support := _support_definition(object)
@@ -1389,12 +1361,12 @@ static func _collect_warnings(
 
 	for object: Dictionary in objects:
 		var object_type: String = object["type"]
-		if not ACTOR_HALF_EXTENTS.has(object_type):
+		if not OBJECT_CATALOG.has_actor_half_extents(object_type):
 			continue
 
 		var values: Array = object["position"]
 		var origin := Vector2(float(values[0]), float(values[1]))
-		var half_extents := Vector2(ACTOR_HALF_EXTENTS[object_type])
+		var half_extents := Vector2(OBJECT_CATALOG.actor_half_extents(object_type))
 		var actor_left := origin.x - half_extents.x
 		var actor_right := origin.x + half_extents.x
 		var actor_bottom := origin.y + half_extents.y
@@ -1409,7 +1381,7 @@ static func _collect_warnings(
 				and solid.end.x > actor_left
 			):
 				has_nearby_support = true
-				if object_type == "shove_enemy":
+				if object_type == OBJECT_CATALOG.TYPE_SHOVE_ENEMY:
 					var direction := float(object["direction"])
 					var available := (
 						solid.end.x - actor_right
@@ -1424,7 +1396,7 @@ static func _collect_warnings(
 				% object["id"]
 			)
 		elif (
-			object_type == "shove_enemy"
+			object_type == OBJECT_CATALOG.TYPE_SHOVE_ENEMY
 			and shove_runway < MIN_SHOVE_RUNWAY
 		):
 			warnings.append(
@@ -1436,7 +1408,7 @@ static func _collect_warnings(
 			)
 
 		if (
-			object_type == "patrol_enemy"
+			object_type == OBJECT_CATALOG.TYPE_PATROL_ENEMY
 			and is_zero_approx(float(object["speed"]))
 		):
 			warnings.append(
@@ -1445,15 +1417,15 @@ static func _collect_warnings(
 
 	for object: Dictionary in objects:
 		if (
-			HINGE_TARGET_TYPES.has(object["type"])
+			OBJECT_CATALOG.is_in_category(object["type"], OBJECT_CATALOG.Category.HINGE_TARGET)
 			and not targeted_platforms.has(object["id"])
 		):
 			var label := "Vertical platform"
-			if object["type"] == "toggle_platform":
+			if object["type"] == OBJECT_CATALOG.TYPE_TOGGLE_PLATFORM:
 				label = "Toggle platform"
-			elif object["type"] == "toggle_wall":
+			elif object["type"] == OBJECT_CATALOG.TYPE_TOGGLE_WALL:
 				label = "Toggle wall"
-			elif object["type"] == "catapult_platform":
+			elif object["type"] == OBJECT_CATALOG.TYPE_CATAPULT_PLATFORM:
 				label = "Catapult platform"
 			warnings.append(
 				"%s '%s' has no controlling hinge."
@@ -1493,7 +1465,7 @@ static func _vertical_platform_passenger_clearance_rect(
 	point: Array
 ) -> Rect2:
 	var player_height := (
-		int(ACTOR_HALF_EXTENTS["player_spawn"].y) * 2
+		int(OBJECT_CATALOG.actor_half_extents(OBJECT_CATALOG.TYPE_PLAYER_SPAWN).y) * 2
 	)
 	return Rect2(
 		Vector2(
@@ -1518,9 +1490,9 @@ static func _vertical_platform_passenger_clearance_rect(
 static func _mechanism_collision_rect(object: Dictionary) -> Rect2:
 	var object_type: String = object["type"]
 	if (
-		object_type == "solid_rect"
-		or object_type == "toggle_platform"
-		or object_type == "toggle_wall"
+		object_type == OBJECT_CATALOG.TYPE_SOLID_RECT
+		or object_type == OBJECT_CATALOG.TYPE_TOGGLE_PLATFORM
+		or object_type == OBJECT_CATALOG.TYPE_TOGGLE_WALL
 	):
 		var values: Array = object["rect"]
 		return Rect2(
@@ -1529,7 +1501,7 @@ static func _mechanism_collision_rect(object: Dictionary) -> Rect2:
 			float(values[2]),
 			float(values[3])
 		)
-	if object_type == "catapult_platform":
+	if object_type == OBJECT_CATALOG.TYPE_CATAPULT_PLATFORM:
 		var support := _support_definition(object)
 		var values: Array = support["rect"]
 		return Rect2(
@@ -1538,7 +1510,7 @@ static func _mechanism_collision_rect(object: Dictionary) -> Rect2:
 			float(values[2]),
 			float(values[3])
 		)
-	if object_type == "vertical_platform":
+	if object_type == OBJECT_CATALOG.TYPE_VERTICAL_PLATFORM:
 		return _vertical_platform_passenger_clearance_rect(
 			object["position"]
 		)
@@ -1547,17 +1519,17 @@ static func _mechanism_collision_rect(object: Dictionary) -> Rect2:
 
 static func _support_definition(object: Dictionary) -> Dictionary:
 	var object_type: String = object["type"]
-	if object_type == "solid_rect":
+	if object_type == OBJECT_CATALOG.TYPE_SOLID_RECT:
 		return object
 	if (
 		(
-			object_type == "toggle_platform"
-			or object_type == "toggle_wall"
+			object_type == OBJECT_CATALOG.TYPE_TOGGLE_PLATFORM
+			or object_type == OBJECT_CATALOG.TYPE_TOGGLE_WALL
 		)
 		and bool(object["starts_active"])
 	):
 		return object
-	if object_type == "catapult_platform":
+	if object_type == OBJECT_CATALOG.TYPE_CATAPULT_PLATFORM:
 		var position: Array = object["position"]
 		return {
 			"id": object["id"],
@@ -1569,7 +1541,7 @@ static func _support_definition(object: Dictionary) -> Dictionary:
 				CATAPULT_SIZE.y,
 			],
 		}
-	if object_type == "vertical_platform":
+	if object_type == OBJECT_CATALOG.TYPE_VERTICAL_PLATFORM:
 		var position: Array = object["position"]
 		return {
 			"id": object["id"],

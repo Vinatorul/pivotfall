@@ -13,6 +13,9 @@ const LEVEL_DATA_CODEC := preload(
 const LEVEL_DATA_VALIDATOR := preload(
 	"res://scripts/levels/level_data_validator.gd"
 )
+const OBJECT_CATALOG := preload(
+	"res://scripts/levels/level_object_catalog.gd"
+)
 const RUNTIME_SCRIPT := preload(
 	"res://scripts/levels/level_runtime_arena.gd"
 )
@@ -227,12 +230,12 @@ func _test_runtime_snapshot_and_idle() -> void:
 	_expect(
 		(player_shape.size * 0.5).is_equal_approx(
 			Vector2(
-				LEVEL_DATA_VALIDATOR.ACTOR_HALF_EXTENTS["player_spawn"]
+					OBJECT_CATALOG.actor_half_extents(OBJECT_CATALOG.TYPE_PLAYER_SPAWN)
 			)
 		)
 		and (enemy_shape.size * 0.5).is_equal_approx(
 			Vector2(
-				LEVEL_DATA_VALIDATOR.ACTOR_HALF_EXTENTS["patrol_enemy"]
+					OBJECT_CATALOG.actor_half_extents(OBJECT_CATALOG.TYPE_PATROL_ENEMY)
 			)
 		),
 		"Validator actor bounds drifted from the runtime colliders."

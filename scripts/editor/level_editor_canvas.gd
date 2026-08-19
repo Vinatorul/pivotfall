@@ -11,6 +11,9 @@ signal link_cancel_requested
 const LEVEL_BEHAVIOR_PRESETS := preload(
 	"res://scripts/levels/level_behavior_presets.gd"
 )
+const LEVEL_OBJECT_CATALOG := preload(
+	"res://scripts/levels/level_object_catalog.gd"
+)
 
 const LOGICAL_SIZE := Vector2(960.0, 540.0)
 const DEFAULT_GRID_SIZE := 20
@@ -56,55 +59,24 @@ const VERTICAL_PLATFORM_PASSENGER_MAX_GAP := 64.0
 const VERTICAL_PLATFORM_PASSENGER_ALPHA := 0.42
 
 const TOOL_SELECT := "select"
-const TOOL_SOLID_RECT := "solid_rect"
-const TOOL_SPIKE_TRAP := "spike_trap"
-const TOOL_PLAYER_SPAWN := "player_spawn"
-const TOOL_DOUBLE_JUMP_PICKUP := "double_jump_pickup"
-const TOOL_PATROL_ENEMY := "patrol_enemy"
-const TOOL_SHOVE_ENEMY := "shove_enemy"
-const TOOL_SHOOTER_ENEMY := "shooter_enemy"
-const TOOL_CATAPULT_PLATFORM := "catapult_platform"
-const TOOL_VERTICAL_PLATFORM := "vertical_platform"
-const TOOL_TOGGLE_PLATFORM := "toggle_platform"
-const TOOL_TOGGLE_WALL := "toggle_wall"
-const TOOL_HINGE := "hinge"
-const SUPPORTED_TOOLS := [
-	TOOL_SELECT,
-	TOOL_SOLID_RECT,
-	TOOL_SPIKE_TRAP,
-	TOOL_PLAYER_SPAWN,
-	TOOL_DOUBLE_JUMP_PICKUP,
-	TOOL_PATROL_ENEMY,
-	TOOL_SHOVE_ENEMY,
-	TOOL_SHOOTER_ENEMY,
-	TOOL_CATAPULT_PLATFORM,
-	TOOL_VERTICAL_PLATFORM,
-	TOOL_TOGGLE_PLATFORM,
-	TOOL_TOGGLE_WALL,
-	TOOL_HINGE,
-]
-const RECT_OBJECT_TYPES := [
-	TOOL_SOLID_RECT,
-	TOOL_SPIKE_TRAP,
-	TOOL_TOGGLE_PLATFORM,
-	TOOL_TOGGLE_WALL,
-]
-const ACTOR_OBJECT_TYPES := [
-	TOOL_PLAYER_SPAWN,
-	TOOL_PATROL_ENEMY,
-	TOOL_SHOVE_ENEMY,
-	TOOL_SHOOTER_ENEMY,
-]
-const POINT_OBJECT_TYPES := [
-	TOOL_PLAYER_SPAWN,
-	TOOL_DOUBLE_JUMP_PICKUP,
-	TOOL_PATROL_ENEMY,
-	TOOL_SHOVE_ENEMY,
-	TOOL_SHOOTER_ENEMY,
-	TOOL_CATAPULT_PLATFORM,
-	TOOL_VERTICAL_PLATFORM,
-	TOOL_HINGE,
-]
+const TOOL_SOLID_RECT := LEVEL_OBJECT_CATALOG.TYPE_SOLID_RECT
+const TOOL_SPIKE_TRAP := LEVEL_OBJECT_CATALOG.TYPE_SPIKE_TRAP
+const TOOL_PLAYER_SPAWN := LEVEL_OBJECT_CATALOG.TYPE_PLAYER_SPAWN
+const TOOL_DOUBLE_JUMP_PICKUP := (
+	LEVEL_OBJECT_CATALOG.TYPE_DOUBLE_JUMP_PICKUP
+)
+const TOOL_PATROL_ENEMY := LEVEL_OBJECT_CATALOG.TYPE_PATROL_ENEMY
+const TOOL_SHOVE_ENEMY := LEVEL_OBJECT_CATALOG.TYPE_SHOVE_ENEMY
+const TOOL_SHOOTER_ENEMY := LEVEL_OBJECT_CATALOG.TYPE_SHOOTER_ENEMY
+const TOOL_CATAPULT_PLATFORM := (
+	LEVEL_OBJECT_CATALOG.TYPE_CATAPULT_PLATFORM
+)
+const TOOL_VERTICAL_PLATFORM := (
+	LEVEL_OBJECT_CATALOG.TYPE_VERTICAL_PLATFORM
+)
+const TOOL_TOGGLE_PLATFORM := LEVEL_OBJECT_CATALOG.TYPE_TOGGLE_PLATFORM
+const TOOL_TOGGLE_WALL := LEVEL_OBJECT_CATALOG.TYPE_TOGGLE_WALL
+const TOOL_HINGE := LEVEL_OBJECT_CATALOG.TYPE_HINGE
 const DRAW_ORDER := [
 	TOOL_SOLID_RECT,
 	TOOL_TOGGLE_PLATFORM,
@@ -133,20 +105,6 @@ const HIT_ORDER := [
 	TOOL_VERTICAL_PLATFORM,
 	TOOL_SOLID_RECT,
 ]
-const HINGE_TARGET_TYPES := [
-	TOOL_TOGGLE_PLATFORM,
-	TOOL_TOGGLE_WALL,
-	TOOL_CATAPULT_PLATFORM,
-	TOOL_VERTICAL_PLATFORM,
-]
-
-const ACTOR_HALF_EXTENTS := {
-	TOOL_PLAYER_SPAWN: Vector2(14.0, 20.0),
-	TOOL_PATROL_ENEMY: Vector2(15.0, 18.0),
-	TOOL_SHOVE_ENEMY: Vector2(16.0, 19.0),
-	TOOL_SHOOTER_ENEMY: Vector2(17.0, 19.0),
-}
-
 const COLOR_OUTSIDE := Color(0.035, 0.047, 0.082, 1.0)
 const COLOR_BACKGROUND := Color(0.055, 0.071, 0.125, 1.0)
 const COLOR_BACKDROP := Color(0.075, 0.098, 0.165, 1.0)
@@ -249,7 +207,10 @@ func set_selected_id(object_id: String) -> void:
 
 
 func set_tool(tool: String) -> void:
-	if not SUPPORTED_TOOLS.has(tool):
+	if (
+		tool != TOOL_SELECT
+		and not LEVEL_OBJECT_CATALOG.is_supported_type(tool)
+	):
 		push_warning("Unsupported level editor canvas tool: %s." % tool)
 		return
 
@@ -401,60 +362,45 @@ func _gui_input(event: InputEvent) -> void:
 
 func _begin_primary_action(local_position: Vector2) -> void:
 	var logical_position := _local_to_logical(local_position, true)
+	if _is_rect_type(_tool):
+		_begin_rect_placement(local_position, logical_position)
+		return
+	if _is_point_type(_tool):
+		_place_point_tool(logical_position)
+		return
+	if _tool != TOOL_SELECT:
+		return
+	var hit_object := _hit_test(logical_position)
+	if hit_object.is_empty():
+		selection_requested.emit("")
+		return
+	var object_id := str(hit_object.get("id", ""))
+	selection_requested.emit(object_id)
+	_begin_move_drag(hit_object, local_position, logical_position)
 
-	match _tool:
-		TOOL_SELECT:
-			var hit_object := _hit_test(logical_position)
-			if hit_object.is_empty():
-				selection_requested.emit("")
-				return
 
-			var object_id := str(hit_object.get("id", ""))
-			selection_requested.emit(object_id)
-			_begin_move_drag(hit_object, local_position, logical_position)
+func _begin_rect_placement(
+	local_position: Vector2,
+	logical_position: Vector2
+) -> void:
+	_drag_active = true
+	_drag_kind = _tool
+	_drag_press_local = local_position
+	_drag_start_logical = _snap_logical_point(logical_position, false)
+	_drag_current_logical = _drag_start_logical
+	_drag_preview_payload = _default_rect(_drag_start_logical, _tool)
+	queue_redraw()
 
-		TOOL_SOLID_RECT, \
-		TOOL_SPIKE_TRAP, \
-		TOOL_TOGGLE_PLATFORM, \
-		TOOL_TOGGLE_WALL:
-			_drag_active = true
-			_drag_kind = _tool
-			_drag_press_local = local_position
-			_drag_start_logical = _snap_logical_point(
-				logical_position,
-				false
-			)
-			_drag_current_logical = _drag_start_logical
-			_drag_preview_payload = _default_rect(
-				_drag_start_logical,
-				_tool
-			)
-			queue_redraw()
 
-		TOOL_PLAYER_SPAWN, \
-		TOOL_DOUBLE_JUMP_PICKUP, \
-		TOOL_PATROL_ENEMY, \
-		TOOL_SHOVE_ENEMY, \
-		TOOL_SHOOTER_ENEMY, \
-		TOOL_CATAPULT_PLATFORM, \
-		TOOL_VERTICAL_PLATFORM, \
-		TOOL_HINGE:
-			var snapped_position := _snap_logical_point(
-				logical_position,
-				false
-			)
-			if _tool == TOOL_CATAPULT_PLATFORM:
-				snapped_position = clamp_catapult_position(
-					snapped_position
-				)
-			elif _tool == TOOL_VERTICAL_PLATFORM:
-				snapped_position = clamp_vertical_platform_position(
-					snapped_position
-				)
-			placement_requested.emit(
-				_tool,
-				_point_payload(snapped_position)
-			)
+func _place_point_tool(logical_position: Vector2) -> void:
+	var snapped_position := _snap_logical_point(logical_position, false)
+	if _tool == TOOL_CATAPULT_PLATFORM:
+		snapped_position = clamp_catapult_position(snapped_position)
+	elif _tool == TOOL_VERTICAL_PLATFORM:
+		snapped_position = clamp_vertical_platform_position(
+			snapped_position
+		)
+	placement_requested.emit(_tool, _point_payload(snapped_position))
 
 
 func _begin_move_drag(
@@ -537,7 +483,7 @@ func _update_drag(local_position: Vector2) -> void:
 func _finish_primary_action(local_position: Vector2) -> void:
 	_update_drag(local_position)
 
-	if RECT_OBJECT_TYPES.has(_drag_kind):
+	if _is_rect_type(_drag_kind):
 		var payload: Variant = _drag_preview_payload
 		if not _drag_moved:
 			payload = _default_rect(
@@ -585,7 +531,7 @@ func _moved_payload() -> Variant:
 	var raw_delta := _drag_current_logical - _drag_start_logical
 	var snapped_delta := _snap_delta(raw_delta)
 
-	if RECT_OBJECT_TYPES.has(_drag_object_type):
+	if _is_rect_type(_drag_object_type):
 		if not _is_number_array(_drag_original_payload, 4):
 			return null
 
@@ -605,13 +551,7 @@ func _moved_payload() -> Variant:
 			_round_to_int(height),
 		]
 
-	if (
-		ACTOR_HALF_EXTENTS.has(_drag_object_type)
-		or _drag_object_type == TOOL_DOUBLE_JUMP_PICKUP
-		or _drag_object_type == TOOL_CATAPULT_PLATFORM
-		or _drag_object_type == TOOL_VERTICAL_PLATFORM
-		or _drag_object_type == TOOL_HINGE
-	):
+	if _is_point_type(_drag_object_type):
 		if not _is_number_array(_drag_original_payload, 2):
 			return null
 
@@ -1452,13 +1392,11 @@ func _vertical_platform_passengers(
 ) -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	var upper_rect := vertical_platform_upper_rect(position)
-	var other_supports := _initial_collision_rects()
+	var other_supports := _support_collision_rects()
 	for object: Variant in _objects():
 		if (
 			typeof(object) != TYPE_DICTIONARY
-			or not ACTOR_OBJECT_TYPES.has(
-				str(object.get("type", ""))
-			)
+			or not _is_actor_type(str(object.get("type", "")))
 		):
 			continue
 
@@ -1509,10 +1447,7 @@ func _vertical_platform_passenger_destination(
 	platform_position: Vector2
 ) -> Vector2:
 	var object_type := str(actor.get("type", ""))
-	var half_extents: Vector2 = ACTOR_HALF_EXTENTS.get(
-		object_type,
-		Vector2.ZERO
-	)
+	var half_extents := _actor_half_extents(object_type)
 	var source_position := _object_anchor(actor)
 	return Vector2(
 		source_position.x,
@@ -1528,7 +1463,7 @@ func _vertical_platform_destination_blockers(
 ) -> Array[Dictionary]:
 	var blockers: Array[Dictionary] = []
 	var replaced_platform := false
-	for blocker: Dictionary in _initial_collision_rects():
+	for blocker: Dictionary in _support_collision_rects():
 		if str(blocker.get("id", "")) == platform_id:
 			blockers.append(
 				{
@@ -1558,12 +1493,12 @@ static func _resting_actor_position(
 ) -> Variant:
 	if (
 		typeof(source_position) != TYPE_VECTOR2
-		or not ACTOR_HALF_EXTENTS.has(object_type)
+		or not LEVEL_OBJECT_CATALOG.has_actor_half_extents(object_type)
 	):
 		return source_position
 
 	var position: Vector2 = source_position
-	var half_extents: Vector2 = ACTOR_HALF_EXTENTS[object_type]
+	var half_extents := _actor_half_extents(object_type)
 	var actor_bounds := Rect2(
 		position - half_extents,
 		half_extents * 2.0
@@ -1626,9 +1561,7 @@ static func vertical_platform_passenger_clearance_rect(
 	position: Vector2
 ) -> Rect2:
 	var corridor := vertical_platform_corridor_rect(position)
-	var passenger_height: float = (
-		ACTOR_HALF_EXTENTS[TOOL_PLAYER_SPAWN].y * 2.0
-	)
+	var passenger_height := _actor_half_extents(TOOL_PLAYER_SPAWN).y * 2.0
 	return Rect2(
 		corridor.position - Vector2(0.0, passenger_height),
 		corridor.size + Vector2(0.0, passenger_height)
@@ -1764,9 +1697,7 @@ func _draw_catapult_preview(
 	for object: Variant in _objects():
 		if (
 			typeof(object) != TYPE_DICTIONARY
-			or not ACTOR_OBJECT_TYPES.has(
-				str(object.get("type", ""))
-			)
+			or not _is_actor_type(str(object.get("type", "")))
 		):
 			continue
 		var bounds := _bounds_for_object(object)
@@ -2048,9 +1979,9 @@ func _draw_actor(
 	alpha: float,
 	direction: int = 1
 ) -> void:
-	if not ACTOR_OBJECT_TYPES.has(object_type):
+	if not _is_actor_type(object_type):
 		return
-	var half_extents: Vector2 = ACTOR_HALF_EXTENTS[object_type]
+	var half_extents := _actor_half_extents(object_type)
 	var position := Vector2(
 		float(position_values[0]),
 		float(position_values[1])
@@ -2270,42 +2201,29 @@ func _player_spawn_position() -> Variant:
 
 
 func _shooter_blockers() -> Array[Dictionary]:
-	return _initial_collision_rects()
+	return _initial_collision_rects(
+		LEVEL_OBJECT_CATALOG.Category.PROJECTILE_BLOCKER
+	)
 
 
-func _initial_collision_rects() -> Array[Dictionary]:
+func _support_collision_rects() -> Array[Dictionary]:
+	return _initial_collision_rects(LEVEL_OBJECT_CATALOG.Category.SUPPORT)
+
+
+func _initial_collision_rects(
+	category: LevelObjectCatalog.Category
+) -> Array[Dictionary]:
 	var blockers: Array[Dictionary] = []
 	for object: Variant in _objects():
 		if typeof(object) != TYPE_DICTIONARY:
 			continue
 		var object_type := str(object.get("type", ""))
-		var blocker_rect := Rect2()
-		if object_type == TOOL_SOLID_RECT:
-			var values: Variant = object.get("rect")
-			if _is_number_array(values, 4):
-				blocker_rect = _rect_from_payload(values)
-		elif (
-				object_type in [
-					TOOL_TOGGLE_PLATFORM,
-					TOOL_TOGGLE_WALL,
-				]
-				and bool(object.get("starts_active", true))
-		):
-			var values: Variant = object.get("rect")
-			if _is_number_array(values, 4):
-				blocker_rect = _rect_from_payload(values)
-		elif object_type == TOOL_CATAPULT_PLATFORM:
-			var position_values: Variant = object.get("position")
-			if _is_number_array(position_values, 2):
-				blocker_rect = catapult_rest_rect(
-					_point_from_payload(position_values)
-				)
-		elif object_type == TOOL_VERTICAL_PLATFORM:
-			var position_values: Variant = object.get("position")
-			if _is_number_array(position_values, 2):
-				blocker_rect = vertical_platform_upper_rect(
-					_point_from_payload(position_values)
-				)
+		if not LEVEL_OBJECT_CATALOG.is_in_category(object_type, category):
+			continue
+		var blocker_rect := _collision_rect_for_object(
+			object,
+			object_type
+		)
 		if blocker_rect.size == Vector2.ZERO:
 			continue
 		blockers.append(
@@ -2315,6 +2233,44 @@ func _initial_collision_rects() -> Array[Dictionary]:
 			}
 		)
 	return blockers
+
+
+func _collision_rect_for_object(
+	object: Dictionary,
+	object_type: String
+) -> Rect2:
+	match object_type:
+		TOOL_SOLID_RECT:
+			return _stored_collision_rect(object)
+		TOOL_TOGGLE_PLATFORM, TOOL_TOGGLE_WALL:
+			if bool(object.get("starts_active", true)):
+				return _stored_collision_rect(object)
+		TOOL_CATAPULT_PLATFORM:
+			return _catapult_collision_rect(object)
+		TOOL_VERTICAL_PLATFORM:
+			return _vertical_platform_collision_rect(object)
+	return Rect2()
+
+
+func _stored_collision_rect(object: Dictionary) -> Rect2:
+	var values: Variant = object.get("rect")
+	if not _is_number_array(values, 4):
+		return Rect2()
+	return _rect_from_payload(values)
+
+
+func _catapult_collision_rect(object: Dictionary) -> Rect2:
+	var values: Variant = object.get("position")
+	if not _is_number_array(values, 2):
+		return Rect2()
+	return catapult_rest_rect(_point_from_payload(values))
+
+
+func _vertical_platform_collision_rect(object: Dictionary) -> Rect2:
+	var values: Variant = object.get("position")
+	if not _is_number_array(values, 2):
+		return Rect2()
+	return vertical_platform_upper_rect(_point_from_payload(values))
 
 
 static func shooter_aim_preview(
@@ -2440,7 +2396,7 @@ func _draw_drag_preview(view_rect: Rect2) -> void:
 
 	var logical_rect := Rect2()
 	if (
-		RECT_OBJECT_TYPES.has(_drag_kind)
+		_is_rect_type(_drag_kind)
 		and _is_number_array(_drag_preview_payload, 4)
 	):
 		logical_rect = _rect_from_payload(_drag_preview_payload)
@@ -2475,13 +2431,7 @@ func _draw_drag_preview(view_rect: Rect2) -> void:
 		_drag_kind == TOOL_SELECT
 		and _drag_moved
 		and _is_number_array(_drag_preview_payload, 2)
-		and (
-			ACTOR_HALF_EXTENTS.has(_drag_object_type)
-			or _drag_object_type == TOOL_DOUBLE_JUMP_PICKUP
-			or _drag_object_type == TOOL_CATAPULT_PLATFORM
-			or _drag_object_type == TOOL_VERTICAL_PLATFORM
-			or _drag_object_type == TOOL_HINGE
-		)
+		and _is_point_type(_drag_object_type)
 	):
 		var position_values: Array = _drag_preview_payload
 		var position := _point_from_payload(position_values)
@@ -2531,9 +2481,7 @@ func _draw_drag_preview(view_rect: Rect2) -> void:
 				COLOR_GHOST.a
 			)
 		else:
-			var half_extents := Vector2(
-				ACTOR_HALF_EXTENTS[_drag_object_type]
-			)
+			var half_extents := _actor_half_extents(_drag_object_type)
 			logical_rect = Rect2(
 				position - half_extents,
 				half_extents * 2.0
@@ -2663,7 +2611,7 @@ func _hit_test_hinge_target(
 ) -> Dictionary:
 	var objects := _objects()
 	for object_type: String in HIT_ORDER:
-		if not HINGE_TARGET_TYPES.has(object_type):
+		if not _is_hinge_target_type(object_type):
 			continue
 		for index in range(objects.size() - 1, -1, -1):
 			var object: Variant = objects[index]
@@ -2682,18 +2630,46 @@ func _hit_test_hinge_target(
 
 
 func _is_hinge_target_type(object_type: String) -> bool:
-	return HINGE_TARGET_TYPES.has(object_type)
+	return LEVEL_OBJECT_CATALOG.is_in_category(
+		object_type,
+		LEVEL_OBJECT_CATALOG.Category.HINGE_TARGET
+	)
+
+
+static func _is_rect_type(object_type: String) -> bool:
+	return LEVEL_OBJECT_CATALOG.is_in_category(
+		object_type,
+		LEVEL_OBJECT_CATALOG.Category.RECT
+	)
+
+
+static func _is_point_type(object_type: String) -> bool:
+	return LEVEL_OBJECT_CATALOG.is_in_category(
+		object_type,
+		LEVEL_OBJECT_CATALOG.Category.POINT
+	)
+
+
+static func _is_actor_type(object_type: String) -> bool:
+	return LEVEL_OBJECT_CATALOG.is_in_category(
+		object_type,
+		LEVEL_OBJECT_CATALOG.Category.ACTOR
+	)
+
+
+static func _actor_half_extents(object_type: String) -> Vector2:
+	return Vector2(LEVEL_OBJECT_CATALOG.actor_half_extents(object_type))
 
 
 func _bounds_for_object(object: Dictionary) -> Rect2:
 	var object_type := str(object.get("type", ""))
-	if RECT_OBJECT_TYPES.has(object_type):
+	if _is_rect_type(object_type):
 		var rect_values: Variant = object.get("rect")
 		if _is_number_array(rect_values, 4):
 			return _rect_from_payload(rect_values)
 		return Rect2()
 
-	if ACTOR_HALF_EXTENTS.has(object_type):
+	if LEVEL_OBJECT_CATALOG.has_actor_half_extents(object_type):
 		var position_values: Variant = object.get("position")
 		if not _is_number_array(position_values, 2):
 			return Rect2()
@@ -2702,7 +2678,7 @@ func _bounds_for_object(object: Dictionary) -> Rect2:
 			float(position_values[0]),
 			float(position_values[1])
 		)
-		var half_extents: Vector2 = ACTOR_HALF_EXTENTS[object_type]
+		var half_extents := _actor_half_extents(object_type)
 		return Rect2(position - half_extents, half_extents * 2.0)
 
 	if object_type == TOOL_CATAPULT_PLATFORM:
@@ -2774,15 +2750,11 @@ static func _behavior_preset(object: Dictionary) -> String:
 
 func _payload_for_object(object: Dictionary) -> Variant:
 	var object_type := str(object.get("type", ""))
-	match object_type:
-		TOOL_SOLID_RECT, \
-		TOOL_SPIKE_TRAP, \
-		TOOL_TOGGLE_PLATFORM, \
-		TOOL_TOGGLE_WALL:
-			var rect_values: Variant = object.get("rect")
-			if _is_number_array(rect_values, 4):
-				return _duplicate_payload(rect_values)
-	if POINT_OBJECT_TYPES.has(object_type):
+	if _is_rect_type(object_type):
+		var rect_values: Variant = object.get("rect")
+		if _is_number_array(rect_values, 4):
+			return _duplicate_payload(rect_values)
+	if _is_point_type(object_type):
 		var position_values: Variant = object.get("position")
 		if _is_number_array(position_values, 2):
 			return _duplicate_payload(position_values)
@@ -3010,7 +2982,7 @@ func _default_rect(start: Vector2, object_type: String) -> Array:
 
 func _object_anchor(object: Dictionary) -> Vector2:
 	var object_type := str(object.get("type", ""))
-	if RECT_OBJECT_TYPES.has(object_type):
+	if _is_rect_type(object_type):
 		var rect_values: Variant = object.get("rect")
 		if _is_number_array(rect_values, 4):
 			return _rect_from_payload(rect_values).get_center()

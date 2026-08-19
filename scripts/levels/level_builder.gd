@@ -4,6 +4,9 @@ extends RefCounted
 const LEVEL_BEHAVIOR_PRESETS := preload(
 	"res://scripts/levels/level_behavior_presets.gd"
 )
+const LEVEL_OBJECT_CATALOG := preload(
+	"res://scripts/levels/level_object_catalog.gd"
+)
 const SOLID_RECT_SCENE := preload(
 	"res://scenes/level_solid_rect.tscn"
 )
@@ -128,7 +131,7 @@ static func _create_object(definition: Dictionary) -> Dictionary:
 	var object_type: String = definition["type"]
 
 	match object_type:
-		"solid_rect":
+		LEVEL_OBJECT_CATALOG.TYPE_SOLID_RECT:
 			var solid := SOLID_RECT_SCENE.instantiate()
 			if not is_instance_valid(solid):
 				return _object_failure(
@@ -148,7 +151,7 @@ static func _create_object(definition: Dictionary) -> Dictionary:
 			)
 			return _object_success(solid, "geometry")
 
-		"spike_trap":
+		LEVEL_OBJECT_CATALOG.TYPE_SPIKE_TRAP:
 			var spike := SPIKE_TRAP_SCENE.instantiate() as SpikeTrap
 			if not is_instance_valid(spike):
 				return _object_failure(
@@ -166,7 +169,7 @@ static func _create_object(definition: Dictionary) -> Dictionary:
 			)
 			return _object_success(spike, "geometry")
 
-		"player_spawn":
+		LEVEL_OBJECT_CATALOG.TYPE_PLAYER_SPAWN:
 			var player := PLAYER_SCENE.instantiate() as Player
 			if not is_instance_valid(player):
 				return _object_failure(
@@ -176,7 +179,7 @@ static func _create_object(definition: Dictionary) -> Dictionary:
 			player.position = _vector_from(definition["position"])
 			return _object_success(player, "actors")
 
-		"patrol_enemy":
+		LEVEL_OBJECT_CATALOG.TYPE_PATROL_ENEMY:
 			var enemy := (
 				PATROL_ENEMY_SCENE.instantiate() as PatrolEnemy
 			)
@@ -190,7 +193,7 @@ static func _create_object(definition: Dictionary) -> Dictionary:
 			enemy.patrol_direction = float(definition["direction"])
 			return _object_success(enemy, "actors")
 
-		"shove_enemy":
+		LEVEL_OBJECT_CATALOG.TYPE_SHOVE_ENEMY:
 			var enemy := (
 				SHOVE_ENEMY_SCENE.instantiate() as ShoveEnemy
 			)
@@ -215,7 +218,7 @@ static func _create_object(definition: Dictionary) -> Dictionary:
 				return _object_failure(preset_result)
 			return _object_success(enemy, "actors")
 
-		"shooter_enemy":
+		LEVEL_OBJECT_CATALOG.TYPE_SHOOTER_ENEMY:
 			var enemy := (
 				SHOOTER_ENEMY_SCENE.instantiate() as ShooterEnemy
 			)
@@ -239,7 +242,7 @@ static func _create_object(definition: Dictionary) -> Dictionary:
 				return _object_failure(preset_result)
 			return _object_success(enemy, "actors")
 
-		"catapult_platform":
+		LEVEL_OBJECT_CATALOG.TYPE_CATAPULT_PLATFORM:
 			var platform := (
 				CATAPULT_PLATFORM_SCENE.instantiate()
 				as RotatingPlatform
@@ -264,7 +267,7 @@ static func _create_object(definition: Dictionary) -> Dictionary:
 				return _object_failure(preset_result)
 			return _object_success(platform, "geometry")
 
-		"vertical_platform":
+		LEVEL_OBJECT_CATALOG.TYPE_VERTICAL_PLATFORM:
 			var platform := (
 				VERTICAL_PLATFORM_SCENE.instantiate()
 				as VerticalPlatform
@@ -277,7 +280,7 @@ static func _create_object(definition: Dictionary) -> Dictionary:
 			platform.position = _vector_from(definition["position"])
 			return _object_success(platform, "geometry")
 
-		"double_jump_pickup":
+		LEVEL_OBJECT_CATALOG.TYPE_DOUBLE_JUMP_PICKUP:
 			var pickup := (
 				DOUBLE_JUMP_PICKUP_SCENE.instantiate()
 				as DoubleJumpPickup
@@ -290,7 +293,7 @@ static func _create_object(definition: Dictionary) -> Dictionary:
 			pickup.position = _vector_from(definition["position"])
 			return _object_success(pickup, "geometry")
 
-		"toggle_platform":
+		LEVEL_OBJECT_CATALOG.TYPE_TOGGLE_PLATFORM:
 			var platform := (
 				TOGGLE_PLATFORM_SCENE.instantiate()
 				as TogglePlatform
@@ -312,7 +315,7 @@ static func _create_object(definition: Dictionary) -> Dictionary:
 			)
 			return _object_success(platform, "geometry")
 
-		"toggle_wall":
+		LEVEL_OBJECT_CATALOG.TYPE_TOGGLE_WALL:
 			var wall := (
 				TOGGLE_PLATFORM_SCENE.instantiate()
 				as TogglePlatform
@@ -335,7 +338,7 @@ static func _create_object(definition: Dictionary) -> Dictionary:
 			)
 			return _object_success(wall, "geometry")
 
-		"hinge":
+		LEVEL_OBJECT_CATALOG.TYPE_HINGE:
 			var hinge := HINGE_SCENE.instantiate() as Hinge
 			if not is_instance_valid(hinge):
 				return _object_failure(
@@ -355,7 +358,7 @@ static func _apply_shove_preset(
 	preset: String
 ) -> String:
 	var values := LEVEL_BEHAVIOR_PRESETS.values_for(
-		"shove_enemy",
+		LEVEL_OBJECT_CATALOG.TYPE_SHOVE_ENEMY,
 		preset
 	)
 	if values.is_empty():
@@ -387,7 +390,7 @@ static func _apply_shooter_preset(
 	preset: String
 ) -> String:
 	var values := LEVEL_BEHAVIOR_PRESETS.values_for(
-		"shooter_enemy",
+		LEVEL_OBJECT_CATALOG.TYPE_SHOOTER_ENEMY,
 		preset
 	)
 	if values.is_empty():
@@ -409,7 +412,7 @@ static func _apply_catapult_preset(
 	preset: String
 ) -> String:
 	var values := LEVEL_BEHAVIOR_PRESETS.values_for(
-		"catapult_platform",
+		LEVEL_OBJECT_CATALOG.TYPE_CATAPULT_PLATFORM,
 		preset
 	)
 	if values.is_empty():
@@ -443,7 +446,7 @@ static func _resolve_links(
 ) -> Dictionary:
 	var errors: Array[String] = []
 	for definition: Dictionary in definitions:
-		if definition["type"] != "hinge":
+		if definition["type"] != LEVEL_OBJECT_CATALOG.TYPE_HINGE:
 			continue
 
 		var source_id: String = definition["id"]
