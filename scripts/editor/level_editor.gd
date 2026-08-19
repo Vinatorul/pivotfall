@@ -13,6 +13,9 @@ const LEVEL_DATA_CODEC := preload(
 const LEVEL_DATA_VALIDATOR := preload(
 	"res://scripts/levels/level_data_validator.gd"
 )
+const LEVEL_OBJECT_CATALOG := preload(
+	"res://scripts/levels/level_object_catalog.gd"
+)
 const LEVEL_BEHAVIOR_PRESETS := preload(
 	"res://scripts/levels/level_behavior_presets.gd"
 )
@@ -21,18 +24,20 @@ const PLAYTEST_SCENE := preload(
 )
 
 const TOOL_SELECT := "select"
-const TOOL_SOLID := "solid_rect"
-const TOOL_SPIKE_TRAP := "spike_trap"
-const TOOL_PLAYER := "player_spawn"
-const TOOL_DOUBLE_JUMP_PICKUP := "double_jump_pickup"
-const TOOL_PATROL := "patrol_enemy"
-const TOOL_SHOVE := "shove_enemy"
-const TOOL_SHOOTER := "shooter_enemy"
-const TOOL_CATAPULT := "catapult_platform"
-const TOOL_LIFT := "vertical_platform"
-const TOOL_TOGGLE := "toggle_platform"
-const TOOL_WALL := "toggle_wall"
-const TOOL_HINGE := "hinge"
+const TOOL_SOLID := LEVEL_OBJECT_CATALOG.TYPE_SOLID_RECT
+const TOOL_SPIKE_TRAP := LEVEL_OBJECT_CATALOG.TYPE_SPIKE_TRAP
+const TOOL_PLAYER := LEVEL_OBJECT_CATALOG.TYPE_PLAYER_SPAWN
+const TOOL_DOUBLE_JUMP_PICKUP := (
+	LEVEL_OBJECT_CATALOG.TYPE_DOUBLE_JUMP_PICKUP
+)
+const TOOL_PATROL := LEVEL_OBJECT_CATALOG.TYPE_PATROL_ENEMY
+const TOOL_SHOVE := LEVEL_OBJECT_CATALOG.TYPE_SHOVE_ENEMY
+const TOOL_SHOOTER := LEVEL_OBJECT_CATALOG.TYPE_SHOOTER_ENEMY
+const TOOL_CATAPULT := LEVEL_OBJECT_CATALOG.TYPE_CATAPULT_PLATFORM
+const TOOL_LIFT := LEVEL_OBJECT_CATALOG.TYPE_VERTICAL_PLATFORM
+const TOOL_TOGGLE := LEVEL_OBJECT_CATALOG.TYPE_TOGGLE_PLATFORM
+const TOOL_WALL := LEVEL_OBJECT_CATALOG.TYPE_TOGGLE_WALL
+const TOOL_HINGE := LEVEL_OBJECT_CATALOG.TYPE_HINGE
 
 @onready var editor_view: Control = $EditorView
 @onready var discard_dialog: ConfirmationDialog = $DiscardDialog
@@ -720,12 +725,10 @@ func _move_object(object_id: String, payload: Variant) -> void:
 	selected_id = object_id
 	var key := (
 		"rect"
-		if object.get("type", "") in [
-			TOOL_SOLID,
-			TOOL_SPIKE_TRAP,
-			TOOL_TOGGLE,
-			TOOL_WALL,
-		]
+		if LEVEL_OBJECT_CATALOG.is_in_category(
+			str(object.get("type", "")),
+			LEVEL_OBJECT_CATALOG.Category.RECT
+		)
 		else "position"
 	)
 	draft.update_object(
@@ -815,12 +818,10 @@ func _hinge_targets() -> Array[Dictionary]:
 
 
 func _is_hinge_target_type(object_type: String) -> bool:
-	return object_type in [
-		TOOL_TOGGLE,
-		TOOL_WALL,
-		TOOL_CATAPULT,
-		TOOL_LIFT,
-	]
+	return LEVEL_OBJECT_CATALOG.is_in_category(
+		object_type,
+		LEVEL_OBJECT_CATALOG.Category.HINGE_TARGET
+	)
 
 
 func _refresh_inspector_hint() -> void:
@@ -961,12 +962,10 @@ func _duplicate_selected() -> void:
 	var duplicate := object.duplicate(true)
 	var new_id := draft.make_unique_id("%s_copy" % object["id"])
 	duplicate["id"] = new_id
-	if duplicate["type"] in [
-		TOOL_SOLID,
-		TOOL_SPIKE_TRAP,
-		TOOL_TOGGLE,
-		TOOL_WALL,
-	]:
+	if LEVEL_OBJECT_CATALOG.is_in_category(
+		str(duplicate["type"]),
+		LEVEL_OBJECT_CATALOG.Category.RECT
+	):
 		var rect: Array = duplicate["rect"]
 		rect[0] = clampi(rect[0] + 20, 0, 960 - rect[2])
 		rect[1] = clampi(rect[1] + 20, 0, 540 - rect[3])
@@ -1165,12 +1164,10 @@ func _nudge_selected(direction: Vector2i, fine: bool) -> void:
 	).get("grid_size", 20)
 	var amount := 1 if fine else grid_size
 	var delta := direction * amount
-	if object["type"] in [
-		TOOL_SOLID,
-		TOOL_SPIKE_TRAP,
-		TOOL_TOGGLE,
-		TOOL_WALL,
-	]:
+	if LEVEL_OBJECT_CATALOG.is_in_category(
+		str(object["type"]),
+		LEVEL_OBJECT_CATALOG.Category.RECT
+	):
 		var rect: Array = object["rect"]
 		rect[0] = clampi(rect[0] + delta.x, 0, 960 - rect[2])
 		rect[1] = clampi(rect[1] + delta.y, 0, 540 - rect[3])
@@ -1848,32 +1845,15 @@ func _rebuild_inspector() -> void:
 	inspector_title.text = "СВОЙСТВА ОБЪЕКТА"
 	_add_readonly_property("TYPE", str(object["type"]))
 	_add_readonly_property("ID", str(object["id"]))
-	match object["type"]:
-		TOOL_SOLID, TOOL_SPIKE_TRAP, TOOL_TOGGLE, TOOL_WALL:
-			var rect: Array = object["rect"]
-			_add_numeric_property("X", "rect:0", rect[0])
-			_add_numeric_property("Y", "rect:1", rect[1])
-			if object["type"] == TOOL_SOLID:
-				_add_numeric_property("WIDTH", "rect:2", rect[2])
-				_add_numeric_property("HEIGHT", "rect:3", rect[3])
-				_add_collision_property(
-					bool(object.get("one_way", false))
-				)
-			elif object["type"] == TOOL_SPIKE_TRAP:
-				_add_numeric_property("WIDTH", "rect:2", rect[2])
-				_add_readonly_property("HEIGHT", "20")
-			elif object["type"] == TOOL_TOGGLE:
-				_add_numeric_property("WIDTH", "rect:2", rect[2])
-				_add_readonly_property("HEIGHT", "20")
-				_add_start_state_property(
-					bool(object.get("starts_active", true))
-				)
-			else:
-				_add_readonly_property("WIDTH", "20")
-				_add_numeric_property("HEIGHT", "rect:3", rect[3])
-				_add_start_state_property(
-					bool(object.get("starts_active", true))
-				)
+	var object_type := str(object["type"])
+	if LEVEL_OBJECT_CATALOG.is_in_category(
+		object_type,
+		LEVEL_OBJECT_CATALOG.Category.RECT
+	):
+		_add_rect_object_properties(object)
+		syncing_ui = false
+		return
+	match object_type:
 		TOOL_PLAYER, TOOL_DOUBLE_JUMP_PICKUP:
 			var position: Array = object["position"]
 			_add_numeric_property("X", "position:0", position[0])
@@ -1920,6 +1900,32 @@ func _rebuild_inspector() -> void:
 				str(object.get("target_id", ""))
 			)
 	syncing_ui = false
+
+
+func _add_rect_object_properties(object: Dictionary) -> void:
+	var rect: Array = object["rect"]
+	_add_numeric_property("X", "rect:0", rect[0])
+	_add_numeric_property("Y", "rect:1", rect[1])
+	match str(object["type"]):
+		TOOL_SOLID:
+			_add_numeric_property("WIDTH", "rect:2", rect[2])
+			_add_numeric_property("HEIGHT", "rect:3", rect[3])
+			_add_collision_property(bool(object.get("one_way", false)))
+		TOOL_SPIKE_TRAP:
+			_add_numeric_property("WIDTH", "rect:2", rect[2])
+			_add_readonly_property("HEIGHT", "20")
+		TOOL_TOGGLE:
+			_add_numeric_property("WIDTH", "rect:2", rect[2])
+			_add_readonly_property("HEIGHT", "20")
+			_add_start_state_property(
+				bool(object.get("starts_active", true))
+			)
+		TOOL_WALL:
+			_add_readonly_property("WIDTH", "20")
+			_add_numeric_property("HEIGHT", "rect:3", rect[3])
+			_add_start_state_property(
+				bool(object.get("starts_active", true))
+			)
 
 
 func _add_readonly_property(label_text: String, value: String) -> void:

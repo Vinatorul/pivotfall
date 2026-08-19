@@ -8,6 +8,9 @@ const LEVEL_DATA_CODEC := preload(
 const LEVEL_DATA_VALIDATOR := preload(
 	"res://scripts/levels/level_data_validator.gd"
 )
+const OBJECT_CATALOG := preload(
+	"res://scripts/levels/level_object_catalog.gd"
+)
 const LEVEL_STORAGE := preload(
 	"res://scripts/levels/level_storage.gd"
 )
@@ -476,9 +479,7 @@ func _test_builder_order_and_real_projectile() -> void:
 	_expect(
 		(enemy_shape.size * 0.5).is_equal_approx(
 			Vector2(
-				LEVEL_DATA_VALIDATOR.ACTOR_HALF_EXTENTS[
-					"shooter_enemy"
-				]
+				OBJECT_CATALOG.actor_half_extents(OBJECT_CATALOG.TYPE_SHOOTER_ENEMY)
 			)
 		)
 		and enemy.gun_pivot.position.is_equal_approx(
