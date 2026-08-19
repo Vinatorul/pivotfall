@@ -30,6 +30,7 @@ func _run() -> void:
 
 	_test_missing_and_round_trip()
 	_test_validation_and_recovery()
+	_test_arena_13_completed_migration()
 	await _test_menu_and_runner_integration()
 	_finish()
 
@@ -398,7 +399,7 @@ func _test_validation_and_recovery() -> void:
 	progress_store.clear_progress()
 	_write_json(
 		_progress_path(),
-		_progress_data("tower_assault", "tower_assault")
+		_progress_data("arena_14_data", "arena_14_data")
 	)
 	var unfinished_former_final := progress_store.load_progress(
 		campaign_entries
@@ -406,9 +407,9 @@ func _test_validation_and_recovery() -> void:
 	_expect(
 		bool(unfinished_former_final["ok"])
 		and unfinished_former_final["data"]
-		== _progress_data("tower_assault", "tower_assault")
+		== _progress_data("arena_14_data", "arena_14_data")
 		and unfinished_former_final["warnings"].is_empty(),
-		"Unfinished Arena 11 progress was incorrectly migrated."
+		"Unfinished Arena 14 progress was incorrectly migrated."
 	)
 
 	progress_store.clear_progress()
@@ -443,7 +444,7 @@ func _test_validation_and_recovery() -> void:
 	progress_store.clear_progress()
 	_write_json(
 		_progress_path(),
-		_progress_data("arena_13_data", "arena_13_data", true)
+		_progress_data("arena_14_data", "arena_14_data", true)
 	)
 	var completed_latest_former_final := progress_store.load_progress(
 		campaign_entries
@@ -451,13 +452,13 @@ func _test_validation_and_recovery() -> void:
 	_expect(
 		bool(completed_latest_former_final["ok"])
 		and completed_latest_former_final["data"]
-		== _progress_data("arena_14_data", "arena_14_data")
+		== _progress_data("arena_15_data", "arena_15_data")
 		and not completed_latest_former_final["warnings"].is_empty(),
-		"Completed Arena 13 progress did not unlock Arena 14."
+		"Completed Arena 14 progress did not unlock Arena 15."
 	)
 	var persisted_latest_final := progress_store.record_level_started(
 		campaign_entries,
-		"arena_14_data"
+		"arena_15_data"
 	)
 	var reloaded_latest_final := progress_store.load_progress(
 		campaign_entries
@@ -466,15 +467,15 @@ func _test_validation_and_recovery() -> void:
 		bool(persisted_latest_final["ok"])
 		and bool(reloaded_latest_final["ok"])
 		and reloaded_latest_final["data"]
-		== _progress_data("arena_14_data", "arena_14_data")
+		== _progress_data("arena_15_data", "arena_15_data")
 		and reloaded_latest_final["warnings"].is_empty(),
-		"Starting Arena 14 did not persist the migrated progress."
+		"Starting Arena 15 did not persist the migrated progress."
 	)
 
 	progress_store.clear_progress()
 	_write_json(
 		_progress_path(),
-		_progress_data("arena_14_data", "arena_14_data", true)
+		_progress_data("arena_15_data", "arena_15_data", true)
 	)
 	var completed_current_final := progress_store.load_progress(
 		campaign_entries
@@ -482,7 +483,7 @@ func _test_validation_and_recovery() -> void:
 	_expect(
 		bool(completed_current_final["ok"])
 		and completed_current_final["data"]
-		== _progress_data("arena_14_data", "arena_14_data", true)
+		== _progress_data("arena_15_data", "arena_15_data", true)
 		and completed_current_final["warnings"].is_empty(),
 		"Completed current final progress was incorrectly migrated."
 	)
@@ -598,6 +599,22 @@ func _test_validation_and_recovery() -> void:
 	)
 
 
+func _test_arena_13_completed_migration() -> void:
+	progress_store.clear_progress()
+	_write_json(
+		_progress_path(),
+		_progress_data("arena_13_data", "arena_13_data", true)
+	)
+	var migrated := progress_store.load_progress(campaign_entries)
+	_expect(
+		bool(migrated["ok"])
+		and migrated["data"]
+		== _progress_data("arena_14_data", "arena_14_data")
+		and not migrated["warnings"].is_empty(),
+		"Completed Arena 13 progress did not unlock Arena 14."
+	)
+
+
 func _test_menu_and_runner_integration() -> void:
 	progress_store.reset_progress(campaign_entries)
 	progress_store.record_level_started(
@@ -643,8 +660,8 @@ func _test_menu_and_runner_integration() -> void:
 		"Natural Arena 03 to 04 transition was not checkpointed."
 	)
 
-	var debug_opened := runner.open_level_by_id("arena_14_data")
-	await _wait_for_level(runner, "arena_14_data")
+	var debug_opened := runner.open_level_by_id(str(campaign_entries[-1]["id"]))
+	await _wait_for_level(runner, str(campaign_entries[-1]["id"]))
 	_expect(
 		debug_opened and not runner.is_tracking_progress(),
 		"Accepted debug jump did not detach progress tracking."
@@ -713,7 +730,7 @@ func _test_menu_and_runner_integration() -> void:
 			bool(honest_completion["ok"])
 			and bool(honest_completion["data"]["completed"])
 			and honest_completion["data"]["current_level_id"]
-			== "arena_14_data",
+			== str(campaign_entries[-1]["id"]),
 			"Tracked campaign completion was not persisted."
 		)
 
