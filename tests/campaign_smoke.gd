@@ -300,7 +300,7 @@ func _test_runner_lifecycle(campaign_result: Dictionary) -> void:
 		runner,
 		"ARENA 01 / ПАТРУЛЬ",
 		"АРЕНА 1 / %d" % EXPECTED_LEVEL_IDS.size(),
-		"КАМПАНИЯ  1 / %d" % EXPECTED_LEVEL_IDS.size(),
+		"1/%d" % EXPECTED_LEVEL_IDS.size(),
 		"Initial Arena 01 intro is incomplete."
 	)
 	if not await _wait_for_intro_end(runner):
@@ -316,7 +316,8 @@ func _test_runner_lifecycle(campaign_result: Dictionary) -> void:
 	runner.current_runtime.clear_restart_delay = 0.01
 	_clear_runtime_enemies(runner.current_runtime)
 	_expect(
-		runner.current_runtime.status_label.text == advance_message,
+		runner.current_runtime.status_label.text == advance_message
+		and runner.current_runtime.status_label.visible,
 		"Arena 01 clear UI did not show campaign advance_message."
 	)
 	var advanced := await _wait_for_runtime(
@@ -344,7 +345,7 @@ func _test_runner_lifecycle(campaign_result: Dictionary) -> void:
 		runner,
 		"ARENA 02 / ОПОРА",
 		"АРЕНА 2 / %d" % EXPECTED_LEVEL_IDS.size(),
-		"КАМПАНИЯ  2 / %d" % EXPECTED_LEVEL_IDS.size(),
+		"2/%d" % EXPECTED_LEVEL_IDS.size(),
 		"Arena 02 transition intro is incomplete."
 	)
 	if not await _wait_for_intro_end(runner):
@@ -374,7 +375,9 @@ func _test_runner_lifecycle(campaign_result: Dictionary) -> void:
 	_expect(
 		not runner.intro_active
 		and not runner.intro_ui.visible
-		and runner.progress_label.text == "КАМПАНИЯ  2 / %d" % EXPECTED_LEVEL_IDS.size(),
+		and not runner.pause_menu.is_open()
+		and not paused
+		and runner.current_runtime.progress_label.text == "2/%d" % EXPECTED_LEVEL_IDS.size(),
 		"R restart incorrectly replayed the Arena 02 intro."
 	)
 	_expect_selector_id("arena_02_data")
@@ -393,6 +396,10 @@ func _test_runner_lifecycle(campaign_result: Dictionary) -> void:
 	runner.current_runtime.call(
 		"_on_death_zone_body_entered",
 		arena_02_player
+	)
+	_expect(
+		runner.current_runtime.status_label.visible,
+		"Player defeat did not show visible outcome feedback."
 	)
 	var fall_restarted := await _wait_for_runtime(
 		runner,
@@ -414,7 +421,9 @@ func _test_runner_lifecycle(campaign_result: Dictionary) -> void:
 	_expect(
 		not runner.intro_active
 		and not runner.intro_ui.visible
-		and runner.progress_label.text == "КАМПАНИЯ  2 / %d" % EXPECTED_LEVEL_IDS.size(),
+		and not runner.pause_menu.is_open()
+		and not paused
+		and runner.current_runtime.progress_label.text == "2/%d" % EXPECTED_LEVEL_IDS.size(),
 		"Fall restart incorrectly replayed the Arena 02 intro."
 	)
 	_expect_selector_id("arena_02_data")
@@ -443,7 +452,7 @@ func _test_runner_lifecycle(campaign_result: Dictionary) -> void:
 		runner,
 		"ARENA 15 / ДОМИНО",
 		"АРЕНА 15 / %d" % EXPECTED_LEVEL_IDS.size(),
-		"КАМПАНИЯ  15 / %d" % EXPECTED_LEVEL_IDS.size(),
+		"15/%d" % EXPECTED_LEVEL_IDS.size(),
 		"Direct Arena 15 intro is incomplete."
 	)
 	if not await _wait_for_intro_end(runner):
@@ -472,7 +481,7 @@ func _test_runner_lifecycle(campaign_result: Dictionary) -> void:
 		runner,
 		"ARENA 16 / ПРОТИВОВЕС",
 		"АРЕНА 16 / %d" % EXPECTED_LEVEL_IDS.size(),
-		"КАМПАНИЯ  16 / %d" % EXPECTED_LEVEL_IDS.size(),
+		"16/%d" % EXPECTED_LEVEL_IDS.size(),
 		"Final Arena 16 intro is incomplete."
 	)
 	if not await _wait_for_intro_end(runner):
@@ -543,6 +552,7 @@ func _test_runner_lifecycle(campaign_result: Dictionary) -> void:
 	_clear_runtime_enemies(runner.current_runtime)
 	_expect(
 		runner.current_runtime.pending_outcome == Arena.Outcome.CLEAR
+		and runner.current_runtime.status_label.visible
 		and runner.current_runtime.status_label.text
 		== CampaignRunner.COMPLETION_CLEAR_MESSAGE,
 		"Final clear did not use the campaign completion message."
@@ -565,8 +575,7 @@ func _test_runner_lifecycle(campaign_result: Dictionary) -> void:
 		and runner.completion_restart_button.visible
 		and not runner.completion_restart_button.disabled
 		and runner.completion_main_menu_button.visible
-		and not runner.completion_main_menu_button.disabled
-		and runner.progress_label.text == "КАМПАНИЯ  %d / %d" % [EXPECTED_LEVEL_IDS.size(), EXPECTED_LEVEL_IDS.size()],
+		and not runner.completion_main_menu_button.disabled,
 		"Campaign completion presentation is incomplete."
 	)
 	_expect_selector_id("arena_16_data")
@@ -620,7 +629,7 @@ func _test_runner_lifecycle(campaign_result: Dictionary) -> void:
 		runner,
 		"ARENA 01 / ПАТРУЛЬ",
 		"АРЕНА 1 / %d" % EXPECTED_LEVEL_IDS.size(),
-		"КАМПАНИЯ  1 / %d" % EXPECTED_LEVEL_IDS.size(),
+		"1/%d" % EXPECTED_LEVEL_IDS.size(),
 		"New campaign did not show the Arena 01 intro."
 	)
 	_expect_selector_id("arena_01_data")
@@ -701,10 +710,10 @@ func _test_replay_lifecycle(campaign_result: Dictionary) -> void:
 		and not runner.is_tracking_progress()
 		and runner.intro_meta.text
 		== "ПОВТОР  /  АРЕНА 2 / %d" % entries.size()
-		and runner.progress_label.text
-		== "ПОВТОР  /  АРЕНА  2 / %d" % entries.size()
-		and runner.call("_pause_arena_text")
-		== "ПОВТОР  /  АРЕНА 2 / %d" % entries.size()
+		and runner.current_runtime.progress_label.text
+		== "Повтор · 2/%d" % entries.size()
+		and "Повтор" in runner.call("_pause_arena_text")
+		and "Опора" in runner.call("_pause_arena_text")
 		and bool(runner.current_runtime.get("_campaign_has_next"))
 		and str(consumed_again["level_id"]).is_empty()
 		and not bool(consumed_again["track_progress"])
@@ -733,8 +742,8 @@ func _test_replay_lifecycle(campaign_result: Dictionary) -> void:
 		and not bool(runner.current_runtime.get("_campaign_has_next"))
 		and runner.current_runtime.clear_message
 		== CampaignRunner.REPLAY_CLEAR_MESSAGE
-		and runner.progress_label.text
-		== "ПОВТОР  /  АРЕНА  3 / %d" % entries.size()
+		and runner.current_runtime.progress_label.text
+		== "Повтор · 3/%d" % entries.size()
 		and FileAccess.get_file_as_bytes(
 			progress_store.get_storage_path()
 		) == progress_bytes,
@@ -835,8 +844,8 @@ func _test_replay_lifecycle(campaign_result: Dictionary) -> void:
 		)
 		and debug_runner.current_runtime.clear_message
 		!= CampaignRunner.REPLAY_CLEAR_MESSAGE
-		and debug_runner.progress_label.text
-		== "КАМПАНИЯ  3 / %d" % entries.size()
+		and debug_runner.current_runtime.progress_label.text
+		== "3/%d" % entries.size()
 		and FileAccess.get_file_as_bytes(
 			progress_store.get_storage_path()
 		) == progress_bytes,
@@ -855,14 +864,15 @@ func _expect_intro(
 	message: String
 ) -> void:
 	_expect(
-		runner.intro_active
-		and runner.intro_ui.visible
-		and runner.intro_title.text == expected_title
-		and runner.intro_meta.text == expected_meta
-		and runner.progress_label.text == expected_progress
-		and is_instance_valid(runner.current_runtime)
-		and runner.current_runtime.process_mode
-		== Node.PROCESS_MODE_DISABLED,
+		(
+			runner.intro_active
+			and runner.intro_ui.visible
+			and runner.intro_title.text == expected_title
+			and runner.intro_meta.text == expected_meta
+			and runner.current_runtime.progress_label.text == expected_progress
+			and is_instance_valid(runner.current_runtime)
+			and runner.current_runtime.process_mode == Node.PROCESS_MODE_DISABLED
+		),
 		message
 	)
 
@@ -874,9 +884,10 @@ func _wait_for_intro_end(runner: CampaignRunner) -> bool:
 		if (
 			not runner.intro_active
 			and not runner.intro_ui.visible
+			and not paused
+			and not runner.pause_menu.is_open()
 			and is_instance_valid(runner.current_runtime)
-			and runner.current_runtime.process_mode
-			== Node.PROCESS_MODE_INHERIT
+			and runner.current_runtime.process_mode == Node.PROCESS_MODE_INHERIT
 		):
 			return true
 	return false

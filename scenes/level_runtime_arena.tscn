@@ -1,4 +1,4 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scripts/levels/level_runtime_arena.gd" id="1_runtime"]
 [ext_resource type="Script" path="res://scripts/effects/arena_impact_feedback.gd" id="2_feedback"]
@@ -12,6 +12,43 @@ size = Vector2(960, 32)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_death_zone"]
 size = Vector2(960, 120)
+
+[sub_resource type="StyleBoxFlat" id="StyleStatus"]
+content_margin_left = 18.0
+content_margin_top = 12.0
+content_margin_right = 18.0
+content_margin_bottom = 12.0
+bg_color = Color(0.02, 0.027, 0.051, 0.96)
+border_width_bottom = 3
+border_color = Color(0.973, 0.58, 0.267, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleHudButton"]
+bg_color = Color(0.035, 0.047, 0.082, 0.96)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.439, 0.827, 0.816, 0.65)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleHudHover"]
+bg_color = Color(0.102, 0.137, 0.224, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.439, 0.827, 0.816, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
 
 [node name="LevelRuntimeArena" type="Node2D"]
 script = ExtResource("1_runtime")
@@ -100,38 +137,84 @@ shape = SubResource("RectangleShape2D_death_zone")
 [node name="UI" type="CanvasLayer" parent="."]
 
 [node name="Title" type="Label" parent="UI"]
+anchor_right = 1.0
 offset_left = 52.0
-offset_top = 50.0
-offset_right = 470.0
-offset_bottom = 78.0
+offset_top = 48.0
+offset_right = -306.0
+offset_bottom = 92.0
+theme_override_colors/font_color = Color(0.792, 0.835, 0.906, 1)
+theme_override_colors/font_shadow_color = Color(0.02, 0.027, 0.051, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 2
+theme_override_font_sizes/font_size = 20
+text = "Загрузка…"
+vertical_alignment = 1
+clip_text = true
+text_overrun_behavior = 3
+mouse_filter = 2
+
+[node name="Progress" type="Label" parent="UI"]
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -286.0
+offset_top = 48.0
+offset_right = -156.0
+offset_bottom = 92.0
 theme_override_colors/font_color = Color(0.651, 0.714, 0.82, 1)
-theme_override_font_sizes/font_size = 16
-text = "DATA ARENA  /  ЗАГРУЗКА..."
+theme_override_font_sizes/font_size = 17
+horizontal_alignment = 2
+vertical_alignment = 1
+mouse_filter = 2
+
+[node name="Help" type="Button" parent="UI"]
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -144.0
+offset_top = 48.0
+offset_right = -92.0
+offset_bottom = 92.0
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_colors/font_color = Color(0.439, 0.827, 0.816, 1)
+theme_override_font_sizes/font_size = 22
+theme_override_styles/normal = SubResource("StyleHudButton")
+theme_override_styles/hover = SubResource("StyleHudHover")
+theme_override_styles/pressed = SubResource("StyleHudHover")
+text = "?"
+tooltip_text = "Подсказка · H"
+
+[node name="Pause" type="Button" parent="UI"]
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -76.0
+offset_top = 48.0
+offset_right = -24.0
+offset_bottom = 92.0
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_colors/font_color = Color(0.439, 0.827, 0.816, 1)
+theme_override_font_sizes/font_size = 22
+theme_override_styles/normal = SubResource("StyleHudButton")
+theme_override_styles/hover = SubResource("StyleHudHover")
+theme_override_styles/pressed = SubResource("StyleHudHover")
+text = "II"
+tooltip_text = "Пауза · Esc"
 
 [node name="Status" type="Label" parent="UI"]
-offset_left = 480.0
-offset_top = 50.0
-offset_right = 908.0
-offset_bottom = 78.0
-theme_override_colors/font_color = Color(0.973, 0.58, 0.267, 1)
-theme_override_font_sizes/font_size = 15
-text = "ПРОВЕРКА JSON..."
-horizontal_alignment = 2
+visible = false
+anchor_right = 1.0
+offset_left = 52.0
+offset_top = 108.0
+offset_right = -52.0
+offset_bottom = 166.0
+theme_override_colors/font_color = Color(0.973, 0.68, 0.367, 1)
+theme_override_font_sizes/font_size = 22
+theme_override_styles/normal = SubResource("StyleStatus")
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 2
+mouse_filter = 2
 
 [node name="Controls" type="Label" parent="UI"]
-offset_left = 52.0
-offset_top = 78.0
-offset_right = 908.0
-offset_bottom = 105.0
-theme_override_colors/font_color = Color(0.439, 0.502, 0.616, 1)
-theme_override_font_sizes/font_size = 14
-text = "A D / LEFT RIGHT — движение    W / UP / Space — прыжок    X / J — удар    R — рестарт"
-
-[node name="RuntimeHint" type="Label" parent="UI"]
-offset_left = 52.0
-offset_top = 104.0
-offset_right = 420.0
-offset_bottom = 128.0
-theme_override_colors/font_color = Color(0.973, 0.58, 0.267, 0.72)
-theme_override_font_sizes/font_size = 12
-text = "ВРАГИ И ИХ АТАКИ СМЕРТЕЛЬНЫ"
+visible = false
+mouse_filter = 2

@@ -1,4 +1,4 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/campaign/campaign_pause_menu.gd" id="1_pause"]
 
@@ -58,6 +58,15 @@ corner_radius_top_right = 4
 corner_radius_bottom_right = 4
 corner_radius_bottom_left = 4
 
+[sub_resource type="StyleBoxFlat" id="StylePanel"]
+bg_color = Color(0.055, 0.071, 0.122, 1)
+border_width_top = 5
+border_color = Color(0.439, 0.827, 0.816, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
 [node name="CampaignPauseMenu" type="CanvasLayer"]
 process_mode = 3
 layer = 80
@@ -82,85 +91,99 @@ grow_vertical = 2
 color = Color(0.02, 0.027, 0.051, 0.86)
 mouse_filter = 2
 
-[node name="Panel" type="ColorRect" parent="Overlay"]
+[node name="Panel" type="PanelContainer" parent="Overlay"]
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -270.0
-offset_top = -202.0
-offset_right = 270.0
-offset_bottom = 202.0
+offset_left = -380.0
+offset_top = -245.0
+offset_right = 380.0
+offset_bottom = 245.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.055, 0.071, 0.122, 1)
-mouse_filter = 2
+theme_override_styles/panel = SubResource("StylePanel")
 
-[node name="Accent" type="ColorRect" parent="Overlay/Panel"]
-layout_mode = 0
-offset_right = 540.0
-offset_bottom = 6.0
-color = Color(0.439, 0.827, 0.816, 1)
-mouse_filter = 2
+[node name="Margin" type="MarginContainer" parent="Overlay/Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 16
 
-[node name="Kicker" type="Label" parent="Overlay/Panel"]
-layout_mode = 0
-offset_left = 30.0
-offset_top = 28.0
-offset_right = 510.0
-offset_bottom = 52.0
-theme_override_colors/font_color = Color(0.439, 0.827, 0.816, 1)
-theme_override_font_sizes/font_size = 12
-text = "КАМПАНИЯ ПРИОСТАНОВЛЕНА"
-horizontal_alignment = 1
-vertical_alignment = 1
-mouse_filter = 2
+[node name="Content" type="VBoxContainer" parent="Overlay/Panel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 12
 
-[node name="Title" type="Label" parent="Overlay/Panel"]
-layout_mode = 0
-offset_left = 30.0
-offset_top = 60.0
-offset_right = 510.0
-offset_bottom = 104.0
+[node name="Title" type="Label" parent="Overlay/Panel/Margin/Content"]
+layout_mode = 2
 theme_override_colors/font_color = Color(0.973, 0.58, 0.267, 1)
 theme_override_font_sizes/font_size = 30
-text = "ПАУЗА"
+text = "Пауза"
 horizontal_alignment = 1
-vertical_alignment = 1
-mouse_filter = 2
 
-[node name="Arena" type="Label" parent="Overlay/Panel"]
-layout_mode = 0
-offset_left = 30.0
-offset_top = 108.0
-offset_right = 510.0
-offset_bottom = 134.0
+[node name="Arena" type="Label" parent="Overlay/Panel/Margin/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.792, 0.835, 0.906, 1)
+theme_override_font_sizes/font_size = 18
+text = "Арена"
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="HelpScroll" type="ScrollContainer" parent="Overlay/Panel/Margin/Content"]
+custom_minimum_size = Vector2(0, 48)
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="Help" type="VBoxContainer" parent="Overlay/Panel/Margin/Content/HelpScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
+
+[node name="HintTitle" type="Label" parent="Overlay/Panel/Margin/Content/HelpScroll/Help"]
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(0.439, 0.827, 0.816, 1)
+theme_override_font_sizes/font_size = 15
+text = "Подсказка"
+
+[node name="Objective" type="Label" parent="Overlay/Panel/Margin/Content/HelpScroll/Help"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.792, 0.835, 0.906, 1)
+theme_override_font_sizes/font_size = 18
+text = "Подсказка текущей арены"
+autowrap_mode = 2
+
+[node name="ControlsTitle" type="Label" parent="Overlay/Panel/Margin/Content/HelpScroll/Help"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.439, 0.827, 0.816, 1)
+theme_override_font_sizes/font_size = 15
+text = "Управление"
+
+[node name="Controls" type="Label" parent="Overlay/Panel/Margin/Content/HelpScroll/Help"]
+layout_mode = 2
+size_flags_horizontal = 3
 theme_override_colors/font_color = Color(0.651, 0.714, 0.82, 1)
-theme_override_font_sizes/font_size = 13
-text = "АРЕНА"
-horizontal_alignment = 1
-vertical_alignment = 1
-mouse_filter = 2
+theme_override_font_sizes/font_size = 16
+text = "Управление"
+autowrap_mode = 2
 
-[node name="Divider" type="ColorRect" parent="Overlay/Panel"]
-layout_mode = 0
-offset_left = 60.0
-offset_top = 150.0
-offset_right = 480.0
-offset_bottom = 152.0
-color = Color(0.173, 0.227, 0.337, 1)
-mouse_filter = 2
+[node name="Actions" type="BoxContainer" parent="Overlay/Panel/Margin/Content"]
+layout_mode = 2
+theme_override_constants/separation = 10
 
-[node name="Resume" type="Button" parent="Overlay/Panel"]
-layout_mode = 0
-offset_left = 70.0
-offset_top = 170.0
-offset_right = 470.0
-offset_bottom = 218.0
+[node name="Resume" type="Button" parent="Overlay/Panel/Margin/Content/Actions"]
+custom_minimum_size = Vector2(0, 46)
+layout_mode = 2
+size_flags_horizontal = 3
 focus_neighbor_top = NodePath("../MainMenu")
 focus_neighbor_bottom = NodePath("../Restart")
+focus_neighbor_left = NodePath("../MainMenu")
+focus_neighbor_right = NodePath("../Restart")
 mouse_default_cursor_shape = 2
 theme_override_colors/font_color = Color(0.792, 0.835, 0.906, 1)
 theme_override_colors/font_hover_color = Color(0.439, 0.827, 0.816, 1)
@@ -171,16 +194,16 @@ theme_override_styles/normal = SubResource("StyleNormal")
 theme_override_styles/hover = SubResource("StyleHover")
 theme_override_styles/pressed = SubResource("StylePressed")
 theme_override_styles/focus = SubResource("StyleFocus")
-text = "ПРОДОЛЖИТЬ"
+text = "Продолжить"
 
-[node name="Restart" type="Button" parent="Overlay/Panel"]
-layout_mode = 0
-offset_left = 70.0
-offset_top = 232.0
-offset_right = 470.0
-offset_bottom = 280.0
+[node name="Restart" type="Button" parent="Overlay/Panel/Margin/Content/Actions"]
+custom_minimum_size = Vector2(0, 46)
+layout_mode = 2
+size_flags_horizontal = 3
 focus_neighbor_top = NodePath("../Resume")
 focus_neighbor_bottom = NodePath("../MainMenu")
+focus_neighbor_left = NodePath("../Resume")
+focus_neighbor_right = NodePath("../MainMenu")
 mouse_default_cursor_shape = 2
 theme_override_colors/font_color = Color(0.792, 0.835, 0.906, 1)
 theme_override_colors/font_hover_color = Color(0.439, 0.827, 0.816, 1)
@@ -191,16 +214,16 @@ theme_override_styles/normal = SubResource("StyleNormal")
 theme_override_styles/hover = SubResource("StyleHover")
 theme_override_styles/pressed = SubResource("StylePressed")
 theme_override_styles/focus = SubResource("StyleFocus")
-text = "НАЧАТЬ АРЕНУ ЗАНОВО"
+text = "Заново"
 
-[node name="MainMenu" type="Button" parent="Overlay/Panel"]
-layout_mode = 0
-offset_left = 70.0
-offset_top = 294.0
-offset_right = 470.0
-offset_bottom = 342.0
+[node name="MainMenu" type="Button" parent="Overlay/Panel/Margin/Content/Actions"]
+custom_minimum_size = Vector2(0, 46)
+layout_mode = 2
+size_flags_horizontal = 3
 focus_neighbor_top = NodePath("../Restart")
 focus_neighbor_bottom = NodePath("../Resume")
+focus_neighbor_left = NodePath("../Restart")
+focus_neighbor_right = NodePath("../Resume")
 mouse_default_cursor_shape = 2
 theme_override_colors/font_color = Color(0.792, 0.835, 0.906, 1)
 theme_override_colors/font_hover_color = Color(0.439, 0.827, 0.816, 1)
@@ -211,17 +234,12 @@ theme_override_styles/normal = SubResource("StyleNormal")
 theme_override_styles/hover = SubResource("StyleHover")
 theme_override_styles/pressed = SubResource("StylePressed")
 theme_override_styles/focus = SubResource("StyleFocus")
-text = "ГЛАВНОЕ МЕНЮ"
+text = "В меню"
 
-[node name="Footer" type="Label" parent="Overlay/Panel"]
-layout_mode = 0
-offset_left = 30.0
-offset_top = 360.0
-offset_right = 510.0
-offset_bottom = 386.0
+[node name="Footer" type="Label" parent="Overlay/Panel/Margin/Content"]
+layout_mode = 2
 theme_override_colors/font_color = Color(0.502, 0.565, 0.675, 1)
-theme_override_font_sizes/font_size = 11
-text = "ESC — ПРОДОЛЖИТЬ    UP DOWN / W S — ВЫБОР"
+theme_override_font_sizes/font_size = 12
+text = "Esc / H — продолжить"
 horizontal_alignment = 1
-vertical_alignment = 1
-mouse_filter = 2
+autowrap_mode = 2

@@ -68,31 +68,10 @@ script = ExtResource("1_runner")
 [node name="PauseMenu" parent="." instance=ExtResource("2_pause")]
 
 [node name="MobileControls" parent="." instance=ExtResource("3_mobile")]
+show_pause_button = false
 
 [node name="CampaignUI" type="CanvasLayer" parent="."]
 layer = 20
-
-[node name="ProgressBacking" type="ColorRect" parent="CampaignUI"]
-visible = false
-offset_left = 650.0
-offset_top = 12.0
-offset_right = 936.0
-offset_bottom = 46.0
-color = Color(0.075, 0.098, 0.165, 0.94)
-mouse_filter = 2
-
-[node name="Progress" type="Label" parent="CampaignUI"]
-visible = false
-offset_left = 662.0
-offset_top = 12.0
-offset_right = 924.0
-offset_bottom = 46.0
-theme_override_colors/font_color = Color(0.439, 0.827, 0.816, 1)
-theme_override_font_sizes/font_size = 13
-text = "КАМПАНИЯ"
-horizontal_alignment = 2
-vertical_alignment = 1
-mouse_filter = 2
 
 [node name="Intro" type="Control" parent="CampaignUI"]
 visible = false

@@ -21,6 +21,8 @@ const BASE_VIEW_SIZE := Vector2(960.0, 540.0)
 const NORMAL_MODULATE := Color.WHITE
 const PRESSED_MODULATE := Color(1.18, 1.18, 1.18, 1.0)
 
+@export var show_pause_button := true
+
 var left_button: MobileTouchButton
 var right_button: MobileTouchButton
 var jump_button: MobileTouchButton
@@ -140,7 +142,7 @@ func _refresh_visibility() -> void:
 		_release_actions()
 	visible = should_show
 	for button: MobileTouchButton in _buttons():
-		button.visible = should_show
+		button.visible = should_show and (button != pause_button or show_pause_button)
 		_set_button_pressed_visual(button, false)
 
 
@@ -277,7 +279,7 @@ func _set_button_pressed_visual(
 
 
 func _update_layout() -> void:
-	if not is_instance_valid(left_button):
+	if not is_inside_tree() or not is_instance_valid(left_button):
 		return
 	var view_size := get_viewport().get_visible_rect().size
 	if view_size.x <= 0.0 or view_size.y <= 0.0:

@@ -2,6 +2,9 @@ class_name LevelRuntimeArena
 extends Arena
 
 signal embedded_restart_requested
+signal embedded_exit_requested
+signal pause_requested
+signal help_requested
 signal campaign_advance_requested
 signal campaign_completed_requested
 signal campaign_restart_requested(outcome: int)
@@ -16,10 +19,19 @@ const ENEMY_ELIMINATION_BURST_SCRIPT := preload(
 	"res://scripts/effects/enemy_elimination_burst.gd"
 )
 
+const PAUSE_MENU_SCENE := preload("res://scenes/campaign_pause_menu.tscn")
+const CAMPAIGN_STORAGE := preload("res://scripts/campaign/campaign_storage.gd")
+
 @export_file("*.json") var level_path := ""
+
+var local_pause_menu: CampaignPauseMenu
+var _resume_generation := 0
 
 @onready var title_label: Label = $UI/Title
 @onready var controls_label: Label = $UI/Controls
+@onready var progress_label: Label = $UI/Progress
+@onready var help_button: Button = $UI/Help
+@onready var pause_button: Button = $UI/Pause
 @onready var impact_feedback: ArenaImpactFeedback = $ImpactFeedback
 
 var level_loaded := false
@@ -77,20 +89,7 @@ func configure_campaign_snapshot(
 
 
 func _ready() -> void:
-	var has_touchscreen := DisplayServer.is_touchscreen_available()
-	if has_touchscreen:
-		controls_label.text = (
-			"ЭКРАННЫЕ КНОПКИ — движение / прыжок / удар"
-		)
-
-	if campaign_mode:
-		controls_label.text += (
-			"    II — пауза"
-			if has_touchscreen
-			else "    Esc — пауза"
-		)
-	elif embedded_mode:
-		controls_label.text += "    Esc — в редактор"
+	_configure_hud()
 
 	var load_result: Dictionary
 	if campaign_mode:
@@ -120,15 +119,216 @@ func _ready() -> void:
 	var player := _find_runtime_player()
 	if is_instance_valid(player):
 		player.attack_landed.connect(_on_player_attack_landed)
-	title_label.text = level_data["title"]
-	status_label.text = level_data["objective"]
+	_set_level_title()
+	status_label.text = ""
+	status_label.visible = false
 	clear_message = (
 		_campaign_advance_message
 		if campaign_mode and _campaign_has_next
 		else level_data["clear_message"]
 	)
+	if "DATA ARENA" in clear_message:
+		clear_message = "Арена пройдена" if campaign_mode else "Арена пройдена · Перезапуск…"
 	level_loaded = true
 	super._ready()
+
+
+func _configure_hud() -> void:
+	controls_label.hide()
+	help_button.pressed.connect(_request_help)
+	pause_button.pressed.connect(_request_pause)
+	get_viewport().size_changed.connect(_update_hud_layout)
+	_update_hud_layout()
+	if campaign_mode:
+		return
+	local_pause_menu = PAUSE_MENU_SCENE.instantiate() as CampaignPauseMenu
+	add_child(local_pause_menu)
+	local_pause_menu.resume_requested.connect(_resume_local_menu)
+	local_pause_menu.restart_requested.connect(_restart_from_local_menu)
+	local_pause_menu.main_menu_requested.connect(_leave_local_menu)
+
+
+func _update_hud_layout() -> void:
+	if not is_inside_tree():
+		return
+	var view := get_viewport().get_visible_rect().size
+	var window_size := Vector2(get_window().size)
+	var display_scale := minf(window_size.x / view.x, window_size.y / view.y)
+	var compact := view.x * display_scale < 640.0
+	var unit := 1.0 / display_scale if compact else 1.0
+	var width := view.x / unit
+	var top_shift := maxf(0.0, 42.0 * display_scale - 8.0) if embedded_mode and compact else 0.0
+	var title_rect := Rect2(12, 12, width - 136, 22) if compact else Rect2(52, 48, width - 358, 44)
+	var progress_rect := (
+		Rect2(12, 36, width - 136, 18) if compact else Rect2(width - 286, 48, 130, 44)
+	)
+	var help_rect := Rect2(width - 108, 12, 44, 44) if compact else Rect2(width - 144, 48, 52, 44)
+	var pause_rect := Rect2(width - 56, 12, 44, 44) if compact else Rect2(width - 76, 48, 52, 44)
+	var status_rect := Rect2(12, 70, width - 24, 58) if compact else Rect2(52, 108, width - 104, 58)
+	progress_label.horizontal_alignment = (
+		HORIZONTAL_ALIGNMENT_LEFT if compact else HORIZONTAL_ALIGNMENT_RIGHT
+	)
+	for item: Array in [
+		[title_label, title_rect, 16 if compact else 20],
+		[progress_label, progress_rect, 12 if compact else 17],
+		[help_button, help_rect, 22],
+		[pause_button, pause_rect, 22],
+		[status_label, status_rect, 18 if compact else 22],
+	]:
+		_place_hud_item(item[0], item[1], item[2], unit, top_shift)
+
+
+func _place_hud_item(
+	control: Control, rect: Rect2, font_size: int, unit: float, top_shift: float
+) -> void:
+	control.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	control.add_theme_font_size_override("font_size", roundi(font_size * unit))
+	control.position = (rect.position + Vector2(0, top_shift)) * unit
+	control.size = rect.size * unit
+
+
+func _input(event: InputEvent) -> void:
+	if not event is InputEventKey or not event.pressed or event.echo:
+		return
+	var key: int = event.physical_keycode if event.physical_keycode else event.keycode
+	if key == KEY_H:
+		_request_help()
+	elif key == KEY_ESCAPE and not campaign_mode and not embedded_mode:
+		_request_pause()
+	else:
+		super._input(event)
+		return
+	get_viewport().set_input_as_handled()
+
+
+func _set_level_title() -> void:
+	title_label.text = str(level_data["title"])
+	progress_label.text = "Тест" if embedded_mode else ""
+	if campaign_mode:
+		return
+	var entries := CAMPAIGN_STORAGE.list_builtin_levels()
+	for index in entries.size():
+		var entry: Dictionary = entries[index]
+		if entry["id"] == level_data.get("level_id", ""):
+			title_label.text = _compact_title(str(entry["title"]))
+			if not embedded_mode:
+				progress_label.text = "%d/%d" % [index + 1, entries.size()]
+			return
+
+
+func set_campaign_hud(title: String, progress: String) -> void:
+	title_label.text = _compact_title(title)
+	progress_label.text = progress
+
+
+func _compact_title(title: String) -> String:
+	return title.trim_prefix("Arena ").replace(" / ", " · ")
+
+
+func get_arena_title() -> String:
+	return title_label.text
+
+
+func get_help_text() -> String:
+	var text := str(level_data.get("objective", ""))
+	var types: Array[String] = []
+	for object: Dictionary in level_data.get("objects", []):
+		var object_type := str(object.get("type", ""))
+		if not types.has(object_type):
+			types.append(object_type)
+	if types.has("pressure_plate"):
+		text += (
+			"\n\nПлита нажата, пока на ней стоит герой или враг. "
+			+ "Без груза связанный мост или стена возвращается в исходное состояние."
+		)
+	if types.has("double_jump_pickup"):
+		text += (
+			"\n\nУсилитель даёт второй прыжок в воздухе. " + "Подбери его и нажми прыжок ещё раз."
+		)
+	text += (
+		"\n\nУдар отбрасывает. Устраняй врагов окружением. "
+		+ "Касание врага, его атака, яма и шипы смертельны."
+	)
+	return text
+
+
+func _request_help() -> void:
+	if campaign_mode:
+		help_requested.emit()
+	else:
+		open_local_pause_menu(true)
+
+
+func _request_pause() -> void:
+	if campaign_mode:
+		pause_requested.emit()
+	else:
+		open_local_pause_menu()
+
+
+func open_local_pause_menu(show_help: bool = false) -> bool:
+	if not level_loaded or not is_instance_valid(local_pause_menu):
+		return false
+	var opened := local_pause_menu.open_menu(
+		get_arena_title(),
+		get_help_text(),
+		DisplayServer.is_touchscreen_available(),
+		embedded_mode,
+		show_help
+	)
+	if opened:
+		process_mode = Node.PROCESS_MODE_DISABLED
+	return opened
+
+
+func close_local_pause_menu() -> void:
+	_resume_generation += 1
+	if is_instance_valid(local_pause_menu):
+		local_pause_menu.close_menu()
+
+
+func is_local_pause_open() -> bool:
+	return is_instance_valid(local_pause_menu) and local_pause_menu.is_open()
+
+
+func _resume_local_menu() -> void:
+	close_local_pause_menu()
+	await resume_after_menu()
+
+
+func resume_after_menu() -> void:
+	_resume_generation += 1
+	var generation := _resume_generation
+	process_mode = Node.PROCESS_MODE_DISABLED
+	await get_tree().physics_frame
+	await get_tree().process_frame
+	if generation != _resume_generation:
+		return
+	var player := _find_runtime_player()
+	if is_instance_valid(player):
+		player.jump_requested = false
+		player.attack_requested = false
+	process_mode = Node.PROCESS_MODE_INHERIT
+
+
+func _restart_from_local_menu() -> void:
+	close_local_pause_menu()
+	_reload_scene()
+
+
+func _leave_local_menu() -> void:
+	close_local_pause_menu()
+	if embedded_mode:
+		embedded_exit_requested.emit()
+	else:
+		get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
+
+
+func _schedule_outcome(delay: float, should_advance: bool, outcome: Outcome) -> bool:
+	var scheduled := super._schedule_outcome(delay, should_advance, outcome)
+	if scheduled:
+		status_label.show()
+	return scheduled
 
 
 func get_level_object(object_id: String) -> Node:
@@ -215,7 +415,8 @@ func _show_load_failure(errors: Array) -> void:
 	for error: Variant in errors:
 		load_errors.append(str(error))
 
-	title_label.text = "DATA ARENA  /  ОШИБКА ЗАГРУЗКИ"
+	title_label.text = "Не удалось загрузить арену"
+	status_label.show()
 	status_label.text = (
 		load_errors[0]
 		if not load_errors.is_empty()
