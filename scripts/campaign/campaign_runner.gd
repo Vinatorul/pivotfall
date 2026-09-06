@@ -37,8 +37,6 @@ enum Phase {
 @onready var runtime_host: Node2D = $RuntimeHost
 @onready var pause_menu: CampaignPauseMenu = $PauseMenu
 @onready var mobile_controls: MobileControls = $MobileControls
-@onready var progress_backing: ColorRect = $CampaignUI/ProgressBacking
-@onready var progress_label: Label = $CampaignUI/Progress
 @onready var intro_ui: Control = $CampaignUI/Intro
 @onready var intro_title: Label = $CampaignUI/Intro/Panel/Title
 @onready var intro_meta: Label = $CampaignUI/Intro/Panel/Meta
@@ -310,6 +308,14 @@ func restart_campaign() -> bool:
 
 
 func open_pause_menu() -> bool:
+	return _open_menu(false)
+
+
+func open_help_menu() -> bool:
+	return _open_menu(true)
+
+
+func _open_menu(show_help: bool) -> bool:
 	if (
 		phase != Phase.PLAYING
 		or transitioning
@@ -319,7 +325,13 @@ func open_pause_menu() -> bool:
 		return false
 
 	_set_debug_selector_suppressed(true)
-	var opened := pause_menu.open_menu(_pause_arena_text())
+	var opened := pause_menu.open_menu(
+		_pause_arena_text(),
+		current_runtime.get_help_text(),
+		mobile_controls.is_active(),
+		false,
+		show_help
+	)
 	if opened:
 		phase = Phase.PAUSED
 		_set_runtime_active(false)
@@ -335,10 +347,16 @@ func resume_from_pause() -> bool:
 
 	pause_menu.close_menu()
 	phase = Phase.PLAYING
-	_set_runtime_active(true)
-	_set_debug_selector_suppressed(false)
+	_resume_gameplay()
 	return true
 
+func _resume_gameplay() -> void:
+	var runtime := current_runtime
+	await runtime.resume_after_menu()
+	if runtime != current_runtime or phase != Phase.PLAYING:
+		return
+	_set_runtime_active(true)
+	_set_debug_selector_suppressed(false)
 
 func restart_current_level() -> bool:
 	if (
@@ -395,7 +413,10 @@ func _return_to_scene(scene_path: String, description: String) -> bool:
 	transitioning = false
 	phase = previous_phase
 	if pause_was_open:
-		pause_menu.open_menu(_pause_arena_text())
+		pause_menu.open_menu(
+			_pause_arena_text(), current_runtime.get_help_text(),
+			DisplayServer.is_touchscreen_available(), false, pause_menu.is_help_view()
+		)
 	elif previous_phase == Phase.PLAYING:
 		_set_runtime_active(true)
 	push_error(
@@ -406,12 +427,15 @@ func _return_to_scene(scene_path: String, description: String) -> bool:
 
 
 func _pause_arena_text() -> String:
-	return "%sАРЕНА %d / %d" % [
-		"ПОВТОР  /  " if _replay_mode else "",
-		current_level_index + 1,
-		campaign_entries.size(),
-	]
-
+	return (
+		"%s · %s%d/%d"
+		% [
+			current_runtime.get_arena_title(),
+			"Повтор · " if _replay_mode else "",
+			current_level_index + 1,
+			campaign_entries.size(),
+		]
+	)
 
 func get_entries() -> Array[Dictionary]:
 	var entries: Array[Dictionary] = []
@@ -510,6 +534,8 @@ func _spawn_runtime(
 	current_level_index = index
 	current_runtime = runtime
 	runtime_host.add_child(runtime)
+	runtime.pause_requested.connect(open_pause_menu)
+	runtime.help_requested.connect(open_help_menu)
 	if runtime.level_loaded:
 		if _is_completion_final_index(index):
 			runtime.clear_message = (
@@ -680,10 +706,7 @@ func _begin_intro(index: int, generation: int) -> void:
 	)
 
 
-func _finish_intro(
-	generation: int,
-	intro_generation: int
-) -> void:
+func _finish_intro(generation: int, intro_generation: int) -> void:
 	if (
 		generation != transition_generation
 		or intro_generation != _intro_generation
@@ -697,7 +720,6 @@ func _finish_intro(
 	phase = Phase.PLAYING
 	_set_runtime_active(true)
 
-
 func _cancel_intro() -> void:
 	_intro_generation += 1
 	intro_active = false
@@ -705,15 +727,15 @@ func _cancel_intro() -> void:
 
 
 func _update_progress(index: int) -> void:
-	var progress_text := "%s  %d / %d" % [
-		"ПОВТОР  /  АРЕНА" if _replay_mode else "КАМПАНИЯ",
-		index + 1,
-		campaign_entries.size(),
-	]
-	progress_label.text = progress_text
-	progress_backing.visible = true
-	progress_label.visible = true
-
+	var progress_text := (
+		"%s%d/%d"
+		% [
+			"Повтор · " if _replay_mode else "",
+			index + 1,
+			campaign_entries.size(),
+		]
+	)
+	current_runtime.set_campaign_hud(str(campaign_entries[index]["title"]), progress_text)
 
 func _show_completion() -> void:
 	_cancel_intro()
@@ -786,11 +808,8 @@ func _set_runtime_active(active: bool) -> void:
 	if not is_instance_valid(current_runtime):
 		return
 	current_runtime.process_mode = (
-		Node.PROCESS_MODE_INHERIT
-		if active
-		else Node.PROCESS_MODE_DISABLED
+		Node.PROCESS_MODE_INHERIT if active else Node.PROCESS_MODE_DISABLED
 	)
-
 
 func _is_completion_final_index(index: int) -> bool:
 	if _replay_mode:
@@ -907,8 +926,6 @@ func _show_failure(errors: Array) -> void:
 	_cancel_intro()
 	_hide_completion()
 	phase = Phase.FAILED
-	progress_backing.visible = false
-	progress_label.visible = false
 	_set_runtime_active(false)
 	load_errors.clear()
 	for error: Variant in errors:

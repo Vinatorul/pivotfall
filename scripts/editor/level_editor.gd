@@ -168,6 +168,7 @@ var linking_pressure_plate_id := ""
 
 
 func _ready() -> void:
+	return_button.text = "В редактор · Esc"
 	file_transfer.max_import_bytes = LEVEL_DATA_CODEC.MAX_FILE_BYTES
 	file_transfer.configure_web_import_hit_rect(
 		import_button.get_global_rect(),
@@ -220,6 +221,8 @@ func _exit_tree() -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if is_instance_valid(playtest_runtime) and playtest_runtime.is_local_pause_open():
+		return
 	var key_event := event as InputEventKey
 	if (
 		(
@@ -1890,6 +1893,7 @@ func _spawn_playtest(generation: int) -> void:
 	runtime.embedded_restart_requested.connect(
 		_on_playtest_restart_requested.bind(runtime, generation)
 	)
+	runtime.embedded_exit_requested.connect(_stop_playtest)
 	playtest_host.add_child(runtime)
 	playtest_runtime = runtime
 	playtest_transitioning = false
@@ -1928,6 +1932,7 @@ func _stop_playtest() -> void:
 	playtest_snapshot_json = ""
 	playtest_transitioning = false
 	if is_instance_valid(playtest_runtime):
+		playtest_runtime.close_local_pause_menu()
 		playtest_runtime.queue_free()
 	playtest_runtime = null
 	playtest_overlay.visible = false

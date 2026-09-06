@@ -976,6 +976,7 @@ func _test_editor_workflow() -> void:
 		and editor.playtest_runtime.embedded_mode,
 		"Embedded runtime did not load the immutable snapshot."
 	)
+	await _test_playtest_help(editor)
 	var initial_runtime_toggle := (
 		editor.playtest_runtime.get_level_object(toggle_id)
 		as TogglePlatform
@@ -1116,6 +1117,7 @@ func _test_editor_workflow() -> void:
 		"Playtest return changed the draft, selection, or Undo history."
 	)
 
+	await _test_pause_return_to_editor(editor)
 	editor.draft.set_root_value("title", "DIRTY EXIT CHECK")
 	editor.call("_select_object", "")
 	editor.call("_request_return_to_game")
@@ -1154,6 +1156,81 @@ func _test_editor_workflow() -> void:
 			!= "res://scenes/main_menu.tscn"
 		),
 		"Game button did not restore the source scene and selector context."
+	)
+
+
+func _test_playtest_help(editor: LevelEditor) -> void:
+	var runtime := editor.playtest_runtime
+	await _press_physical_key(KEY_H)
+	var menu := runtime.local_pause_menu
+	var objective := str(runtime.level_data["objective"])
+	_expect(
+		(
+			runtime.is_local_pause_open()
+			and paused
+			and menu.is_help_view()
+			and objective in menu.objective_label.text
+			and not menu.main_menu_button.visible
+			and not menu.controls_label.visible
+		),
+		"Editor help omitted its objective or exposed pause controls/actions."
+	)
+	await _press_physical_key(KEY_ESCAPE)
+	for _frame in 3:
+		await physics_frame
+		await process_frame
+	_expect(
+		(
+			not paused
+			and not runtime.is_local_pause_open()
+			and editor.playtest_runtime == runtime
+			and editor.playtest_overlay.visible
+			and not editor.editor_view.visible
+		),
+		"Esc from help left the editor playtest instead of resuming."
+	)
+
+
+func _test_pause_return_to_editor(editor: LevelEditor) -> void:
+	var snapshot := editor.draft.to_dictionary()
+	var previous_size := root.size
+	var previous_scale := root.content_scale_size
+	root.size = Vector2i(390, 844)
+	await _press_physical_key(KEY_F5)
+	var runtime := editor.playtest_runtime
+	if not _require(is_instance_valid(runtime), "Could not reopen editor playtest."):
+		return
+	runtime.pause_button.pressed.emit()
+	_expect_editor_pause(runtime)
+	runtime.local_pause_menu.main_menu_button.pressed.emit()
+	await process_frame
+	await process_frame
+	_expect(
+		(
+			not paused
+			and not is_instance_valid(editor.playtest_runtime)
+			and editor.editor_view.visible
+			and not editor.playtest_overlay.visible
+			and editor.draft.to_dictionary() == snapshot
+			and root.content_scale_size == previous_scale
+		),
+		"Pause return did not restore an unchanged editor draft and clear the modal."
+	)
+
+	root.size = previous_size
+
+
+func _expect_editor_pause(runtime: LevelRuntimeArena) -> void:
+	var menu := runtime.local_pause_menu
+	_expect(
+		(
+			menu.is_open()
+			and not menu.is_help_view()
+			and paused
+			and menu.main_menu_button.visible
+			and menu.main_menu_button.text == "В редактор"
+		),
+		"Editor HUD did not open pause with a visible return action."
 	)
 
 

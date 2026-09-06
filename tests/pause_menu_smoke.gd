@@ -15,6 +15,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
+	root.size = Vector2i(960, 540)
 	progress_store = root.get_node_or_null(
 		"CampaignProgress"
 	) as CampaignProgressStore
@@ -60,7 +61,8 @@ func _run() -> void:
 	var runtime := await _wait_for_playing_runtime(runner)
 	_expect(
 		is_instance_valid(runtime)
-		and runner.get_current_level_id() == "arena_01_data",
+		and runner.get_current_level_id() == "arena_01_data"
+		and not paused and not runner.pause_menu.is_open(),
 		"Campaign did not reach playable Arena 01."
 	)
 	if not is_instance_valid(runtime):
@@ -77,6 +79,9 @@ func _run() -> void:
 		"Patrol fixture did not move before pausing."
 	)
 
+	await _test_help_stops_game(runner)
+	await _test_hud_help(runner)
+	await _test_pause_to_help(runner)
 	var runtime_id := runtime.get_instance_id()
 	runner.mobile_controls.set_touchscreen_override_for_tests(true, true)
 	runner.mobile_controls.set_active(true)
@@ -84,12 +89,10 @@ func _run() -> void:
 		runner.mobile_controls.is_active(),
 		"Forced mobile controls did not appear during gameplay."
 	)
-	await _tap_touchscreen_button(
-		runner.mobile_controls.pause_button,
-		0
-	)
+	await _tap_ui_button(runner.current_runtime.pause_button, 0)
 	await process_frame
 	_expect_pause_open(runner, selector, runtime_id)
+	_expect_pause_content(runner.pause_menu, true)
 	_expect(
 		not runner.mobile_controls.is_active()
 		and not Input.is_action_pressed("mobile_pause"),
@@ -148,7 +151,7 @@ func _run() -> void:
 	)
 
 	await _press_physical_key(KEY_ESCAPE)
-	await process_frame
+	await _wait_physics_frames(3)
 	_expect_resumed(runner, selector, runtime_id)
 	_expect(
 		runner.mobile_controls.is_active(),
@@ -163,13 +166,15 @@ func _run() -> void:
 
 	await _press_physical_key(KEY_ESCAPE)
 	runner.pause_menu.resume_button.pressed.emit()
-	await process_frame
+	await _wait_physics_frames(3)
 	_expect_resumed(runner, selector, runtime_id)
 
 	var old_runtime_ref: WeakRef = weakref(runner.current_runtime)
 	var old_runtime_id := runner.current_runtime.get_instance_id()
 	var old_level_id := runner.get_current_level_id()
 	var old_level_index := runner.get_current_level_index()
+	var gameplay_scale := root.content_scale_size
+	root.size = Vector2i(390, 844)
 	await _press_physical_key(KEY_ESCAPE)
 	runner.pause_menu.restart_button.pressed.emit()
 	var restarted_runtime := await _wait_for_restarted_runtime(
@@ -186,11 +191,14 @@ func _run() -> void:
 		and not runner.intro_active
 		and not runner.pause_menu.is_open()
 		and not paused
+		and root.content_scale_size == gameplay_scale
 		and not selector.context_suppressed
 		and selector.get_requested_campaign_level_id() == old_level_id,
 		"Pause restart did not replace the current arena cleanly."
 	)
 
+	root.size = Vector2i(960, 540)
+	await _test_long_help(runner)
 	await _press_physical_key(KEY_ESCAPE)
 	_expect(
 		runner.pause_menu.is_open() and paused,
@@ -208,6 +216,213 @@ func _run() -> void:
 	)
 
 	_finish()
+
+
+func _test_help_stops_game(runner: CampaignRunner) -> void:
+	await _press_physical_key(KEY_H)
+	_expect(runner.pause_menu.is_open() and paused, "Requested help did not pause.")
+	if not runner.pause_menu.is_open():
+		return
+	var runtime := runner.current_runtime
+	var enemy := runtime.get_level_object("patrol_1") as PatrolEnemy
+	var position_before := enemy.global_position
+	await _wait_process_frames(12)
+	_expect(
+		runner.pause_menu.is_open() and enemy.global_position == position_before,
+		"Help expired or gameplay moved during reading."
+	)
+	_expect(
+		(
+			str(runtime.level_data["objective"]) in runner.pause_menu.objective_label.text
+			and "смерт" in runner.pause_menu.objective_label.text.to_lower()
+		),
+		"Help omitted the objective or lethal contact."
+	)
+	_expect_help_content(runner.pause_menu)
+	await _press_physical_key(KEY_SPACE)
+	await _wait_physics_frames(3)
+	_expect_safe_resume(runner)
+
+
+func _test_hud_help(runner: CampaignRunner) -> void:
+	var runtime := runner.current_runtime
+	_expect(
+		(
+			runtime.help_button.visible
+			and runtime.pause_button.visible
+			and runtime.progress_label.text == "1/%d" % runner.get_level_count()
+			and "GRAYBOX" not in runtime.title_label.text
+			and "DATA" not in runtime.title_label.text
+		),
+		"Runtime HUD omitted its actions/count or retained service labels."
+	)
+	await _press_physical_key(KEY_H)
+	_expect(runner.pause_menu.is_open() and paused, "H did not open arena help.")
+	await _press_physical_key(KEY_H)
+	await _wait_physics_frames(3)
+	_expect_safe_resume(runner)
+	await _click_ui_button(runtime.help_button)
+	_expect(runner.pause_menu.is_open() and paused, "Mouse ? did not open help.")
+	await _press_physical_key(KEY_ESCAPE)
+	await _wait_physics_frames(3)
+	_expect_safe_resume(runner)
+	await _test_touch_help(runner)
+
+
+func _test_touch_help(runner: CampaignRunner) -> void:
+	runner.mobile_controls.set_touchscreen_override_for_tests(true, true)
+	runner.mobile_controls.set_active(true)
+	await _tap_ui_button(runner.current_runtime.help_button, 0)
+	_expect(runner.pause_menu.is_open() and paused, "Touch ? did not open help.")
+	_expect_help_content(runner.pause_menu)
+	await _tap_ui_button(runner.pause_menu.resume_button, 0)
+	await _wait_physics_frames(3)
+	_expect_safe_resume(runner)
+
+
+func _test_pause_to_help(runner: CampaignRunner) -> void:
+	runner.mobile_controls.set_touchscreen_override_for_tests(true, false)
+	await _press_physical_key(KEY_ESCAPE)
+	_expect_pause_content(runner.pause_menu, false)
+	await _press_physical_key(KEY_H)
+	_expect(runner.pause_menu.is_open() and paused, "H resumed instead of showing help.")
+	_expect_help_content(runner.pause_menu)
+	for key: Key in [KEY_S, KEY_W, KEY_DOWN, KEY_UP]:
+		await _press_physical_key(key)
+		_expect(
+			root.gui_get_focus_owner() == runner.pause_menu.resume_button,
+			"Help keyboard focus moved to a hidden pause action."
+		)
+	await _press_physical_key(KEY_H)
+	await _wait_physics_frames(3)
+	_expect_safe_resume(runner)
+
+
+func _expect_help_content(menu: CampaignPauseMenu) -> void:
+	_expect(
+		(
+			menu.is_help_view()
+			and menu.title_label.text == "Подсказка"
+			and menu.objective_label.visible
+			and not menu.controls_label.visible
+			and menu.resume_button.text == "К игре"
+			and not menu.restart_button.visible
+			and not menu.main_menu_button.visible
+		),
+		"Help retained controls or pause actions, or hid its objective."
+	)
+
+
+func _expect_pause_content(menu: CampaignPauseMenu, touch: bool) -> void:
+	_expect(
+		(
+			not menu.is_help_view()
+			and menu.title_label.text == "Пауза"
+			and not menu.objective_label.visible
+			and menu.controls_label.visible
+			and menu.resume_button.text == "Продолжить"
+			and menu.restart_button.visible
+			and menu.main_menu_button.visible
+		),
+		"Pause retained arena help or omitted its three actions and controls."
+	)
+	_expect(
+		("JUMP" in menu.controls_label.text) if touch else ("Пробел" in menu.controls_label.text),
+		"Pause shows controls for the wrong input device."
+	)
+
+
+func _test_long_help(runner: CampaignRunner) -> void:
+	_expect(runner.open_level_by_id("arena_16_data"), "Could not open Arena 16.")
+	await _wait_for_playing_runtime(runner)
+	_expect(
+		(
+			runner.get_current_level_id() == "arena_16_data"
+			and not paused
+			and not runner.pause_menu.is_open()
+		),
+		"Arena 16 opened an automatic modal instead of starting gameplay."
+	)
+	await _press_physical_key(KEY_H)
+	var menu := runner.pause_menu
+	var objective := str(runner.current_runtime.level_data["objective"])
+	_expect(
+		(
+			menu.is_open()
+			and paused
+			and objective in menu.objective_label.text
+			and menu.objective_label.visible_characters == -1
+		),
+		"Arena 16 help is unavailable or truncates its existing objective."
+	)
+	await _test_narrow_help(menu)
+	await _wait_physics_frames(3)
+	_expect_safe_resume(runner)
+
+
+func _test_narrow_help(menu: CampaignPauseMenu) -> void:
+	var previous_size := root.size
+	var previous_scale := root.content_scale_size
+	root.size = Vector2i(390, 844)
+	await _wait_process_frames(4)
+	var viewport_rect := root.get_visible_rect()
+	_expect(viewport_rect.size == Vector2(390, 844), "Portrait help does not use window height.")
+	_expect(viewport_rect.encloses(menu.panel.get_global_rect()), "Narrow help is clipped.")
+	for button: Button in [menu.resume_button, menu.restart_button, menu.main_menu_button]:
+		if not button.visible:
+			continue
+		_expect(
+			menu.panel.get_global_rect().encloses(button.get_global_rect()),
+			"Narrow pause action is clipped: %s." % button.name
+		)
+	for _page in 6:
+		await _press_physical_key(KEY_PAGEDOWN)
+	var scroll_bar := menu.help_scroll.get_v_scroll_bar()
+	_expect(
+		scroll_bar.value + scroll_bar.page >= scroll_bar.max_value - 1.0,
+		"Keyboard could not reach the end of Arena 16 help on a narrow screen."
+	)
+	await _press_physical_key(KEY_ESCAPE)
+	_expect(root.content_scale_size == previous_scale, "Closing help changed gameplay scale.")
+	root.size = previous_size
+	await _wait_process_frames(4)
+
+
+func _expect_safe_resume(runner: CampaignRunner) -> void:
+	var player := runner.current_runtime.get_level_object("player_start") as Player
+	_expect(
+		(
+			not paused
+			and not runner.pause_menu.is_open()
+			and not player.jump_requested
+			and not player.attack_requested
+			and player.attack_time_remaining <= 0.0
+			and player.velocity.y >= 0.0
+		),
+		"Closing help left a window, pause or accidental jump/attack."
+	)
+
+
+func _click_ui_button(button: Button) -> void:
+	for is_pressed: bool in [true, false]:
+		var event := InputEventMouseButton.new()
+		event.position = button.get_global_rect().get_center()
+		event.global_position = event.position
+		event.button_index = MOUSE_BUTTON_LEFT
+		event.pressed = is_pressed
+		root.push_input(event, true)
+		await process_frame
+
+
+func _tap_ui_button(button: Button, index: int) -> void:
+	for is_pressed: bool in [true, false]:
+		var event := InputEventScreenTouch.new()
+		event.window_id = root.get_window_id()
+		event.position = root.get_screen_transform() * button.get_global_rect().get_center()
+		event.index = index
+		event.pressed = is_pressed
+		Input.parse_input_event(event)
+		await process_frame
 
 
 func _expect_pause_open(
@@ -321,28 +536,6 @@ func _press_physical_key(key: Key) -> void:
 	release.keycode = key
 	release.pressed = false
 	root.push_input(release)
-	await process_frame
-
-
-func _tap_touchscreen_button(
-	button: MobileTouchButton,
-	index: int
-) -> void:
-	var controls := button.get_parent() as MobileControls
-	var press := InputEventScreenTouch.new()
-	press.window_id = root.get_window_id()
-	press.index = index
-	press.position = button.get_global_transform_with_canvas().origin
-	press.pressed = true
-	controls._input(press)
-	await process_frame
-
-	var release := InputEventScreenTouch.new()
-	release.window_id = root.get_window_id()
-	release.index = index
-	release.position = button.get_global_transform_with_canvas().origin
-	release.pressed = false
-	controls._input(release)
 	await process_frame
 
 
