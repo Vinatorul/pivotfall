@@ -1,8 +1,32 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scripts/editor/level_editor.gd" id="1_editor"]
 [ext_resource type="Script" path="res://scripts/editor/level_editor_canvas.gd" id="2_canvas"]
 [ext_resource type="Script" path="res://scripts/editor/level_file_transfer.gd" id="3_transfer"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_test"]
+bg_color = Color(0.055, 0.23, 0.24, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.28, 0.68, 0.65, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_left = 3
+corner_radius_bottom_right = 3
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_test_hover"]
+bg_color = Color(0.08, 0.32, 0.32, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.44, 0.88, 0.82, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_left = 3
+corner_radius_bottom_right = 3
 
 [node name="LevelEditor" type="Node"]
 script = ExtResource("1_editor")
@@ -25,6 +49,8 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+theme_override_font_sizes/font_size = 14
+
 
 [node name="Background" type="ColorRect" parent="EditorView"]
 layout_mode = 1
@@ -44,100 +70,152 @@ offset_right = 952.0
 offset_bottom = 40.0
 color = Color(0.075, 0.098, 0.165, 1)
 
-[node name="Title" type="Label" parent="EditorView/Toolbar"]
+[node name="FileButton" type="Button" parent="EditorView/Toolbar"]
 layout_mode = 0
-offset_left = 12.0
-offset_top = 5.0
-offset_right = 290.0
-offset_bottom = 28.0
-theme_override_colors/font_color = Color(0.651, 0.714, 0.82, 1)
-theme_override_font_sizes/font_size = 15
-text = "GRAYBOX  /  LEVEL EDITOR"
+offset_left = 0.0
+offset_top = 0.0
+offset_right = 62.0
+offset_bottom = 32.0
+text = "Файл"
+focus_mode = 0
+tooltip_text = "Создать: Cmd/Ctrl+N. Открыть: Cmd/Ctrl+O"
 
-[node name="DirtyLabel" type="Label" parent="EditorView/Toolbar"]
-layout_mode = 0
-offset_left = 300.0
-offset_top = 6.0
-offset_right = 490.0
-offset_bottom = 28.0
-theme_override_colors/font_color = Color(0.439, 0.827, 0.816, 1)
-theme_override_font_sizes/font_size = 12
-text = "ПРИМЕР / БЕЗ ИЗМЕНЕНИЙ"
 
-[node name="ExitButton" type="Button" parent="EditorView/Toolbar"]
+[node name="SaveButton" type="Button" parent="EditorView/Toolbar"]
 layout_mode = 0
-offset_left = 496.0
-offset_top = 2.0
-offset_right = 576.0
-offset_bottom = 30.0
-text = "< GAME"
+offset_left = 68.0
+offset_top = 0.0
+offset_right = 166.0
+offset_bottom = 32.0
+text = "Сохранить"
+focus_mode = 0
+tooltip_text = "Сохранить уровень — Cmd/Ctrl+S"
+
 
 [node name="UndoButton" type="Button" parent="EditorView/Toolbar"]
 layout_mode = 0
-offset_left = 582.0
-offset_top = 2.0
-offset_right = 666.0
-offset_bottom = 30.0
-text = "↶ UNDO"
+offset_left = 174.0
+offset_top = 0.0
+offset_right = 228.0
+offset_bottom = 32.0
+text = "Undo"
+focus_mode = 0
+tooltip_text = "Отменить — Cmd/Ctrl+Z"
+
 
 [node name="RedoButton" type="Button" parent="EditorView/Toolbar"]
 layout_mode = 0
-offset_left = 672.0
-offset_top = 2.0
-offset_right = 756.0
-offset_bottom = 30.0
-text = "↷ REDO"
+offset_left = 234.0
+offset_top = 0.0
+offset_right = 288.0
+offset_bottom = 32.0
+text = "Redo"
+focus_mode = 0
+tooltip_text = "Повторить — Cmd/Ctrl+Shift+Z или Cmd/Ctrl+Y"
+
 
 [node name="TestButton" type="Button" parent="EditorView/Toolbar"]
 layout_mode = 0
-offset_left = 766.0
-offset_top = 2.0
-offset_right = 932.0
-offset_bottom = 30.0
+offset_left = 298.0
+offset_top = 0.0
+offset_right = 398.0
+offset_bottom = 32.0
+text = "ТЕСТ  F5"
+focus_mode = 0
+tooltip_text = "Запустить тест — F5. Вернуться — Esc"
 theme_override_colors/font_color = Color(0.439, 0.878, 0.816, 1)
-text = "▶ TEST  [F5]"
+
+
+theme_override_styles/normal = SubResource("StyleBox_test")
+theme_override_styles/hover = SubResource("StyleBox_test_hover")
+
+[node name="SettingsButton" type="Button" parent="EditorView/Toolbar"]
+layout_mode = 0
+offset_left = 408.0
+offset_top = 0.0
+offset_right = 550.0
+offset_bottom = 32.0
+text = "Параметры"
+focus_mode = 0
+tooltip_text = "Название, цель, ID и текст завершения"
+
+
+[node name="HelpButton" type="Button" parent="EditorView/Toolbar"]
+layout_mode = 0
+offset_left = 558.0
+offset_top = 0.0
+offset_right = 590.0
+offset_bottom = 32.0
+text = "?"
+focus_mode = 0
+tooltip_text = "Управление и механики"
+
+
+[node name="ExitButton" type="Button" parent="EditorView/Toolbar"]
+layout_mode = 0
+offset_left = 598.0
+offset_top = 0.0
+offset_right = 674.0
+offset_bottom = 32.0
+text = "В игру"
+focus_mode = 0
+tooltip_text = "Вернуться в игру — Esc после отмены локальных действий"
+
+
+[node name="DirtyLabel" type="Label" parent="EditorView/Toolbar"]
+layout_mode = 0
+offset_left = 692.0
+offset_top = 0.0
+offset_right = 932.0
+offset_bottom = 32.0
+theme_override_font_sizes/font_size = 12
+text = "Без изменений"
+
 
 [node name="PalettePanel" type="ColorRect" parent="EditorView"]
 layout_mode = 0
 offset_left = 8.0
 offset_top = 48.0
 offset_right = 152.0
-offset_bottom = 532.0
+offset_bottom = 502.0
 color = Color(0.075, 0.098, 0.165, 1)
 
 [node name="Title" type="Label" parent="EditorView/PalettePanel"]
 layout_mode = 0
 offset_left = 10.0
-offset_top = 10.0
+offset_top = 2.0
 offset_right = 134.0
-offset_bottom = 34.0
-theme_override_colors/font_color = Color(0.651, 0.714, 0.82, 1)
-theme_override_font_sizes/font_size = 13
+offset_bottom = 24.0
+theme_override_font_sizes/font_size = 12
 text = "ИНСТРУМЕНТЫ"
+
 
 [node name="SelectButton" type="Button" parent="EditorView/PalettePanel"]
 layout_mode = 0
 offset_left = 8.0
-offset_top = 40.0
+offset_top = 26.0
 offset_right = 136.0
-offset_bottom = 72.0
+offset_bottom = 54.0
+text = "Q  ВЫБОР"
+focus_mode = 0
+tooltip_text = "Выбрать и переместить объект — Q"
 toggle_mode = true
 button_pressed = true
-text = "Q  ВЫБОР"
+
 
 [node name="ToolScroll" type="ScrollContainer" parent="EditorView/PalettePanel"]
 layout_mode = 0
 offset_left = 8.0
-offset_top = 76.0
+offset_top = 60.0
 offset_right = 136.0
-offset_bottom = 270.0
+offset_bottom = 446.0
 horizontal_scroll_mode = 0
 
 [node name="ToolList" type="VBoxContainer" parent="EditorView/PalettePanel/ToolScroll"]
 custom_minimum_size = Vector2(116, 0)
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 4
+theme_override_constants/separation = 2
 
 [node name="GeometryLabel" type="Label" parent="EditorView/PalettePanel/ToolScroll/ToolList"]
 layout_mode = 2
@@ -146,10 +224,13 @@ theme_override_font_sizes/font_size = 10
 text = "ГЕОМЕТРИЯ"
 
 [node name="SolidButton" type="Button" parent="EditorView/PalettePanel/ToolScroll/ToolList"]
-custom_minimum_size = Vector2(0, 32)
+custom_minimum_size = Vector2(0, 24)
 layout_mode = 2
 toggle_mode = true
 text = "1  ПОЛ"
+
+focus_mode = 0
+theme_override_font_sizes/font_size = 12
 
 [node name="HazardsLabel" type="Label" parent="EditorView/PalettePanel/ToolScroll/ToolList"]
 layout_mode = 2
@@ -158,10 +239,13 @@ theme_override_font_sizes/font_size = 10
 text = "ОПАСНОСТИ"
 
 [node name="SpikeButton" type="Button" parent="EditorView/PalettePanel/ToolScroll/ToolList"]
-custom_minimum_size = Vector2(0, 32)
+custom_minimum_size = Vector2(0, 24)
 layout_mode = 2
 toggle_mode = true
 text = "K  ШИПЫ"
+
+focus_mode = 0
+theme_override_font_sizes/font_size = 12
 
 [node name="SpawnLabel" type="Label" parent="EditorView/PalettePanel/ToolScroll/ToolList"]
 layout_mode = 2
@@ -170,10 +254,13 @@ theme_override_font_sizes/font_size = 10
 text = "СТАРТ"
 
 [node name="PlayerButton" type="Button" parent="EditorView/PalettePanel/ToolScroll/ToolList"]
-custom_minimum_size = Vector2(0, 32)
+custom_minimum_size = Vector2(0, 24)
 layout_mode = 2
 toggle_mode = true
 text = "2  ИГРОК"
+
+focus_mode = 0
+theme_override_font_sizes/font_size = 12
 
 [node name="BonusesLabel" type="Label" parent="EditorView/PalettePanel/ToolScroll/ToolList"]
 layout_mode = 2
@@ -182,10 +269,13 @@ theme_override_font_sizes/font_size = 10
 text = "БОНУСЫ"
 
 [node name="DoubleJumpButton" type="Button" parent="EditorView/PalettePanel/ToolScroll/ToolList"]
-custom_minimum_size = Vector2(0, 32)
+custom_minimum_size = Vector2(0, 24)
 layout_mode = 2
 toggle_mode = true
 text = "J  2-Й ПРЫЖОК"
+
+focus_mode = 0
+theme_override_font_sizes/font_size = 12
 
 [node name="EnemiesLabel" type="Label" parent="EditorView/PalettePanel/ToolScroll/ToolList"]
 layout_mode = 2
@@ -194,22 +284,31 @@ theme_override_font_sizes/font_size = 10
 text = "ВРАГИ"
 
 [node name="PatrolButton" type="Button" parent="EditorView/PalettePanel/ToolScroll/ToolList"]
-custom_minimum_size = Vector2(0, 32)
+custom_minimum_size = Vector2(0, 24)
 layout_mode = 2
 toggle_mode = true
 text = "3  ПАТРУЛЬ"
 
+focus_mode = 0
+theme_override_font_sizes/font_size = 12
+
 [node name="ShoveButton" type="Button" parent="EditorView/PalettePanel/ToolScroll/ToolList"]
-custom_minimum_size = Vector2(0, 32)
+custom_minimum_size = Vector2(0, 24)
 layout_mode = 2
 toggle_mode = true
 text = "6  ТОЛКАЧ"
 
+focus_mode = 0
+theme_override_font_sizes/font_size = 12
+
 [node name="ShooterButton" type="Button" parent="EditorView/PalettePanel/ToolScroll/ToolList"]
-custom_minimum_size = Vector2(0, 32)
+custom_minimum_size = Vector2(0, 24)
 layout_mode = 2
 toggle_mode = true
 text = "7  СТРЕЛОК"
+
+focus_mode = 0
+theme_override_font_sizes/font_size = 12
 
 [node name="MechanismsLabel" type="Label" parent="EditorView/PalettePanel/ToolScroll/ToolList"]
 layout_mode = 2
@@ -218,229 +317,154 @@ theme_override_font_sizes/font_size = 10
 text = "МЕХАНИЗМЫ"
 
 [node name="ToggleButton" type="Button" parent="EditorView/PalettePanel/ToolScroll/ToolList"]
-custom_minimum_size = Vector2(0, 32)
+custom_minimum_size = Vector2(0, 24)
 layout_mode = 2
 toggle_mode = true
 text = "4  ПЛАТФОРМА"
 
+focus_mode = 0
+theme_override_font_sizes/font_size = 12
+
 [node name="WallButton" type="Button" parent="EditorView/PalettePanel/ToolScroll/ToolList"]
-custom_minimum_size = Vector2(0, 32)
+custom_minimum_size = Vector2(0, 24)
 layout_mode = 2
 toggle_mode = true
 text = "0  ВОРОТА"
 
+focus_mode = 0
+theme_override_font_sizes/font_size = 12
+
 [node name="CatapultButton" type="Button" parent="EditorView/PalettePanel/ToolScroll/ToolList"]
-custom_minimum_size = Vector2(0, 32)
+custom_minimum_size = Vector2(0, 24)
 layout_mode = 2
 toggle_mode = true
 text = "8  КАТАПУЛЬТА"
 
+focus_mode = 0
+theme_override_font_sizes/font_size = 12
+
 [node name="LiftButton" type="Button" parent="EditorView/PalettePanel/ToolScroll/ToolList"]
-custom_minimum_size = Vector2(0, 32)
+custom_minimum_size = Vector2(0, 24)
 layout_mode = 2
 toggle_mode = true
 text = "9  ЛИФТ"
 
+focus_mode = 0
+theme_override_font_sizes/font_size = 12
+
 [node name="HingeButton" type="Button" parent="EditorView/PalettePanel/ToolScroll/ToolList"]
-custom_minimum_size = Vector2(0, 32)
+custom_minimum_size = Vector2(0, 24)
 layout_mode = 2
 toggle_mode = true
 text = "5  ШАРНИР"
 
+focus_mode = 0
+theme_override_font_sizes/font_size = 12
+
 [node name="PressurePlateButton" type="Button" parent="EditorView/PalettePanel/ToolScroll/ToolList"]
-custom_minimum_size = Vector2(0, 32)
+custom_minimum_size = Vector2(0, 24)
 layout_mode = 2
 toggle_mode = true
 text = "P  ПЛИТА"
 
-[node name="EditTitle" type="Label" parent="EditorView/PalettePanel"]
-layout_mode = 0
-offset_left = 10.0
-offset_top = 280.0
-offset_right = 134.0
-offset_bottom = 300.0
-theme_override_colors/font_color = Color(0.439, 0.502, 0.616, 1)
+focus_mode = 0
 theme_override_font_sizes/font_size = 12
-text = "ВЫДЕЛЕННОЕ"
+
+[node name="InspectorButton" type="Button" parent="EditorView/PalettePanel"]
+layout_mode = 0
+offset_left = 8.0
+offset_top = 382.0
+offset_right = 136.0
+offset_bottom = 410.0
+text = "Свойства"
+focus_mode = 0
+tooltip_text = "Открыть или свернуть свойства выделенного объекта"
+
 
 [node name="DuplicateButton" type="Button" parent="EditorView/PalettePanel"]
 layout_mode = 0
 offset_left = 8.0
-offset_top = 304.0
-offset_right = 136.0
-offset_bottom = 336.0
-text = "DUPLICATE"
+offset_top = 416.0
+offset_right = 68.0
+offset_bottom = 446.0
+text = "Копия"
+focus_mode = 0
+tooltip_text = "Копировать — Cmd/Ctrl+D"
+
 
 [node name="DeleteButton" type="Button" parent="EditorView/PalettePanel"]
 layout_mode = 0
-offset_left = 8.0
-offset_top = 342.0
+offset_left = 72.0
+offset_top = 416.0
 offset_right = 136.0
-offset_bottom = 374.0
-theme_override_colors/font_color = Color(0.925, 0.365, 0.231, 1)
-text = "DELETE"
+offset_bottom = 446.0
+text = "Удалить"
+focus_mode = 0
+tooltip_text = "Удалить — Delete / Backspace"
+theme_override_font_sizes/font_size = 12
 
-[node name="Help" type="Label" parent="EditorView/PalettePanel"]
-layout_mode = 0
-offset_left = 10.0
-offset_top = 390.0
-offset_right = 134.0
-offset_bottom = 472.0
-theme_override_colors/font_color = Color(0.439, 0.502, 0.616, 1)
-theme_override_font_sizes/font_size = 11
-text = "ЛКМ — поставить\nDrag — размер / сдвиг\nDel — удалить\nCmd/Ctrl+D — копия\nEsc — связь / назад"
-autowrap_mode = 2
 
 [node name="EditorCanvas" type="Control" parent="EditorView"]
 layout_mode = 0
 offset_left = 160.0
 offset_top = 48.0
-offset_right = 736.0
-offset_bottom = 372.0
+offset_right = 952.0
+offset_bottom = 502.0
 mouse_filter = 0
 clip_contents = true
 focus_mode = 2
 script = ExtResource("2_canvas")
 
-[node name="ProblemsPanel" type="ColorRect" parent="EditorView"]
-layout_mode = 0
-offset_left = 160.0
-offset_top = 380.0
-offset_right = 736.0
-offset_bottom = 532.0
-color = Color(0.075, 0.098, 0.165, 1)
-
-[node name="LevelIdEdit" type="LineEdit" parent="EditorView/ProblemsPanel"]
+[node name="ValidationChip" type="Button" parent="EditorView"]
 layout_mode = 0
 offset_left = 8.0
-offset_top = 8.0
-offset_right = 172.0
-offset_bottom = 38.0
-placeholder_text = "level_id"
-
-[node name="TitleEdit" type="LineEdit" parent="EditorView/ProblemsPanel"]
-layout_mode = 0
-offset_left = 180.0
-offset_top = 8.0
-offset_right = 374.0
-offset_bottom = 38.0
-placeholder_text = "Название"
-
-[node name="ObjectiveEdit" type="LineEdit" parent="EditorView/ProblemsPanel"]
-layout_mode = 0
-offset_left = 382.0
-offset_top = 8.0
-offset_right = 568.0
-offset_bottom = 38.0
-placeholder_text = "Цель"
-
-[node name="ValidationChip" type="Label" parent="EditorView/ProblemsPanel"]
-layout_mode = 0
-offset_left = 10.0
-offset_top = 45.0
-offset_right = 566.0
-offset_bottom = 67.0
-theme_override_colors/font_color = Color(0.439, 0.878, 0.816, 1)
+offset_top = 510.0
+offset_right = 952.0
+offset_bottom = 534.0
+text = "Готово к тесту"
+focus_mode = 0
+tooltip_text = "Открыть все ошибки, предупреждения и сообщения"
+alignment = 0
+text_overrun_behavior = 3
 theme_override_font_sizes/font_size = 12
-text = "ГОТОВО К ТЕСТУ"
 
-[node name="Problems" type="RichTextLabel" parent="EditorView/ProblemsPanel"]
-layout_mode = 0
-offset_left = 8.0
-offset_top = 70.0
-offset_right = 568.0
-offset_bottom = 144.0
-mouse_filter = 0
-theme_override_colors/default_color = Color(0.651, 0.714, 0.82, 1)
-theme_override_font_sizes/normal_font_size = 12
-bbcode_enabled = false
-fit_content = false
-scroll_active = true
-text = "Ошибок нет. Можно сохранить или запустить тест."
 
 [node name="InspectorPanel" type="ColorRect" parent="EditorView"]
 layout_mode = 0
-offset_left = 744.0
+offset_left = 704.0
 offset_top = 48.0
 offset_right = 952.0
-offset_bottom = 532.0
+offset_bottom = 502.0
+visible = false
 color = Color(0.075, 0.098, 0.165, 1)
-
-[node name="FileTitle" type="Label" parent="EditorView/InspectorPanel"]
-layout_mode = 0
-offset_left = 10.0
-offset_top = 10.0
-offset_right = 198.0
-offset_bottom = 32.0
-theme_override_colors/font_color = Color(0.651, 0.714, 0.82, 1)
-theme_override_font_sizes/font_size = 12
-text = "УРОВНИ"
-
-[node name="LoadOptions" type="OptionButton" parent="EditorView/InspectorPanel"]
-layout_mode = 0
-offset_left = 8.0
-offset_top = 36.0
-offset_right = 200.0
-offset_bottom = 68.0
-
-[node name="NewButton" type="Button" parent="EditorView/InspectorPanel"]
-layout_mode = 0
-offset_left = 8.0
-offset_top = 76.0
-offset_right = 68.0
-offset_bottom = 108.0
-text = "NEW"
-
-[node name="LoadButton" type="Button" parent="EditorView/InspectorPanel"]
-layout_mode = 0
-offset_left = 74.0
-offset_top = 76.0
-offset_right = 134.0
-offset_bottom = 108.0
-text = "LOAD"
-
-[node name="SaveButton" type="Button" parent="EditorView/InspectorPanel"]
-layout_mode = 0
-offset_left = 140.0
-offset_top = 76.0
-offset_right = 200.0
-offset_bottom = 108.0
-theme_override_colors/font_color = Color(0.439, 0.878, 0.816, 1)
-text = "SAVE"
-
-[node name="ImportButton" type="Button" parent="EditorView/InspectorPanel"]
-layout_mode = 0
-offset_left = 8.0
-offset_top = 116.0
-offset_right = 102.0
-offset_bottom = 148.0
-text = "IMPORT"
-
-[node name="ExportButton" type="Button" parent="EditorView/InspectorPanel"]
-layout_mode = 0
-offset_left = 106.0
-offset_top = 116.0
-offset_right = 200.0
-offset_bottom = 148.0
-theme_override_colors/font_color = Color(0.439, 0.878, 0.816, 1)
-text = "EXPORT"
 
 [node name="InspectorTitle" type="Label" parent="EditorView/InspectorPanel"]
 layout_mode = 0
 offset_left = 10.0
-offset_top = 164.0
-offset_right = 198.0
-offset_bottom = 188.0
-theme_override_colors/font_color = Color(0.651, 0.714, 0.82, 1)
-theme_override_font_sizes/font_size = 12
-text = "СВОЙСТВА УРОВНЯ"
+offset_top = 6.0
+offset_right = 196.0
+offset_bottom = 32.0
+theme_override_font_sizes/font_size = 14
+text = "Свойства объекта"
+
+
+[node name="CloseButton" type="Button" parent="EditorView/InspectorPanel"]
+layout_mode = 0
+offset_left = 210.0
+offset_top = 4.0
+offset_right = 240.0
+offset_bottom = 32.0
+text = "X"
+focus_mode = 0
+tooltip_text = "Свернуть свойства — Esc"
+
 
 [node name="PropertiesScroll" type="ScrollContainer" parent="EditorView/InspectorPanel"]
 layout_mode = 0
 offset_left = 8.0
-offset_top = 194.0
-offset_right = 200.0
-offset_bottom = 424.0
+offset_top = 42.0
+offset_right = 240.0
+offset_bottom = 314.0
 horizontal_scroll_mode = 0
 
 [node name="Properties" type="VBoxContainer" parent="EditorView/InspectorPanel/PropertiesScroll"]
@@ -448,16 +472,380 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 7
 
-[node name="InspectorHint" type="Label" parent="EditorView/InspectorPanel"]
+[node name="HintScroll" type="ScrollContainer" parent="EditorView/InspectorPanel"]
 layout_mode = 0
 offset_left = 10.0
-offset_top = 434.0
-offset_right = 198.0
-offset_bottom = 476.0
-theme_override_colors/font_color = Color(0.439, 0.502, 0.616, 1)
-theme_override_font_sizes/font_size = 10
-text = "Выберите объект на поле.\nЗначения применяются по Enter."
+offset_top = 324.0
+offset_right = 238.0
+offset_bottom = 404.0
+horizontal_scroll_mode = 0
+
+[node name="InspectorHint" type="Label" parent="EditorView/InspectorPanel/HintScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
 autowrap_mode = 2
+text = "Значения применяются по Enter."
+
+[node name="DetailsButton" type="Button" parent="EditorView/InspectorPanel"]
+layout_mode = 0
+offset_left = 8.0
+offset_top = 412.0
+offset_right = 240.0
+offset_bottom = 442.0
+text = "ID и тип объекта"
+focus_mode = 0
+tooltip_text = "Открыть технические сведения"
+toggle_mode = true
+
+
+[node name="Details" type="Label" parent="EditorView/InspectorPanel"]
+layout_mode = 0
+offset_left = 10.0
+offset_top = 324.0
+offset_right = 238.0
+offset_bottom = 404.0
+visible = false
+autowrap_mode = 2
+theme_override_font_sizes/font_size = 12
+
+[node name="PanelHost" type="Control" parent="EditorView"]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+
+[node name="Shade" type="ColorRect" parent="EditorView/PanelHost"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.015, 0.025, 0.045, 0.88)
+
+[node name="FilePanel" type="ColorRect" parent="EditorView/PanelHost"]
+layout_mode = 0
+offset_left = 120.0
+offset_top = 64.0
+offset_right = 840.0
+offset_bottom = 488.0
+visible = false
+color = Color(0.075, 0.098, 0.165, 1)
+
+[node name="Title" type="Label" parent="EditorView/PanelHost/FilePanel"]
+layout_mode = 0
+offset_left = 20.0
+offset_top = 12.0
+offset_right = 580.0
+offset_bottom = 42.0
+theme_override_font_sizes/font_size = 20
+text = "Файл"
+
+
+[node name="CloseButton" type="Button" parent="EditorView/PanelHost/FilePanel"]
+layout_mode = 0
+offset_left = 610.0
+offset_top = 12.0
+offset_right = 700.0
+offset_bottom = 42.0
+text = "Закрыть"
+focus_mode = 0
+tooltip_text = "Закрыть панель — Esc"
+
+
+[node name="LibraryLabel" type="Label" parent="EditorView/PanelHost/FilePanel"]
+layout_mode = 0
+offset_left = 20.0
+offset_top = 62.0
+offset_right = 700.0
+offset_bottom = 86.0
+theme_override_font_sizes/font_size = 14
+text = "Библиотека уровней"
+
+
+[node name="LoadOptions" type="OptionButton" parent="EditorView/PanelHost/FilePanel"]
+layout_mode = 0
+offset_left = 20.0
+offset_top = 96.0
+offset_right = 700.0
+offset_bottom = 130.0
+fit_to_longest_item = false
+text_overrun_behavior = 3
+
+[node name="SelectedLevel" type="RichTextLabel" parent="EditorView/PanelHost/FilePanel"]
+layout_mode = 0
+offset_left = 20.0
+offset_top = 140.0
+offset_right = 700.0
+offset_bottom = 228.0
+scroll_active = true
+text = "Выберите уровень из библиотеки."
+
+[node name="LoadButton" type="Button" parent="EditorView/PanelHost/FilePanel"]
+layout_mode = 0
+offset_left = 20.0
+offset_top = 240.0
+offset_right = 168.0
+offset_bottom = 276.0
+text = "Открыть"
+focus_mode = 0
+tooltip_text = "Открыть выбранный уровень — Cmd/Ctrl+O"
+
+
+[node name="NewButton" type="Button" parent="EditorView/PanelHost/FilePanel"]
+layout_mode = 0
+offset_left = 180.0
+offset_top = 240.0
+offset_right = 360.0
+offset_bottom = 276.0
+text = "Новый уровень"
+focus_mode = 0
+tooltip_text = "Создать уровень — Cmd/Ctrl+N"
+
+
+[node name="ImportButton" type="Button" parent="EditorView/PanelHost/FilePanel"]
+layout_mode = 0
+offset_left = 20.0
+offset_top = 300.0
+offset_right = 220.0
+offset_bottom = 336.0
+text = "Импорт JSON"
+focus_mode = 0
+tooltip_text = "Выбрать локальный JSON-файл"
+
+
+[node name="ExportButton" type="Button" parent="EditorView/PanelHost/FilePanel"]
+layout_mode = 0
+offset_left = 232.0
+offset_top = 300.0
+offset_right = 432.0
+offset_bottom = 336.0
+text = "Экспорт JSON"
+focus_mode = 0
+tooltip_text = "Экспортировать текущий проверенный черновик"
+
+
+[node name="NoticeButton" type="Button" parent="EditorView/PanelHost/FilePanel"]
+layout_mode = 0
+offset_left = 20.0
+offset_top = 354.0
+offset_right = 700.0
+offset_bottom = 408.0
+theme_override_font_sizes/font_size = 13
+text = "Примеры сохраняются как пользовательская копия.\nПри замене уровня редактор попросит подтвердить потерю черновика."
+
+
+focus_mode = 0
+text_overrun_behavior = 3
+alignment = 0
+tooltip_text = "Нажмите, чтобы прочитать все сообщения."
+
+[node name="SettingsPanel" type="ColorRect" parent="EditorView/PanelHost"]
+layout_mode = 0
+offset_left = 120.0
+offset_top = 64.0
+offset_right = 840.0
+offset_bottom = 488.0
+visible = false
+color = Color(0.075, 0.098, 0.165, 1)
+
+[node name="Title" type="Label" parent="EditorView/PanelHost/SettingsPanel"]
+layout_mode = 0
+offset_left = 20.0
+offset_top = 12.0
+offset_right = 580.0
+offset_bottom = 42.0
+theme_override_font_sizes/font_size = 20
+text = "Параметры уровня"
+
+
+[node name="CloseButton" type="Button" parent="EditorView/PanelHost/SettingsPanel"]
+layout_mode = 0
+offset_left = 610.0
+offset_top = 12.0
+offset_right = 700.0
+offset_bottom = 42.0
+text = "Закрыть"
+focus_mode = 0
+tooltip_text = "Закрыть панель — Esc"
+
+
+[node name="SchemaLabel" type="Label" parent="EditorView/PanelHost/SettingsPanel"]
+layout_mode = 0
+offset_left = 500.0
+offset_top = 12.0
+offset_right = 598.0
+offset_bottom = 42.0
+theme_override_font_sizes/font_size = 12
+text = "JSON v1"
+
+[node name="TitleEditLabel" type="Label" parent="EditorView/PanelHost/SettingsPanel"]
+layout_mode = 0
+offset_left = 20.0
+offset_top = 58.0
+offset_right = 700.0
+offset_bottom = 82.0
+theme_override_font_sizes/font_size = 14
+text = "Название"
+
+
+[node name="TitleEdit" type="LineEdit" parent="EditorView/PanelHost/SettingsPanel"]
+layout_mode = 0
+offset_left = 20.0
+offset_top = 86.0
+offset_right = 700.0
+offset_bottom = 122.0
+select_all_on_focus = true
+
+[node name="ObjectiveEditLabel" type="Label" parent="EditorView/PanelHost/SettingsPanel"]
+layout_mode = 0
+offset_left = 20.0
+offset_top = 138.0
+offset_right = 700.0
+offset_bottom = 162.0
+theme_override_font_sizes/font_size = 14
+text = "Цель / подсказка игроку"
+
+
+[node name="ObjectiveEdit" type="LineEdit" parent="EditorView/PanelHost/SettingsPanel"]
+layout_mode = 0
+offset_left = 20.0
+offset_top = 166.0
+offset_right = 700.0
+offset_bottom = 202.0
+select_all_on_focus = true
+
+[node name="ClearMessageEditLabel" type="Label" parent="EditorView/PanelHost/SettingsPanel"]
+layout_mode = 0
+offset_left = 20.0
+offset_top = 218.0
+offset_right = 700.0
+offset_bottom = 242.0
+theme_override_font_sizes/font_size = 14
+text = "Текст завершения"
+
+
+[node name="ClearMessageEdit" type="LineEdit" parent="EditorView/PanelHost/SettingsPanel"]
+layout_mode = 0
+offset_left = 20.0
+offset_top = 246.0
+offset_right = 700.0
+offset_bottom = 282.0
+select_all_on_focus = true
+
+[node name="LevelIdEditLabel" type="Label" parent="EditorView/PanelHost/SettingsPanel"]
+layout_mode = 0
+offset_left = 20.0
+offset_top = 298.0
+offset_right = 700.0
+offset_bottom = 322.0
+theme_override_font_sizes/font_size = 14
+text = "ID файла"
+
+
+[node name="LevelIdEdit" type="LineEdit" parent="EditorView/PanelHost/SettingsPanel"]
+layout_mode = 0
+offset_left = 20.0
+offset_top = 326.0
+offset_right = 700.0
+offset_bottom = 362.0
+select_all_on_focus = true
+
+[node name="NoticeButton" type="Button" parent="EditorView/PanelHost/SettingsPanel"]
+layout_mode = 0
+offset_left = 20.0
+offset_top = 376.0
+offset_right = 700.0
+offset_bottom = 404.0
+theme_override_font_sizes/font_size = 13
+text = "Enter или выход из поля — применить. ID: латинские буквы, цифры и _."
+
+
+focus_mode = 0
+text_overrun_behavior = 3
+alignment = 0
+tooltip_text = "Нажмите, чтобы прочитать все сообщения."
+
+[node name="HelpPanel" type="ColorRect" parent="EditorView/PanelHost"]
+layout_mode = 0
+offset_left = 120.0
+offset_top = 64.0
+offset_right = 840.0
+offset_bottom = 488.0
+visible = false
+color = Color(0.075, 0.098, 0.165, 1)
+
+[node name="Title" type="Label" parent="EditorView/PanelHost/HelpPanel"]
+layout_mode = 0
+offset_left = 20.0
+offset_top = 12.0
+offset_right = 580.0
+offset_bottom = 42.0
+theme_override_font_sizes/font_size = 20
+text = "Управление и механики"
+
+
+[node name="CloseButton" type="Button" parent="EditorView/PanelHost/HelpPanel"]
+layout_mode = 0
+offset_left = 610.0
+offset_top = 12.0
+offset_right = 700.0
+offset_bottom = 42.0
+text = "Закрыть"
+focus_mode = 0
+tooltip_text = "Закрыть панель — Esc"
+
+
+[node name="HelpText" type="RichTextLabel" parent="EditorView/PanelHost/HelpPanel"]
+layout_mode = 0
+offset_left = 20.0
+offset_top = 60.0
+offset_right = 700.0
+offset_bottom = 404.0
+scroll_active = true
+text = "ЛКМ — выбрать или поставить объект. Потяните мышью, чтобы задать размер пола или передвинуть объект.\n\nQ — выбор. Клавиши инструментов указаны в палитре слева. Стрелки — сдвиг по сетке; Shift + стрелки — на 1 px. Delete — удалить, Cmd/Ctrl+D — копия.\n\nCmd/Ctrl+Z — отменить, Cmd/Ctrl+Shift+Z или Cmd/Ctrl+Y — повторить. Cmd/Ctrl+S — сохранить, Cmd/Ctrl+N — новый, Cmd/Ctrl+O — открыть.\n\nСвойства открываются кнопкой под палитрой после выбора объекта. Enter или выход из поля применяет значение. При вводе текста клавиши инструментов не срабатывают.\n\nЧтобы связать шарнир или плиту, откройте свойства и выберите цель из списка либо нажмите кнопку выбора на поле. Шарнир управляет платформой, воротами, катапультой или лифтом. Плита удерживает платформу или ворота, пока на ней стоит игрок или враг. Одну цель нельзя одновременно связать с плитой и шарниром.\n\nF5 — проверить уровень в игре. Esc вернёт прежний черновик, выделение и Undo/Redo. Тест не записывает прогресс кампании.\n\nEsc сначала закрывает панель или отменяет перетаскивание / связь, затем сбрасывает инструмент, выделение и предлагает выход.\n\nСтрока внизу показывает ошибки и предупреждения. Нажмите её для подробностей. Ошибки блокируют сохранение, тест и экспорт; предупреждения не мешают проверить уровень в игре."
+
+[node name="ProblemsPanel" type="ColorRect" parent="EditorView/PanelHost"]
+layout_mode = 0
+offset_left = 120.0
+offset_top = 64.0
+offset_right = 840.0
+offset_bottom = 488.0
+visible = false
+color = Color(0.075, 0.098, 0.165, 1)
+
+[node name="Title" type="Label" parent="EditorView/PanelHost/ProblemsPanel"]
+layout_mode = 0
+offset_left = 20.0
+offset_top = 12.0
+offset_right = 580.0
+offset_bottom = 42.0
+theme_override_font_sizes/font_size = 20
+text = "Проверка уровня"
+
+
+[node name="CloseButton" type="Button" parent="EditorView/PanelHost/ProblemsPanel"]
+layout_mode = 0
+offset_left = 610.0
+offset_top = 12.0
+offset_right = 700.0
+offset_bottom = 42.0
+text = "Закрыть"
+focus_mode = 0
+tooltip_text = "Закрыть панель — Esc"
+
+
+[node name="Problems" type="RichTextLabel" parent="EditorView/PanelHost/ProblemsPanel"]
+layout_mode = 0
+offset_left = 20.0
+offset_top = 60.0
+offset_right = 700.0
+offset_bottom = 404.0
+scroll_active = true
+selection_enabled = true
 
 [node name="PlaytestOverlay" type="CanvasLayer" parent="."]
 visible = false
@@ -469,4 +857,4 @@ offset_top = 8.0
 offset_right = 952.0
 offset_bottom = 42.0
 theme_override_colors/font_color = Color(0.439, 0.878, 0.816, 1)
-text = "< EDITOR  [ESC]"
+text = "В редактор  Esc"

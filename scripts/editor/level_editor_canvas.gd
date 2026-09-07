@@ -191,6 +191,14 @@ var _drag_original_payload: Variant = null
 var _drag_preview_payload: Variant = null
 
 
+func is_drag_active() -> bool:
+	return _drag_active
+
+
+func cancel_drag() -> void:
+	_cancel_drag()
+
+
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	focus_mode = Control.FOCUS_ALL
