@@ -333,15 +333,16 @@ func _expect_pause_content(menu: CampaignPauseMenu, touch: bool) -> void:
 
 
 func _test_long_help(runner: CampaignRunner) -> void:
-	_expect(runner.open_level_by_id("arena_16_data"), "Could not open Arena 16.")
+	_expect(runner.open_level_by_id("arena_16_data"), "Could not open Counterweight.")
 	await _wait_for_playing_runtime(runner)
 	_expect(
 		(
 			runner.get_current_level_id() == "arena_16_data"
+			and runner.get_current_level_index() == 9
 			and not paused
 			and not runner.pause_menu.is_open()
 		),
-		"Arena 16 opened an automatic modal instead of starting gameplay."
+		"Counterweight opened at the wrong position or paused before gameplay."
 	)
 	await _press_physical_key(KEY_H)
 	var menu := runner.pause_menu
@@ -350,10 +351,11 @@ func _test_long_help(runner: CampaignRunner) -> void:
 		(
 			menu.is_open()
 			and paused
+			and menu.arena_label.text == "10 · Противовес · 10/16"
 			and objective in menu.objective_label.text
 			and menu.objective_label.visible_characters == -1
 		),
-		"Arena 16 help is unavailable or truncates its existing objective."
+		"Counterweight help is unavailable, misnumbered, or truncates its objective."
 	)
 	await _test_narrow_help(menu)
 	await _wait_physics_frames(3)
@@ -380,7 +382,7 @@ func _test_narrow_help(menu: CampaignPauseMenu) -> void:
 	var scroll_bar := menu.help_scroll.get_v_scroll_bar()
 	_expect(
 		scroll_bar.value + scroll_bar.page >= scroll_bar.max_value - 1.0,
-		"Keyboard could not reach the end of Arena 16 help on a narrow screen."
+		"Keyboard could not reach the end of Counterweight help on a narrow screen."
 	)
 	await _press_physical_key(KEY_ESCAPE)
 	_expect(root.content_scale_size == previous_scale, "Closing help changed gameplay scale.")

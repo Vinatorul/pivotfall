@@ -57,15 +57,15 @@ func _test_arena_06_builtin_fixture() -> void:
 		"arena_07_data"
 	)
 	_expect(
-		arena_05_index >= 0
-		and arena_05_index < arena_06_index
-		and arena_06_index < arena_07_index
+		arena_05_index == 4
+		and arena_06_index == 10
+		and arena_07_index == 7
 		and builtins[arena_06_index] == {
 			"id": "arena_06_data",
 			"path": "res://levels/arena_06.json",
-			"title": "Arena 06 / Чужая рука",
+			"title": "Arena 11 / Чужая рука",
 		},
-		"Built-in catalog does not expose Arena 06 between Arena 05 and 07."
+		"Shooter, lift, or projectile tutorial has the wrong campaign position."
 	)
 
 	var loaded: Dictionary = (

@@ -79,8 +79,8 @@ func _run() -> void:
 	_expect(
 		campaign_entries.size() == EXPECTED_ARENA_COUNT
 		and str(campaign_entries[-1].get("id", ""))
-		== "arena_16_data",
-		"Arena Select manifest did not expose Arena 16 as the final entry."
+		== "tower_assault",
+		"Arena Select manifest did not expose Arena 16 / Штурм as the final entry."
 	)
 
 	var started := progress_store.begin_new_game(campaign_entries)
@@ -280,7 +280,7 @@ func _test_completed_final_replay(selector: Node) -> void:
 		is_instance_valid(final_replay)
 		and final_replay is CampaignRunner
 		and (final_replay as CampaignRunner).get_current_level_id()
-		== "arena_16_data"
+		== "tower_assault"
 		and (final_replay as CampaignRunner).is_replay_mode()
 		and not (final_replay as CampaignRunner).is_tracking_progress()
 		and FileAccess.get_file_as_bytes(
@@ -308,6 +308,7 @@ func _expect_selector_ready(selector: Node) -> void:
 
 	var all_visible := true
 	var touch_targets_are_large := true
+	_expect_arena_titles(selector)
 	for button: Button in selector.arena_buttons:
 		all_visible = all_visible and button.visible
 		touch_targets_are_large = (
@@ -332,6 +333,20 @@ func _expect_selector_ready(selector: Node) -> void:
 		== selector.arena_buttons[4],
 		"Arena Select did not focus the current arena initially."
 	)
+
+
+func _expect_arena_titles(selector: Node) -> void:
+	for index in mini(selector.arena_buttons.size(), campaign_entries.size()):
+		var button: Button = selector.arena_buttons[index]
+		var entry: Dictionary = campaign_entries[index]
+		var expected_title := str(entry["title"]).to_upper()
+		_expect(
+			button.text.begins_with(expected_title + "\n")
+			and button.tooltip_text == expected_title
+			and button.get_meta("level_id") == entry["id"]
+			and button.name == "Arena%02d" % (index + 1),
+			"Arena Select title, ID, or number drifted at %d." % (index + 1)
+		)
 
 
 func _unlock_range(first_index: int, last_index: int) -> bool:

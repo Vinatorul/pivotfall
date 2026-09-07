@@ -17,20 +17,20 @@ const ARENA_SELECT_PATH := "res://scenes/arena_select.tscn"
 const EXPECTED_LEVEL_IDS: Array[String] = [
 	"arena_01_data",
 	"arena_02_data",
-	"arena_03_data",
 	"arena_04_data",
+	"arena_03_data",
 	"arena_05_data",
-	"arena_06_data",
-	"arena_07_data",
-	"arena_08_data",
-	"jailbreak",
-	"sniper_party",
-	"tower_assault",
-	"arena_12_data",
 	"arena_13_data",
 	"arena_14_data",
-	"arena_15_data",
+	"arena_07_data",
+	"arena_12_data",
 	"arena_16_data",
+	"arena_06_data",
+	"arena_15_data",
+	"jailbreak",
+	"arena_08_data",
+	"sniper_party",
+	"tower_assault",
 ]
 
 var failures: Array[String] = []
@@ -56,6 +56,8 @@ func _run() -> void:
 		and bool(campaign_result.get("ok", false))
 	):
 		await _test_runner_lifecycle(campaign_result)
+		await _cleanup_current_scene()
+		await _test_runtime_catalog_titles(campaign_result["entries"])
 		await _cleanup_current_scene()
 		await _test_replay_lifecycle(campaign_result)
 
@@ -110,16 +112,81 @@ func _test_manifest() -> Dictionary:
 			entry.get("id") == EXPECTED_LEVEL_IDS[index]
 			and level_data.get("level_id") == EXPECTED_LEVEL_IDS[index]
 			and str(entry.get("path", "")).ends_with(".json")
-			and not str(entry.get("title", "")).is_empty(),
+			and str(entry.get("title", "")).begins_with("Arena %02d / " % (index + 1)),
 			"Resolved campaign entry %d is incomplete or mismatched."
 			% index
 		)
 
 	_test_manifest_round_trip(data)
 	_test_manifest_catalog(entries)
+	_test_manifest_prerequisites(actual_ids)
+	_test_debug_catalog(entries)
 	_test_manifest_atomic_failures(data)
 	_test_final_behavior_compatibility(data)
 	return result
+
+
+func _test_manifest_prerequisites(ids: Array[String]) -> void:
+	for pair: Array in [
+		["arena_05_data", "arena_13_data"],
+		["arena_13_data", "arena_14_data"],
+		["arena_05_data", "arena_06_data"],
+		["arena_06_data", "arena_15_data"],
+		["arena_06_data", "jailbreak"],
+		["arena_04_data", "arena_08_data"],
+		["arena_03_data", "arena_08_data"],
+		["arena_07_data", "arena_08_data"],
+		["arena_12_data", "arena_08_data"],
+		["arena_16_data", "arena_08_data"],
+		["arena_08_data", "sniper_party"],
+		["sniper_party", "tower_assault"],
+	]:
+		_expect(
+			ids.has(pair[0]) and ids.has(pair[1]) and ids.find(pair[0]) < ids.find(pair[1]),
+			"Campaign prerequisite %s must precede %s." % pair
+		)
+
+
+func _test_debug_catalog(entries: Array) -> void:
+	var selector := root.get_node_or_null("DebugLevelSelector")
+	_expect(is_instance_valid(selector), "Debug selector is missing.")
+	if not is_instance_valid(selector):
+		return
+	selector.call("_render_menu")
+	var debug_entries: Array = selector.get("campaign_entries")
+	var arena_list := selector.get_node("Menu/Panel/ArenaList") as RichTextLabel
+	_expect(debug_entries.size() == entries.size(), "Debug catalog lost campaign entries.")
+	for index in mini(debug_entries.size(), entries.size()):
+		_expect(
+			debug_entries[index]["id"] == entries[index]["id"]
+			and debug_entries[index]["title"] == entries[index]["title"]
+			and arena_list.text.contains("[%d]  %s" % [index + 1, entries[index]["title"]]),
+			"Debug arena %d does not match campaign order and numbering." % (index + 1)
+		)
+
+
+func _test_runtime_catalog_titles(entries: Array) -> void:
+	var runner := RUNNER_SCENE.instantiate() as CampaignRunner
+	runner.intro_duration = 0.01
+	root.add_child(runner)
+	current_scene = runner
+	await process_frame
+	for index in entries.size():
+		var entry: Dictionary = entries[index]
+		_expect(runner.open_level_by_id(entry["id"]), "Debug did not open %s." % entry["id"])
+		if not await _wait_for_runtime(runner, entry["id"]):
+			_expect(false, "Runtime did not load %s." % entry["id"])
+			return
+		_expect(
+			runner.current_runtime.get_arena_title()
+			== str(entry["title"]).trim_prefix("Arena ").replace(" / ", " · ")
+			and runner.current_runtime.progress_label.text == "%d/%d" % [index + 1, entries.size()]
+			and not runner.is_tracking_progress(),
+			"Runtime title and progress do not match the catalog for %s." % entry["id"]
+		)
+		if not await _wait_for_intro_end(runner):
+			_expect(false, "Intro did not finish for %s." % entry["id"])
+			return
 
 
 func _test_manifest_round_trip(data: Dictionary) -> void:
@@ -429,28 +496,28 @@ func _test_runner_lifecycle(campaign_result: Dictionary) -> void:
 	_expect_selector_id("arena_02_data")
 
 	_expect(
-		runner.open_level_by_id("arena_15_data"),
+		runner.open_level_by_id("sniper_party"),
 		"Runner rejected a direct open of Arena 15."
 	)
-	var opened_former_final := await _wait_for_runtime(
+	var opened_penultimate := await _wait_for_runtime(
 		runner,
-		"arena_15_data"
+		"sniper_party"
 	)
 	_expect(
-		opened_former_final
+		opened_penultimate
 		and runner.get_instance_id() == controller_id,
 		"Direct Arena 15 open replaced or lost the campaign controller."
 	)
-	if not opened_former_final:
+	if not opened_penultimate:
 		return
 	_expect_runtime(
 		runner,
-		"arena_15_data",
+		"sniper_party",
 		"Direct open did not leave exactly one Arena 15 runtime."
 	)
 	_expect_intro(
 		runner,
-		"ARENA 15 / ДОМИНО",
+		"ARENA 15 / СНАЙПЕРЫ",
 		"АРЕНА 15 / %d" % EXPECTED_LEVEL_IDS.size(),
 		"15/%d" % EXPECTED_LEVEL_IDS.size(),
 		"Direct Arena 15 intro is incomplete."
@@ -458,28 +525,28 @@ func _test_runner_lifecycle(campaign_result: Dictionary) -> void:
 	if not await _wait_for_intro_end(runner):
 		_expect(false, "Direct Arena 15 intro did not finish.")
 		return
-	_expect_selector_id("arena_15_data")
+	_expect_selector_id("sniper_party")
 	_expect(
 		runner.current_runtime.clear_message
 		== advance_message,
-		"Former final Arena 15 did not become a normal campaign step."
+		"Penultimate Arena 15 did not use its campaign advance message."
 	)
 	runner.current_runtime.clear_restart_delay = 0.01
 	_clear_runtime_enemies(runner.current_runtime)
 	var advanced_to_final := await _wait_for_runtime(
 		runner,
-		"arena_16_data"
+		"tower_assault"
 	)
 	_expect(
 		advanced_to_final
 		and runner.get_instance_id() == controller_id,
-		"Arena 15 did not advance to the new final Arena 16."
+		"Arena 15 did not advance to final Arena 16."
 	)
 	if not advanced_to_final:
 		return
 	_expect_intro(
 		runner,
-		"ARENA 16 / ПРОТИВОВЕС",
+		"ARENA 16 / ШТУРМ",
 		"АРЕНА 16 / %d" % EXPECTED_LEVEL_IDS.size(),
 		"16/%d" % EXPECTED_LEVEL_IDS.size(),
 		"Final Arena 16 intro is incomplete."
@@ -487,7 +554,7 @@ func _test_runner_lifecycle(campaign_result: Dictionary) -> void:
 	if not await _wait_for_intro_end(runner):
 		_expect(false, "Final Arena 16 intro did not finish.")
 		return
-	_expect_selector_id("arena_16_data")
+	_expect_selector_id("tower_assault")
 	_expect(
 		runner.current_runtime.clear_message
 		== CampaignRunner.COMPLETION_CLEAR_MESSAGE
@@ -501,7 +568,7 @@ func _test_runner_lifecycle(campaign_result: Dictionary) -> void:
 	_clear_runtime_enemies(runner.current_runtime)
 	var legacy_final_restarted := await _wait_for_runtime(
 		runner,
-		"arena_16_data",
+		"tower_assault",
 		legacy_final_id
 	)
 	_expect(
@@ -526,7 +593,7 @@ func _test_runner_lifecycle(campaign_result: Dictionary) -> void:
 	await _press_physical_key(KEY_R)
 	var clear_race_restarted := await _wait_for_runtime(
 		runner,
-		"arena_16_data",
+		"tower_assault",
 		clear_race_runtime_id
 	)
 	_expect(
@@ -578,7 +645,7 @@ func _test_runner_lifecycle(campaign_result: Dictionary) -> void:
 		and not runner.completion_main_menu_button.disabled,
 		"Campaign completion presentation is incomplete."
 	)
-	_expect_selector_id("arena_16_data")
+	_expect_selector_id("tower_assault")
 	await _wait_frames(10)
 	_expect(
 		runner.is_campaign_complete()

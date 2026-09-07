@@ -47,7 +47,7 @@ func _load_and_verify_level() -> Dictionary:
 	var loaded: Dictionary = LEVEL_STORAGE.load_builtin_level(LEVEL_ID)
 	_expect(
 		catalog_entry.get("path") == "res://levels/arena_14.json"
-		and catalog_entry.get("title") == "Arena 14 / Шипы"
+		and catalog_entry.get("title") == "Arena 07 / Шипы"
 		and bool(loaded.get("ok", false))
 		and loaded.get("warnings", []).is_empty(),
 		(

@@ -42,7 +42,7 @@ func _test_double_jump_arena_solution() -> void:
 	_expect(
 		catalog_entry.get("path") == "res://levels/arena_13.json"
 		and catalog_entry.get("title")
-		== "Arena 13 / Двойной прыжок"
+		== "Arena 06 / Двойной прыжок"
 		and bool(loaded.get("ok", false))
 		and loaded.get("warnings", []).is_empty(),
 		"Arena 13 is missing from the campaign catalog or failed validation: %s / %s"
