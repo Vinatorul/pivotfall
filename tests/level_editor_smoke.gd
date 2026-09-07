@@ -360,8 +360,8 @@ func _test_editor_workflow() -> void:
 		"Editor did not open with a valid Arena 01 draft."
 	)
 	_expect(
-		editor.canvas.size.is_equal_approx(Vector2(576, 324)),
-		"Editor canvas is not the intended 0.6-scale overview."
+		editor.canvas.size.x >= 780,
+		"Editor canvas did not expand when the inspector is closed."
 	)
 	var alternate_grid_document := editor.draft.to_dictionary()
 	alternate_grid_document["canvas"]["grid_size"] = 40
@@ -429,15 +429,15 @@ func _test_editor_workflow() -> void:
 	editor.call("_set_tool", "solid_rect")
 	editor.canvas.call(
 		"_begin_primary_action",
-		Vector2(420, 380) * 0.6
+		_canvas_point(editor, Vector2(420, 380))
 	)
 	editor.canvas.call(
 		"_update_drag",
-		Vector2(520, 420) * 0.6
+		_canvas_point(editor, Vector2(520, 420))
 	)
 	editor.canvas.call(
 		"_finish_primary_action",
-		Vector2(520, 420) * 0.6
+		_canvas_point(editor, Vector2(520, 420))
 	)
 	await process_frame
 
@@ -472,15 +472,15 @@ func _test_editor_workflow() -> void:
 	editor.call("_set_tool", "select")
 	editor.canvas.call(
 		"_begin_primary_action",
-		Vector2(440, 400) * 0.6
+		_canvas_point(editor, Vector2(440, 400))
 	)
 	editor.canvas.call(
 		"_update_drag",
-		Vector2(460, 400) * 0.6
+		_canvas_point(editor, Vector2(460, 400))
 	)
 	editor.canvas.call(
 		"_finish_primary_action",
-		Vector2(460, 400) * 0.6
+		_canvas_point(editor, Vector2(460, 400))
 	)
 	await process_frame
 	_expect(
@@ -520,7 +520,7 @@ func _test_editor_workflow() -> void:
 	editor.call("_set_tool", "player_spawn")
 	editor.canvas.call(
 		"_begin_primary_action",
-		Vector2(200, 440) * 0.6
+		_canvas_point(editor, Vector2(200, 440))
 	)
 	await process_frame
 	var moved_player := (
@@ -541,7 +541,7 @@ func _test_editor_workflow() -> void:
 	editor.call("_set_tool", "patrol_enemy")
 	editor.canvas.call(
 		"_begin_primary_action",
-		Vector2(600, 440) * 0.6
+		_canvas_point(editor, Vector2(600, 440))
 	)
 	await process_frame
 	var placed_patrol_id: String = editor.selected_id
@@ -587,7 +587,7 @@ func _test_editor_workflow() -> void:
 	editor.call("_set_tool", "hinge")
 	editor.canvas.call(
 		"_begin_primary_action",
-		Vector2(320, 320) * 0.6
+		_canvas_point(editor, Vector2(320, 320))
 	)
 	await process_frame
 	var unassigned_hinge_id: String = editor.selected_id
@@ -604,11 +604,11 @@ func _test_editor_workflow() -> void:
 	editor.call("_set_tool", "toggle_platform")
 	editor.canvas.call(
 		"_begin_primary_action",
-		Vector2(400, 300) * 0.6
+		_canvas_point(editor, Vector2(400, 300))
 	)
 	editor.canvas.call(
 		"_finish_primary_action",
-		Vector2(400, 300) * 0.6
+		_canvas_point(editor, Vector2(400, 300))
 	)
 	await process_frame
 	var toggle_id: String = editor.selected_id
@@ -623,7 +623,7 @@ func _test_editor_workflow() -> void:
 	editor.call("_set_tool", "hinge")
 	editor.canvas.call(
 		"_begin_primary_action",
-		Vector2(320, 320) * 0.6
+		_canvas_point(editor, Vector2(320, 320))
 	)
 	await process_frame
 	var hinge_id: String = editor.selected_id
@@ -636,7 +636,7 @@ func _test_editor_workflow() -> void:
 
 	var target_click := InputEventMouseButton.new()
 	target_click.button_index = MOUSE_BUTTON_LEFT
-	target_click.position = Vector2(480, 310) * 0.6
+	target_click.position = _canvas_point(editor, Vector2(480, 310))
 	target_click.pressed = true
 	editor.canvas.call("_gui_input", target_click)
 	await process_frame
@@ -1246,10 +1246,10 @@ func _test_pressure_plate_editor(editor: LevelEditor) -> Dictionary:
 func _place_pressure_target(editor: LevelEditor) -> String:
 	editor.call("_set_tool", "toggle_platform")
 	editor.canvas.call(
-		"_begin_primary_action", Vector2(640, 300) * 0.6
+		"_begin_primary_action", _canvas_point(editor, Vector2(640, 300))
 	)
 	editor.canvas.call(
-		"_finish_primary_action", Vector2(640, 300) * 0.6
+		"_finish_primary_action", _canvas_point(editor, Vector2(640, 300))
 	)
 	var target_id: String = editor.selected_id
 	editor.draft.update_object(target_id, {"starts_active": false})
@@ -1271,10 +1271,10 @@ func _place_pressure_plate(editor: LevelEditor) -> String:
 		"P did not select the pressure-plate tool."
 	)
 	editor.canvas.call(
-		"_begin_primary_action", Vector2(600, 340) * 0.6
+		"_begin_primary_action", _canvas_point(editor, Vector2(600, 340))
 	)
 	editor.canvas.call(
-		"_finish_primary_action", Vector2(600, 340) * 0.6
+		"_finish_primary_action", _canvas_point(editor, Vector2(600, 340))
 	)
 	await process_frame
 	var plate_id: String = editor.selected_id
@@ -1295,7 +1295,7 @@ func _link_pressure_plate(
 ) -> void:
 	var click := InputEventMouseButton.new()
 	click.button_index = MOUSE_BUTTON_LEFT
-	click.position = Vector2(720, 310) * 0.6
+	click.position = _canvas_point(editor, Vector2(720, 310))
 	click.pressed = true
 	editor.canvas.call("_gui_input", click)
 	await process_frame
@@ -1379,6 +1379,12 @@ func _test_pressure_editing(editor: LevelEditor, plate_id: String) -> void:
 	_expect(
 		bool(editor.validation_result.get("ok", false)),
 		"Deleting the unlinked pressure duplicate did not restore validity."
+	)
+
+
+func _canvas_point(editor: LevelEditor, point: Vector2) -> Vector2:
+	return editor.canvas.call(
+		"_logical_point_to_local", point, editor.canvas.call("_canvas_view_rect")
 	)
 
 

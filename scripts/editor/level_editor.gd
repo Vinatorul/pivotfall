@@ -107,32 +107,32 @@ const TOOL_PRESSURE_PLATE := LEVEL_OBJECT_CATALOG.TYPE_PRESSURE_PLATE
 )
 
 @onready var level_id_edit: LineEdit = (
-	$EditorView/ProblemsPanel/LevelIdEdit
+	$EditorView/PanelHost/SettingsPanel/LevelIdEdit
 )
 @onready var title_edit: LineEdit = (
-	$EditorView/ProblemsPanel/TitleEdit
+	$EditorView/PanelHost/SettingsPanel/TitleEdit
 )
 @onready var objective_edit: LineEdit = (
-	$EditorView/ProblemsPanel/ObjectiveEdit
+	$EditorView/PanelHost/SettingsPanel/ObjectiveEdit
 )
-@onready var validation_chip: Label = (
-	$EditorView/ProblemsPanel/ValidationChip
+@onready var validation_chip: Button = (
+	$EditorView/ValidationChip
 )
 @onready var problems: RichTextLabel = (
-	$EditorView/ProblemsPanel/Problems
+	$EditorView/PanelHost/ProblemsPanel/Problems
 )
 
 @onready var load_options: OptionButton = (
-	$EditorView/InspectorPanel/LoadOptions
+	$EditorView/PanelHost/FilePanel/LoadOptions
 )
-@onready var new_button: Button = $EditorView/InspectorPanel/NewButton
-@onready var load_button: Button = $EditorView/InspectorPanel/LoadButton
-@onready var save_button: Button = $EditorView/InspectorPanel/SaveButton
+@onready var new_button: Button = $EditorView/PanelHost/FilePanel/NewButton
+@onready var load_button: Button = $EditorView/PanelHost/FilePanel/LoadButton
+@onready var save_button: Button = $EditorView/Toolbar/SaveButton
 @onready var import_button: Button = (
-	$EditorView/InspectorPanel/ImportButton
+	$EditorView/PanelHost/FilePanel/ImportButton
 )
 @onready var export_button: Button = (
-	$EditorView/InspectorPanel/ExportButton
+	$EditorView/PanelHost/FilePanel/ExportButton
 )
 @onready var inspector_title: Label = (
 	$EditorView/InspectorPanel/InspectorTitle
@@ -141,8 +141,20 @@ const TOOL_PRESSURE_PLATE := LEVEL_OBJECT_CATALOG.TYPE_PRESSURE_PLATE
 	$EditorView/InspectorPanel/PropertiesScroll/Properties
 )
 @onready var inspector_hint: Label = (
-	$EditorView/InspectorPanel/InspectorHint
+	$EditorView/InspectorPanel/HintScroll/InspectorHint
 )
+
+@onready var file_button: Button = $EditorView/Toolbar/FileButton
+@onready var settings_button: Button = $EditorView/Toolbar/SettingsButton
+@onready var help_button: Button = $EditorView/Toolbar/HelpButton
+@onready var inspector_button: Button = $EditorView/PalettePanel/InspectorButton
+@onready var inspector_panel: Control = $EditorView/InspectorPanel
+@onready var panel_host: Control = $EditorView/PanelHost
+@onready var file_panel: Control = $EditorView/PanelHost/FilePanel
+@onready var settings_panel: Control = $EditorView/PanelHost/SettingsPanel
+@onready var help_panel: Control = $EditorView/PanelHost/HelpPanel
+@onready var problems_panel: Control = $EditorView/PanelHost/ProblemsPanel
+@onready var clear_message_edit: LineEdit = $EditorView/PanelHost/SettingsPanel/ClearMessageEdit
 
 var draft: LevelDraft = LEVEL_DRAFT.new()
 var selected_id := ""
@@ -167,13 +179,178 @@ var linking_hinge_id := ""
 var linking_pressure_plate_id := ""
 
 
+func _connect_panels() -> void:
+	file_button.pressed.connect(_toggle_panel.bind(file_panel))
+	settings_button.pressed.connect(_toggle_panel.bind(settings_panel))
+	help_button.pressed.connect(_toggle_panel.bind(help_panel))
+	validation_chip.pressed.connect(_toggle_panel.bind(problems_panel))
+	inspector_button.pressed.connect(_toggle_inspector)
+	$EditorView/InspectorPanel/CloseButton.pressed.connect(_toggle_inspector)
+	$EditorView/InspectorPanel/DetailsButton.toggled.connect(_toggle_inspector_details)
+	for panel: Control in [file_panel, settings_panel, help_panel, problems_panel]:
+		panel.get_node("CloseButton").pressed.connect(_close_panel)
+	for panel: Control in [file_panel, settings_panel]:
+		panel.get_node("NoticeButton").pressed.connect(_toggle_panel.bind(problems_panel))
+	editor_view.resized.connect(_on_workspace_resized)
+	_connect_library_panel()
+	_layout_workspace()
+
+
+func _connect_library_panel() -> void:
+	load_options.item_selected.connect(_refresh_library_selection.unbind(1))
+	load_options.get_popup().about_to_popup.connect(
+		file_transfer.set_web_import_overlay_visible.bind(false)
+	)
+	load_options.get_popup().popup_hide.connect(_sync_web_import_overlay.call_deferred)
+	import_button.item_rect_changed.connect(_sync_web_import_overlay)
+	discard_dialog.visibility_changed.connect(_sync_web_import_overlay)
+	for dialog: Window in [file_transfer._import_dialog, file_transfer._export_dialog]:
+		dialog.visibility_changed.connect(_sync_web_import_overlay)
+
+
+func _toggle_panel(panel: Control) -> void:
+	if _dialog_is_open() or is_instance_valid(playtest_runtime):
+		return
+	var was_visible := panel.is_visible_in_tree()
+	_close_panel()
+	if was_visible:
+		return
+	canvas.cancel_drag()
+	editor_view.focus_behavior_recursive = Control.FOCUS_BEHAVIOR_DISABLED
+	panel_host.focus_behavior_recursive = Control.FOCUS_BEHAVIOR_ENABLED
+	panel_host.show()
+	panel.show()
+	panel.focus_mode = Control.FOCUS_ALL
+	panel.grab_focus()
+	_sync_web_import_overlay()
+
+
+func _close_panel() -> void:
+	_commit_all_metadata()
+	for panel: Control in [file_panel, settings_panel, help_panel, problems_panel]:
+		panel.hide()
+	panel_host.hide()
+	_sync_web_import_overlay()
+	editor_view.focus_behavior_recursive = Control.FOCUS_BEHAVIOR_INHERITED
+	canvas.grab_focus()
+
+
+func _toggle_inspector() -> void:
+	if selected_id.is_empty() or canvas.is_drag_active():
+		return
+	_release_text_focus()
+	inspector_panel.visible = not inspector_panel.visible
+	_layout_workspace()
+	canvas.grab_focus()
+
+
+func _toggle_inspector_details(show_details: bool) -> void:
+	$EditorView/InspectorPanel/Details.visible = show_details
+	$EditorView/InspectorPanel/HintScroll.visible = not show_details
+
+
+func _handle_panel_escape(event: InputEvent) -> bool:
+	if not event is InputEventKey or not event.pressed or event.echo:
+		return false
+	if _event_key(event) != KEY_ESCAPE or not editor_view.visible or _dialog_is_open():
+		return false
+	if panel_host.visible:
+		_close_panel()
+	elif canvas.is_drag_active():
+		canvas.cancel_drag()
+	elif _is_linking():
+		_cancel_linking()
+	elif inspector_panel.visible:
+		_toggle_inspector()
+	elif _text_field_has_focus():
+		_release_text_focus()
+	else:
+		return false
+	get_viewport().set_input_as_handled()
+	return true
+
+
+func _dialog_is_open() -> bool:
+	return (
+		discard_dialog.visible
+		or load_options.get_popup().visible
+		or file_transfer._import_dialog.visible
+		or file_transfer._export_dialog.visible
+	)
+
+
+func _sync_web_import_overlay() -> void:
+	if not is_node_ready():
+		return
+	file_transfer.set_web_import_overlay_visible(
+		file_panel.is_visible_in_tree() and not _dialog_is_open()
+		and not is_instance_valid(playtest_runtime) and not playtest_transitioning
+	)
+	file_transfer.configure_web_import_hit_rect(
+		import_button.get_global_rect(), get_viewport().get_visible_rect().size
+	)
+
+
+func _on_workspace_resized() -> void:
+	if not is_node_ready():
+		return
+	canvas.cancel_drag()
+	_layout_workspace()
+
+
+func _layout_workspace() -> void:
+	var view_size := editor_view.size
+	var palette: Control = $EditorView/PalettePanel
+	palette.size.y = view_size.y - 86.0
+	$EditorView/Toolbar.size.x = view_size.x - 16.0
+	canvas.size = Vector2(view_size.x - 168.0, view_size.y - 86.0)
+	inspector_panel.position.x = view_size.x - 256.0
+	inspector_panel.size.y = palette.size.y
+	if inspector_panel.visible:
+		canvas.size.x -= 256.0
+	validation_chip.position.y = view_size.y - 30.0
+	validation_chip.size.x = view_size.x - 16.0
+	tool_scroll.size.y = palette.size.y - (138.0 if inspector_button.visible else 68.0)
+	inspector_button.position.y = palette.size.y - 72.0
+	duplicate_button.position.y = palette.size.y - 38.0
+	delete_button.position.y = palette.size.y - 38.0
+	for panel: Control in [file_panel, settings_panel, help_panel, problems_panel]:
+		panel.position = (view_size - panel.size) * 0.5
+	_sync_web_import_overlay()
+
+
+func _refresh_selection_controls(empty: bool) -> void:
+	inspector_button.visible = not empty
+	duplicate_button.visible = not empty
+	delete_button.visible = not empty
+	if empty:
+		inspector_panel.hide()
+	_layout_workspace()
+
+
+func _refresh_blocked_tooltips(is_valid: bool) -> void:
+	var reason := "Исправьте ошибки уровня:\n" + _first_error(validation_result)
+	save_button.tooltip_text = "Сохранить — Cmd/Ctrl+S" if is_valid else reason
+	test_button.tooltip_text = "Запустить тест — F5" if is_valid else reason
+	export_button.tooltip_text = "Экспортировать JSON" if is_valid else reason
+
+
+func _refresh_library_selection() -> void:
+	var index := load_options.selected
+	var text := "Выберите уровень из библиотеки."
+	if index >= 0 and index < load_options.item_count:
+		text = load_options.get_item_text(index)
+		load_options.tooltip_text = text
+	$EditorView/PanelHost/FilePanel/SelectedLevel.text = text
+	for item in load_options.item_count:
+		if not load_options.is_item_disabled(item):
+			load_options.set_item_tooltip(item, load_options.get_item_text(item))
+
+
 func _ready() -> void:
 	return_button.text = "В редактор · Esc"
 	file_transfer.max_import_bytes = LEVEL_DATA_CODEC.MAX_FILE_BYTES
-	file_transfer.configure_web_import_hit_rect(
-		import_button.get_global_rect(),
-		get_viewport().get_visible_rect().size
-	)
+	_connect_panels()
 	_connect_ui()
 	draft.changed.connect(_on_draft_changed)
 	_set_debug_selector_suppressed(true)
@@ -214,6 +391,7 @@ func _ready() -> void:
 			)
 
 	_set_tool(TOOL_SELECT)
+	_sync_web_import_overlay()
 
 
 func _exit_tree() -> void:
@@ -221,6 +399,8 @@ func _exit_tree() -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if _handle_panel_escape(event):
+		return
 	if is_instance_valid(playtest_runtime) and playtest_runtime.is_local_pause_open():
 		return
 	var key_event := event as InputEventKey
@@ -249,6 +429,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	):
 		return
 
+	if _dialog_is_open():
+		return
 	var key := _event_key(key_event)
 	if key == KEY_F5:
 		_start_playtest()
@@ -265,6 +447,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 
 	var command_pressed := key_event.ctrl_pressed or key_event.meta_pressed
 	if command_pressed:
+		if panel_host.visible and key not in [KEY_S, KEY_N, KEY_O]:
+			return
 		if key == KEY_Z and key_event.shift_pressed:
 			_redo()
 		elif key == KEY_Z:
@@ -284,6 +468,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 
+	if panel_host.visible:
+		return
 	match key:
 		KEY_Q:
 			_set_tool(TOOL_SELECT)
@@ -405,9 +591,11 @@ func _connect_ui() -> void:
 	_connect_metadata_field(level_id_edit, "level_id")
 	_connect_metadata_field(title_edit, "title")
 	_connect_metadata_field(objective_edit, "objective")
+	_connect_metadata_field(clear_message_edit, "clear_message")
 
 
 func _connect_metadata_field(field: LineEdit, key: String) -> void:
+	field.tooltip_text = "Enter или выход из поля — применить"
 	field.text_submitted.connect(
 		func(_text: String) -> void:
 			_commit_metadata_field(field, key)
@@ -458,56 +646,64 @@ func _sync_metadata_fields(document: Dictionary) -> void:
 		title_edit.text = str(document.get("title", ""))
 	if not objective_edit.has_focus():
 		objective_edit.text = str(document.get("objective", ""))
+	if not clear_message_edit.has_focus():
+		clear_message_edit.text = str(document.get("clear_message", ""))
 	syncing_ui = false
 
 
 func _refresh_validation() -> void:
-	var is_valid := bool(validation_result.get("ok", false))
 	var errors: Array = validation_result.get("errors", [])
 	var warnings: Array = validation_result.get("warnings", [])
-	if is_valid:
-		if warnings.is_empty():
-			validation_chip.text = "✓  ГОТОВО К ТЕСТУ"
-			validation_chip.modulate = Color(0.439, 0.878, 0.816)
-			problems.text = (
-				notice_text
-				if not notice_text.is_empty()
-				else "Ошибок нет. Можно сохранить или запустить тест."
-			)
-			problems.modulate = (
-				Color(0.925, 0.365, 0.231)
-				if notice_is_error
-				else Color(0.651, 0.714, 0.82)
-			)
-		else:
-			validation_chip.text = (
-				"△  ГОТОВО / %d ПРЕДУПРЕЖДЕНИЙ"
-				% warnings.size()
-			)
-			validation_chip.modulate = Color(0.973, 0.58, 0.267)
-			var visible_warnings := PackedStringArray()
-			for index in warnings.size():
-				visible_warnings.append("△ %s" % warnings[index])
-			problems.text = "\n".join(visible_warnings)
-			problems.modulate = Color(0.973, 0.58, 0.267)
-	else:
-		validation_chip.text = "✕  %d ОШИБОК" % errors.size()
-		validation_chip.modulate = Color(0.925, 0.365, 0.231)
-		var visible_errors := PackedStringArray()
-		for index in errors.size():
-			visible_errors.append("• %s" % errors[index])
-		problems.text = "\n".join(visible_errors)
-		problems.modulate = Color(0.925, 0.58, 0.267)
+	var messages := PackedStringArray()
+	if not notice_text.is_empty():
+		messages.append(notice_text)
+	if not errors.is_empty():
+		messages.append("Сохранение, тест и экспорт недоступны. Исправьте ошибки:")
+	for error: String in errors:
+		messages.append("Ошибка: %s" % error)
+	for warning: String in warnings:
+		messages.append("Предупреждение: %s" % warning)
+	problems.text = "\n\n".join(messages)
+	if problems.text.is_empty():
+		problems.text = "Ошибок нет. Можно сохранить, запустить тест или экспортировать."
+	_refresh_validation_status(errors, warnings)
+	_refresh_panel_notices()
+	_refresh_dirty_label()
 
-	dirty_label.text = (
-		"●  НЕ СОХРАНЕНО"
-		if draft.is_dirty()
-		else "✓  %s / СОХРАНЕНО" % source_label
-	)
+
+func _refresh_panel_notices() -> void:
+	for panel: Control in [file_panel, settings_panel]:
+		var button: Button = panel.get_node("NoticeButton")
+		button.text = validation_chip.text
+		button.modulate = validation_chip.modulate
+		button.tooltip_text = validation_chip.tooltip_text
+
+
+func _refresh_validation_status(errors: Array, warnings: Array) -> void:
+	var status := "Готово к тесту"
+	var color := Color(0.439, 0.878, 0.816)
+	if not errors.is_empty():
+		status = "Ошибок: %d. Тест, сохранение и экспорт недоступны: %s" % [errors.size(), errors[0]]
+		color = Color(1.0, 0.49, 0.36)
+	elif not warnings.is_empty():
+		status = "Готово к тесту / Предупреждений: %d" % warnings.size()
+		color = Color(0.973, 0.68, 0.367)
+	if notice_is_error:
+		status = "Ошибка: " + notice_text.get_slice("\n", 0) + " / " + status
+		color = Color(1.0, 0.49, 0.36)
+	elif errors.is_empty() and not notice_text.is_empty():
+		status += " / " + notice_text.get_slice("\n", 0)
+	validation_chip.text = status
+	validation_chip.modulate = color
+	validation_chip.tooltip_text = problems.text + "\nНажмите, чтобы прочитать полностью."
+	problems.modulate = Color(0.85, 0.89, 0.95)
+
+
+func _refresh_dirty_label() -> void:
+	dirty_label.text = "* Не сохранено" if draft.is_dirty() else "Без изменений"
+	dirty_label.tooltip_text = "%s / %s" % [source_label, draft.to_dictionary().get("title", "")]
 	dirty_label.modulate = (
-		Color(0.973, 0.58, 0.267)
-		if draft.is_dirty()
-		else Color(0.439, 0.827, 0.816)
+		Color(0.973, 0.68, 0.367) if draft.is_dirty() else Color(0.439, 0.827, 0.816)
 	)
 
 
@@ -518,6 +714,7 @@ func _refresh_buttons() -> void:
 	test_button.disabled = not is_valid
 	save_button.disabled = not is_valid
 	export_button.disabled = not is_valid
+	_refresh_blocked_tooltips(is_valid)
 
 	var selected := draft.find_object(selected_id)
 	delete_button.disabled = selected.is_empty()
@@ -526,6 +723,7 @@ func _refresh_buttons() -> void:
 		or selected.get("type", "") == TOOL_PLAYER
 	)
 
+	_refresh_selection_controls(selected.is_empty())
 
 func _set_tool(tool: String) -> void:
 	if _is_linking():
@@ -1034,6 +1232,8 @@ func _refresh_inspector_hint() -> void:
 			)
 			inspector_hint.modulate = Color(0.973, 0.58, 0.267)
 			return
+		inspector_hint.text = "Игрок или враг удерживает цель, пока стоит на плите."
+		return
 	if selected.get("type", "") == TOOL_HINGE:
 		var target_id := str(selected.get("target_id", ""))
 		var target := draft.find_object(target_id)
@@ -1050,9 +1250,11 @@ func _refresh_inspector_hint() -> void:
 			)
 			inspector_hint.modulate = Color(0.973, 0.58, 0.267)
 			return
+		inspector_hint.text = "Удар игрока, рывок толкача или снаряд приводит механизм в действие."
+		return
 	inspector_hint.text = (
-		"Выберите объект на поле.\n"
-		+ "Значения применяются по Enter."
+		"Enter или выход из поля — применить.\n"
+		+ "На арене объект можно перетащить или сдвинуть стрелками."
 	)
 	inspector_hint.modulate = Color(0.439, 0.502, 0.616)
 
@@ -1472,7 +1674,7 @@ func _clear_pending_destructive_action() -> void:
 	pending_save_level_id = ""
 	pending_import_data = {}
 	pending_import_file_name = ""
-	file_transfer.set_web_import_overlay_visible(true)
+	_sync_web_import_overlay.call_deferred()
 
 
 func _show_confirmation(
@@ -1617,7 +1819,7 @@ func _on_import_file_selected(
 	bytes: PackedByteArray
 ) -> void:
 	if bytes.size() > LEVEL_DATA_CODEC.MAX_FILE_BYTES:
-		file_transfer.set_web_import_overlay_visible(true)
+		_sync_web_import_overlay.call_deferred()
 		_set_notice(
 			(
 				"Импорт не выполнен: файл превышает лимит "
@@ -1632,7 +1834,7 @@ func _on_import_file_selected(
 		bytes.get_string_from_utf8()
 	)
 	if not bool(decoded.get("ok", false)):
-		file_transfer.set_web_import_overlay_visible(true)
+		_sync_web_import_overlay.call_deferred()
 		_set_notice(
 			"Импорт не выполнен: %s" % _first_error(decoded),
 			true
@@ -1647,7 +1849,7 @@ func _queue_import_level(data: Dictionary, file_name: String) -> void:
 		level_id
 	)
 	if not bool(exists_result.get("ok", false)):
-		file_transfer.set_web_import_overlay_visible(true)
+		_sync_web_import_overlay.call_deferred()
 		_set_notice(
 			_append_storage_notice(
 				"Импорт не выполнен: %s" % _first_error(exists_result),
@@ -1692,7 +1894,7 @@ func _perform_import_level(
 	var result: Dictionary = LEVEL_STORAGE.save_user_level(data)
 	var result_notice := _storage_notice_from_result(result)
 	if not bool(result.get("ok", false)):
-		file_transfer.set_web_import_overlay_visible(true)
+		_sync_web_import_overlay.call_deferred()
 		_set_notice(
 			_append_storage_notice(
 				"Импорт не выполнен: %s" % _first_error(result),
@@ -1726,11 +1928,11 @@ func _perform_import_level(
 		),
 		not storage_notice.is_empty()
 	)
-	file_transfer.set_web_import_overlay_visible(true)
+	_sync_web_import_overlay.call_deferred()
 
 
 func _on_file_transfer_failed(message: String) -> void:
-	file_transfer.set_web_import_overlay_visible(true)
+	_sync_web_import_overlay.call_deferred()
 	_set_notice(
 		"Операция с файлом не выполнена: %s" % message,
 		true
@@ -1789,7 +1991,7 @@ func _refresh_load_options(select_id := "") -> String:
 		LEVEL_STORAGE.load_builtin_catalog()
 	)
 	for builtin: Dictionary in builtin_result.get("entries", []):
-		var label := "★ Пример: %s" % builtin["title"]
+		var label := "Пример: %s" % builtin["title"]
 		load_entries.append(
 			{
 				"kind": "builtin",
@@ -1813,7 +2015,7 @@ func _refresh_load_options(select_id := "") -> String:
 				}
 			)
 			load_options.add_item(
-				"⚠ %s / ТРЕБУЕТ ВНИМАНИЯ" % invalid_id
+				"! %s / ТРЕБУЕТ ВНИМАНИЯ" % invalid_id
 			)
 			load_options.set_item_disabled(invalid_index, true)
 			load_options.set_item_tooltip(
@@ -1835,6 +2037,8 @@ func _refresh_load_options(select_id := "") -> String:
 		for index in load_entries.size():
 			if load_entries[index]["id"] == select_id:
 				load_options.select(index)
+
+	_refresh_library_selection()
 
 	var storage_messages := PackedStringArray()
 	if not bool(builtin_result.get("ok", false)):
@@ -1872,6 +2076,7 @@ func _start_playtest() -> void:
 		_set_notice("Тест заблокирован: исправьте ошибки.", true)
 		return
 
+	_close_panel()
 	playtest_snapshot_json = encoded["text"]
 	playtest_generation += 1
 	editor_view.visible = false
@@ -1938,7 +2143,7 @@ func _stop_playtest() -> void:
 	playtest_overlay.visible = false
 	editor_view.visible = true
 	editor_view.process_mode = Node.PROCESS_MODE_INHERIT
-	file_transfer.set_web_import_overlay_visible(true)
+	_sync_web_import_overlay.call_deferred()
 	_set_notice("Возврат из теста: черновик и Undo/Redo сохранены.")
 	canvas.grab_focus()
 
@@ -1950,24 +2155,12 @@ func _rebuild_inspector() -> void:
 
 	var object := draft.find_object(selected_id)
 	if object.is_empty():
-		inspector_title.text = "СВОЙСТВА УРОВНЯ"
-		_add_readonly_property("SCHEMA", "1")
-		_add_root_text_property(
-			"CLEAR TEXT",
-			"clear_message",
-			str(
-				draft.to_dictionary().get(
-					"clear_message",
-					"АРЕНА ПРОЙДЕНА"
-				)
-			)
-		)
 		syncing_ui = false
 		return
 
-	inspector_title.text = "СВОЙСТВА ОБЪЕКТА"
-	_add_readonly_property("TYPE", str(object["type"]))
-	_add_readonly_property("ID", str(object["id"]))
+	var tool_button := _palette_button_for_tool(str(object["type"]))
+	inspector_title.text = tool_button.text.substr(3) if tool_button != null else "Объект"
+	$EditorView/InspectorPanel/Details.text = "ID: %s\nТип: %s" % [object["id"], object["type"]]
 	var object_type := str(object["type"])
 	if LEVEL_OBJECT_CATALOG.is_in_category(
 		object_type,
@@ -2094,30 +2287,6 @@ func _add_numeric_property(
 			_commit_object_property(field, key, target_id)
 	)
 	row.add_child(field)
-
-
-func _add_root_text_property(
-	label_text: String,
-	key: String,
-	value: String
-) -> void:
-	var label := Label.new()
-	label.text = label_text
-	label.modulate = Color(0.439, 0.502, 0.616)
-	properties.add_child(label)
-
-	var field := LineEdit.new()
-	field.text = value
-	field.custom_minimum_size = Vector2(184, 30)
-	field.text_submitted.connect(
-		func(_text: String) -> void:
-			_commit_metadata_field(field, key)
-	)
-	field.focus_exited.connect(
-		func() -> void:
-			_commit_metadata_field(field, key)
-	)
-	properties.add_child(field)
 
 
 func _add_direction_property(current: int) -> void:
@@ -2407,6 +2576,7 @@ func _commit_all_metadata() -> void:
 		"level_id": level_id_edit.text.strip_edges(),
 		"title": title_edit.text.strip_edges(),
 		"objective": objective_edit.text.strip_edges(),
+		"clear_message": clear_message_edit.text.strip_edges(),
 	}
 	for key: String in pending_values:
 		draft.set_root_value(key, pending_values[key])

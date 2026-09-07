@@ -8,6 +8,14 @@ const LEVEL_DATA_CODEC := preload(
 	"res://scripts/levels/level_data_codec.gd"
 )
 
+class WebCanvasStub:
+	extends RefCounted
+	var bounds := {"left": 0.0, "top": 0.0, "width": 960.0, "height": 540.0}
+
+	func getBoundingClientRect() -> Dictionary:
+		return bounds
+
+
 var failures: Array[String] = []
 var temporary_level_ids: Array[String] = []
 var queued_import_result: Dictionary = {}
@@ -48,10 +56,72 @@ func _run() -> void:
 	await _test_new_import(editor)
 	await _test_dirty_and_conflicting_import(editor)
 	await _test_transport_results(editor)
+	await _test_web_import_overlay()
 
 	editor.queue_free()
 	await editor.tree_exited
 	_finish()
+
+
+func _test_web_import_overlay() -> void:
+	var transfer := LevelFileTransfer.new()
+	root.add_child(transfer)
+	var canvas := WebCanvasStub.new()
+	transfer._web_file_input = {"style": {}}
+	transfer._web_canvas = canvas
+	transfer.configure_web_import_hit_rect(Rect2(100, 80, 90, 30), Vector2(960, 540))
+	transfer.set_web_import_overlay_visible(true)
+	_expect(
+		transfer._web_file_input.style.left == "100.000000px",
+		"Web import overlay did not follow its configured button."
+	)
+	transfer._on_web_window_resized([])
+	_expect(
+		transfer._web_file_input.style.display == "none",
+		"Resize left the old browser import position active during layout."
+	)
+	canvas.bounds = {"left": 12.0, "top": 20.0, "width": 1920.0, "height": 1200.0}
+	await process_frame
+	var style: Dictionary = transfer._web_file_input.style
+	_expect(
+		style.left == "212.000000px" and style.top == "240.000000px"
+		and style.width == "180.000000px" and style.height == "60.000000px",
+		"Browser resize misplaced the import overlay in the letterboxed canvas."
+	)
+	await _test_web_import_overlay_visibility(transfer, canvas)
+	transfer.free()
+
+
+func _test_web_import_overlay_visibility(
+	transfer: LevelFileTransfer,
+	canvas: WebCanvasStub
+) -> void:
+	transfer.set_web_import_overlay_visible(false)
+	_expect(
+		transfer._web_file_input.style.display == "none",
+		"Closed file panel left an active browser import overlay."
+	)
+	transfer.configure_web_import_hit_rect(Rect2(240, 100, 90, 30), Vector2(960, 540))
+	transfer.set_web_import_overlay_visible(true)
+	_expect(
+		transfer._web_file_input.style.display == "block"
+		and transfer._web_file_input.style.left == "492.000000px",
+		"Reopened file panel retained the previous import position."
+	)
+	transfer.configure_web_import_hit_rect(Rect2(), Vector2(960, 540))
+	await transfer._on_web_window_resized([])
+	_expect(
+		transfer._web_file_input.style.display == "none",
+		"Empty import rect retained a stale clickable browser overlay."
+	)
+	transfer.configure_web_import_hit_rect(Rect2(100, 80, 90, 30), Vector2(960, 540))
+	transfer.set_web_import_overlay_visible(true)
+	canvas.bounds.width = 0.0
+	await transfer._on_web_window_resized([])
+	_expect(
+		transfer._web_file_input.style.display == "none",
+		"Hidden browser canvas retained a clickable import overlay."
+	)
 
 
 func _test_export(editor: LevelEditor) -> void:

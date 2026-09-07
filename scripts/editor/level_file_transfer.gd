@@ -103,10 +103,10 @@ func configure_web_import_hit_rect(
 	hit_rect: Rect2,
 	base_view_size: Vector2
 ) -> void:
-	if not OS.has_feature("web"):
-		return
 	_web_import_hit_rect = hit_rect
 	_web_base_view_size = base_view_size
+	if not OS.has_feature("web"):
+		return
 	_ensure_web_file_input()
 	var document = JavaScriptBridge.get_interface("document")
 	if document == null:
@@ -130,8 +130,7 @@ func configure_web_import_hit_rect(
 
 func set_web_import_overlay_visible(visible: bool) -> void:
 	_web_import_overlay_visible = visible
-	if OS.has_feature("web"):
-		_update_web_import_overlay()
+	_update_web_import_overlay()
 
 
 func configure_for_tests(
@@ -268,19 +267,25 @@ func _on_web_file_clicked(_arguments: Array) -> void:
 func _on_web_window_resized(_arguments: Array) -> void:
 	if not is_inside_tree():
 		return
-	_update_web_import_overlay()
+	if _web_file_input != null:
+		_web_file_input.style.display = "none"
+	await get_tree().process_frame
+	if is_inside_tree():
+		_update_web_import_overlay()
 
 
 func _update_web_import_overlay() -> void:
+	if _web_file_input == null:
+		return
+	_web_file_input.style.display = "none"
 	if (
 		_web_canvas == null
-		or _web_file_input == null
+		or not _web_import_overlay_visible
 		or _web_import_hit_rect.size.x <= 0.0
 		or _web_import_hit_rect.size.y <= 0.0
+		or _web_base_view_size.x <= 0.0
+		or _web_base_view_size.y <= 0.0
 	):
-		return
-	if not _web_import_overlay_visible:
-		_web_file_input.style.display = "none"
 		return
 	var canvas_rect = _web_canvas.getBoundingClientRect()
 	var canvas_size := Vector2(
