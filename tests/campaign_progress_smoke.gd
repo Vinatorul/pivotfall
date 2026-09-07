@@ -136,11 +136,11 @@ func _test_missing_and_round_trip() -> void:
 	)
 	var skipped := progress_store.record_level_started(
 		campaign_entries,
-		"arena_04_data"
+		"arena_03_data"
 	)
 	var resumed_path := progress_store.record_level_started(
 		campaign_entries,
-		"arena_03_data"
+		"arena_04_data"
 	)
 	loaded = progress_store.load_progress(campaign_entries)
 	_expect(
@@ -148,9 +148,9 @@ func _test_missing_and_round_trip() -> void:
 		and bool(replayed["ok"])
 		and not bool(skipped["ok"])
 		and bool(resumed_path["ok"])
-		and loaded["data"]["current_level_id"] == "arena_03_data"
+		and loaded["data"]["current_level_id"] == "arena_04_data"
 		and loaded["data"]["highest_unlocked_level_id"]
-		== "arena_03_data",
+		== "arena_04_data",
 		"Progress checkpoints did not preserve unlock ordering."
 	)
 
@@ -158,7 +158,7 @@ func _test_missing_and_round_trip() -> void:
 	request = progress_store.consume_launch_request()
 	_expect(
 		bool(continued["ok"])
-		and request["level_id"] == "arena_03_data"
+		and request["level_id"] == "arena_04_data"
 		and bool(request["track_progress"])
 		and not bool(request["replay"])
 		and str(
@@ -311,7 +311,7 @@ func _test_validation_and_recovery() -> void:
 	_write_json(
 		_progress_path(),
 		{
-			"schema_version": 2,
+			"schema_version": 3,
 			"campaign_id": "main",
 			"current_level_id": "arena_01_data",
 			"highest_unlocked_level_id": "arena_01_data",
@@ -330,7 +330,7 @@ func _test_validation_and_recovery() -> void:
 	progress_store.clear_progress()
 	_write_json(
 		_progress_path(),
-		_progress_data(
+		_legacy_progress_data(
 			"arena_08_data",
 			"arena_08_data",
 			true
@@ -342,9 +342,9 @@ func _test_validation_and_recovery() -> void:
 	_expect(
 		bool(migrated_legacy["ok"])
 		and migrated_legacy["data"]
-		== _progress_data("jailbreak", "jailbreak")
+		== _progress_data("jailbreak", "arena_08_data")
 		and not migrated_legacy["warnings"].is_empty(),
-		"Completed Arena 08 progress did not unlock Arena 09."
+		"Completed legacy Exam progress did not unlock Jailbreak."
 	)
 	var persisted_migration := progress_store.record_level_started(
 		campaign_entries,
@@ -357,15 +357,15 @@ func _test_validation_and_recovery() -> void:
 		bool(persisted_migration["ok"])
 		and bool(reloaded_migration["ok"])
 		and reloaded_migration["data"]
-		== _progress_data("jailbreak", "jailbreak")
+		== _progress_data("jailbreak", "arena_08_data")
 		and reloaded_migration["warnings"].is_empty(),
-		"Starting Arena 09 did not persist the migrated progress."
+		"Starting Jailbreak did not persist the migrated progress."
 	)
 
 	progress_store.clear_progress()
 	_write_json(
 		_progress_path(),
-		_progress_data(
+		_legacy_progress_data(
 			"tower_assault",
 			"tower_assault",
 			true
@@ -377,9 +377,9 @@ func _test_validation_and_recovery() -> void:
 	_expect(
 		bool(migrated_recent["ok"])
 		and migrated_recent["data"]
-		== _progress_data("arena_12_data", "arena_12_data")
+		== _progress_data("arena_12_data", "tower_assault")
 		and not migrated_recent["warnings"].is_empty(),
-		"Completed Arena 11 progress did not unlock Arena 12."
+		"Completed legacy Assault progress did not unlock Gate."
 	)
 	var persisted_recent := progress_store.record_level_started(
 		campaign_entries,
@@ -392,15 +392,15 @@ func _test_validation_and_recovery() -> void:
 		bool(persisted_recent["ok"])
 		and bool(reloaded_recent["ok"])
 		and reloaded_recent["data"]
-		== _progress_data("arena_12_data", "arena_12_data")
+		== _progress_data("arena_12_data", "tower_assault")
 		and reloaded_recent["warnings"].is_empty(),
-		"Starting Arena 12 did not persist the migrated progress."
+		"Starting Gate did not persist the migrated progress."
 	)
 
 	progress_store.clear_progress()
 	_write_json(
 		_progress_path(),
-		_progress_data("arena_15_data", "arena_15_data")
+		_legacy_progress_data("arena_15_data", "arena_15_data")
 	)
 	var unfinished_former_final := progress_store.load_progress(
 		campaign_entries
@@ -408,15 +408,15 @@ func _test_validation_and_recovery() -> void:
 	_expect(
 		bool(unfinished_former_final["ok"])
 		and unfinished_former_final["data"]
-		== _progress_data("arena_15_data", "arena_15_data")
-		and unfinished_former_final["warnings"].is_empty(),
-		"Unfinished Arena 15 progress was incorrectly migrated."
+		== _progress_data("arena_15_data", "tower_assault")
+		and not unfinished_former_final["warnings"].is_empty(),
+		"Unfinished legacy Domino did not preserve current and unlocked arenas."
 	)
 
 	progress_store.clear_progress()
 	_write_json(
 		_progress_path(),
-		_progress_data("arena_12_data", "arena_12_data", true)
+		_legacy_progress_data("arena_12_data", "arena_12_data", true)
 	)
 	var completed_former_final := progress_store.load_progress(
 		campaign_entries
@@ -424,9 +424,9 @@ func _test_validation_and_recovery() -> void:
 	_expect(
 		bool(completed_former_final["ok"])
 		and completed_former_final["data"]
-		== _progress_data("arena_13_data", "arena_13_data")
+		== _progress_data("arena_13_data", "tower_assault")
 		and not completed_former_final["warnings"].is_empty(),
-		"Completed Arena 12 progress did not unlock Arena 13."
+		"Completed legacy Gate progress did not unlock Double Jump."
 	)
 	var persisted_final := progress_store.record_level_started(
 		campaign_entries,
@@ -437,15 +437,15 @@ func _test_validation_and_recovery() -> void:
 		bool(persisted_final["ok"])
 		and bool(reloaded_final["ok"])
 		and reloaded_final["data"]
-		== _progress_data("arena_13_data", "arena_13_data")
+		== _progress_data("arena_13_data", "tower_assault")
 		and reloaded_final["warnings"].is_empty(),
-		"Starting Arena 13 did not persist the migrated progress."
+		"Starting Double Jump did not persist the migrated progress."
 	)
 
 	progress_store.clear_progress()
 	_write_json(
 		_progress_path(),
-		_progress_data("arena_14_data", "arena_14_data", true)
+		_legacy_progress_data("arena_14_data", "arena_14_data", true)
 	)
 	var completed_latest_former_final := progress_store.load_progress(
 		campaign_entries
@@ -453,9 +453,9 @@ func _test_validation_and_recovery() -> void:
 	_expect(
 		bool(completed_latest_former_final["ok"])
 		and completed_latest_former_final["data"]
-		== _progress_data("arena_15_data", "arena_15_data")
+		== _progress_data("arena_15_data", "tower_assault")
 		and not completed_latest_former_final["warnings"].is_empty(),
-		"Completed Arena 14 progress did not unlock Arena 15."
+		"Completed legacy Spikes progress did not unlock Domino."
 	)
 	var persisted_latest_final := progress_store.record_level_started(
 		campaign_entries,
@@ -468,15 +468,15 @@ func _test_validation_and_recovery() -> void:
 		bool(persisted_latest_final["ok"])
 		and bool(reloaded_latest_final["ok"])
 		and reloaded_latest_final["data"]
-		== _progress_data("arena_15_data", "arena_15_data")
+		== _progress_data("arena_15_data", "tower_assault")
 		and reloaded_latest_final["warnings"].is_empty(),
-		"Starting Arena 15 did not persist the migrated progress."
+		"Starting Domino did not persist the migrated progress."
 	)
 
 	progress_store.clear_progress()
 	_write_json(
 		_progress_path(),
-		_progress_data("arena_16_data", "arena_16_data", true)
+		_progress_data("tower_assault", "tower_assault", true)
 	)
 	var completed_current_final := progress_store.load_progress(
 		campaign_entries
@@ -484,7 +484,7 @@ func _test_validation_and_recovery() -> void:
 	_expect(
 		bool(completed_current_final["ok"])
 		and completed_current_final["data"]
-		== _progress_data("arena_16_data", "arena_16_data", true)
+		== _progress_data("tower_assault", "tower_assault", true)
 		and completed_current_final["warnings"].is_empty(),
 		"Completed current final progress was incorrectly migrated."
 	)
@@ -492,7 +492,7 @@ func _test_validation_and_recovery() -> void:
 	progress_store.clear_progress()
 	_write_json(
 		_progress_path(),
-		_progress_data("tower_assault", "arena_12_data", true)
+		_legacy_progress_data("tower_assault", "arena_12_data", true)
 	)
 	var mismatched_completed := progress_store.load_progress(
 		campaign_entries
@@ -604,15 +604,15 @@ func _test_arena_13_completed_migration() -> void:
 	progress_store.clear_progress()
 	_write_json(
 		_progress_path(),
-		_progress_data("arena_13_data", "arena_13_data", true)
+		_legacy_progress_data("arena_13_data", "arena_13_data", true)
 	)
 	var migrated := progress_store.load_progress(campaign_entries)
 	_expect(
 		bool(migrated["ok"])
 		and migrated["data"]
-		== _progress_data("arena_14_data", "arena_14_data")
+		== _progress_data("arena_14_data", "tower_assault")
 		and not migrated["warnings"].is_empty(),
-		"Completed Arena 13 progress did not unlock Arena 14."
+		"Completed legacy Double Jump progress did not unlock Spikes."
 	)
 
 
@@ -620,15 +620,15 @@ func _test_arena_15_completed_migration() -> void:
 	progress_store.clear_progress()
 	_write_json(
 		_progress_path(),
-		_progress_data("arena_15_data", "arena_15_data", true)
+		_legacy_progress_data("arena_15_data", "arena_15_data", true)
 	)
 	var migrated := progress_store.load_progress(campaign_entries)
 	_expect(
 		bool(migrated["ok"])
 		and migrated["data"]
-		== _progress_data("arena_16_data", "arena_16_data")
+		== _progress_data("arena_16_data", "tower_assault")
 		and not migrated["warnings"].is_empty(),
-		"Completed Arena 15 progress did not unlock Arena 16."
+		"Completed legacy Domino progress did not unlock Counterweight."
 	)
 	var started := progress_store.record_level_started(
 		campaign_entries,
@@ -639,9 +639,9 @@ func _test_arena_15_completed_migration() -> void:
 		bool(started["ok"])
 		and bool(reloaded["ok"])
 		and reloaded["data"]
-		== _progress_data("arena_16_data", "arena_16_data")
+		== _progress_data("arena_16_data", "tower_assault")
 		and reloaded["warnings"].is_empty(),
-		"Starting Arena 16 did not persist its one-time unlock."
+		"Starting Counterweight did not persist its one-time unlock."
 	)
 
 
@@ -653,7 +653,7 @@ func _test_menu_and_runner_integration() -> void:
 	)
 	progress_store.record_level_started(
 		campaign_entries,
-		"arena_03_data"
+		"arena_04_data"
 	)
 
 	var menu := await _replace_with_menu()
@@ -669,7 +669,7 @@ func _test_menu_and_runner_integration() -> void:
 	var runner := await _wait_for_scene(CAMPAIGN_PATH) as CampaignRunner
 	_expect(
 		is_instance_valid(runner)
-		and runner.get_current_level_id() == "arena_03_data"
+		and runner.get_current_level_id() == "arena_04_data"
 		and runner.is_tracking_progress(),
 		"Continue did not launch tracked Arena 03."
 	)
@@ -681,12 +681,12 @@ func _test_menu_and_runner_integration() -> void:
 	await _wait_for_runtime_id_change(runner, arena_03_runtime_id)
 	var after_advance := progress_store.load_progress(campaign_entries)
 	_expect(
-		runner.get_current_level_id() == "arena_04_data"
+		runner.get_current_level_id() == "arena_03_data"
 		and bool(after_advance["ok"])
 		and after_advance["data"]["current_level_id"]
-		== "arena_04_data"
+		== "arena_03_data"
 		and after_advance["data"]["highest_unlocked_level_id"]
-		== "arena_04_data",
+		== "arena_03_data",
 		"Natural Arena 03 to 04 transition was not checkpointed."
 	)
 
@@ -703,7 +703,7 @@ func _test_menu_and_runner_integration() -> void:
 	)
 	_expect(
 		after_debug_completion["data"]["current_level_id"]
-		== "arena_04_data"
+		== "arena_03_data"
 		and not bool(after_debug_completion["data"]["completed"]),
 		"Debug completion modified tracked campaign progress."
 	)
@@ -859,6 +859,16 @@ func _progress_data(
 		"highest_unlocked_level_id": highest_level_id,
 		"completed": completed,
 	}
+
+
+func _legacy_progress_data(
+	current_level_id: String,
+	highest_level_id: String,
+	completed: bool = false
+) -> Dictionary:
+	var data := _progress_data(current_level_id, highest_level_id, completed)
+	data["schema_version"] = 1
+	return data
 
 
 func _replace_with_menu() -> MainMenu:

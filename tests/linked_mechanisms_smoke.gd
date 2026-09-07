@@ -65,9 +65,9 @@ func _test_builtin_arena_02_fixture() -> void:
 	var arena_03_index := builtin_ids.find("arena_03_data")
 	_expect(
 		unique_builtin_ids.size() == builtin_ids.size()
-		and arena_01_index >= 0
-		and arena_01_index < arena_02_index
-		and arena_02_index < arena_03_index
+		and arena_01_index == 0
+		and arena_02_index == 1
+		and arena_03_index == 3
 		and arena_02_entry == {
 			"id": "arena_02_data",
 			"path": "res://levels/arena_02.json",

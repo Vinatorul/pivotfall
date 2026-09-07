@@ -53,7 +53,7 @@ import до тестов.
 bash tests/run_smoke_tests.sh
 ```
 
-Runner автоматически находит все `tests/*_smoke.gd`. Сейчас это 36 тестов.
+Runner автоматически находит все `tests/*_smoke.gd`. Сейчас это 37 тестов.
 Для каждого теста он:
 
 - запускает Godot в headless-режиме с фиксированной частотой 60 кадров;
@@ -113,8 +113,8 @@ bash tests/run_smoke_tests.sh tests/campaign_smoke.gd
 Источник истины — сами файлы `tests/*_smoke.gd`; runner не хранит отдельный
 ручной список. Текущее покрытие удобно делить на четыре группы:
 
-- кампания и оболочка: `arena_select`, `campaign`, `campaign_progress`,
-  `community_levels`, `level_foundation`, `main_menu`, `pause_menu`;
+- кампания и оболочка: `arena_select`, `campaign`, `campaign_order_progress`,
+  `campaign_progress`, `community_levels`, `level_foundation`, `main_menu`, `pause_menu`;
 - данные и редактор: `level_editor`, `level_import_export`,
   `level_object_catalog`, `linked_mechanisms`;
 - механики и арены: `catapult_platform`, `counterweight_arena`, `domino_arena`,

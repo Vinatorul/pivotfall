@@ -5,7 +5,14 @@ const CAMPAIGN_STORAGE := preload(
 	"res://scripts/campaign/campaign_storage.gd"
 )
 
-const SCHEMA_VERSION := 1
+const SCHEMA_VERSION := 2
+# Version 1 saves used this order, including each historical campaign expansion.
+const LEGACY_LEVEL_IDS := [
+	"arena_01_data", "arena_02_data", "arena_03_data", "arena_04_data",
+	"arena_05_data", "arena_06_data", "arena_07_data", "arena_08_data",
+	"jailbreak", "sniper_party", "tower_assault", "arena_12_data",
+	"arena_13_data", "arena_14_data", "arena_15_data", "arena_16_data",
+]
 const MAX_FILE_BYTES := 8_192
 const DEFAULT_STORAGE_PATH := "user://campaign_progress.json"
 const ROOT_KEYS := [
@@ -405,10 +412,9 @@ func _load_path(
 				]
 			]
 		)
-	var migration := _migrate_completed_progress_for_expansion(
-		parser.data,
-		entries
-	)
+	var migration := _migrate_progress(parser.data, entries)
+	if not bool(migration.get("ok", true)):
+		return migration
 	var validation := _validate_progress(
 		migration["data"],
 		entries
@@ -420,7 +426,8 @@ func _load_path(
 
 func _validate_progress(
 	raw: Variant,
-	entries: Array[Dictionary]
+	entries: Array[Dictionary],
+	expected_schema: int = SCHEMA_VERSION
 ) -> Dictionary:
 	var ids_result := _campaign_level_ids(entries)
 	if not bool(ids_result["ok"]):
@@ -447,10 +454,10 @@ func _validate_progress(
 		return _failure(errors)
 
 	var schema_version := _read_integer(root["schema_version"])
-	if schema_version != SCHEMA_VERSION:
+	if schema_version != expected_schema:
 		errors.append(
 			"Campaign progress schema must be %d."
-			% SCHEMA_VERSION
+			% expected_schema
 		)
 
 	if (
@@ -494,7 +501,8 @@ func _validate_progress(
 		)
 
 	if completed and (
-		current_index != level_ids.size() - 1
+		# Reordered completed saves retain their current arena by stable ID.
+		(expected_schema == 1 and current_index != level_ids.size() - 1)
 		or highest_index != level_ids.size() - 1
 	):
 		errors.append(
@@ -506,7 +514,7 @@ func _validate_progress(
 	return {
 		"ok": true,
 		"data": {
-			"schema_version": SCHEMA_VERSION,
+			"schema_version": expected_schema,
 			"campaign_id": CAMPAIGN_STORAGE.BUILTIN_CAMPAIGN_ID,
 			"current_level_id": current_level_id,
 			"highest_unlocked_level_id": highest_level_id,
@@ -516,9 +524,54 @@ func _validate_progress(
 	}
 
 
-func _migrate_completed_progress_for_expansion(
+func _migrate_progress(
 	raw: Variant,
 	entries: Array[Dictionary]
+) -> Dictionary:
+	var migrated := {"data": raw, "warnings": [] as Array[String]}
+	if (
+		typeof(raw) == TYPE_DICTIONARY
+		and _read_integer(raw.get("schema_version")) == 1
+	):
+		migrated = _migrate_legacy_order(raw, entries)
+		if not bool(migrated.get("ok", true)):
+			return migrated
+	var expanded := _migrate_completed_progress_for_expansion(migrated["data"], entries)
+	expanded["warnings"].append_array(migrated["warnings"])
+	return expanded
+
+
+func _migrate_legacy_order(
+	raw: Dictionary,
+	entries: Array[Dictionary]
+) -> Dictionary:
+	var legacy_entries: Array[Dictionary] = []
+	for level_id: String in LEGACY_LEVEL_IDS:
+		legacy_entries.append({"id": level_id})
+	var expanded := _migrate_completed_progress_for_expansion(raw, legacy_entries, 1)
+	var validated := _validate_progress(expanded["data"], legacy_entries, 1)
+	if not bool(validated["ok"]):
+		return validated
+	var migrated: Dictionary = validated["data"]
+	var level_ids: Array[String] = _campaign_level_ids(entries)["ids"]
+	var legacy_highest := LEGACY_LEVEL_IDS.find(migrated["highest_unlocked_level_id"])
+	var highest_index := 0
+	for index in range(legacy_highest + 1):
+		var new_index := level_ids.find(LEGACY_LEVEL_IDS[index])
+		if new_index < 0:
+			return _failure(["A previously unlocked campaign level is missing."])
+		highest_index = maxi(highest_index, new_index)
+	migrated["schema_version"] = SCHEMA_VERSION
+	migrated["highest_unlocked_level_id"] = level_ids[highest_index]
+	var warnings: Array[String] = expanded["warnings"]
+	warnings.append("Campaign order updated; previously unlocked arenas remain available.")
+	return {"data": migrated, "warnings": warnings}
+
+
+func _migrate_completed_progress_for_expansion(
+	raw: Variant,
+	entries: Array[Dictionary],
+	expected_schema: int = SCHEMA_VERSION
 ) -> Dictionary:
 	var result := {
 		"data": raw,
@@ -529,14 +582,17 @@ func _migrate_completed_progress_for_expansion(
 
 	var root := raw as Dictionary
 	if (
-		_read_integer(root.get("schema_version")) != SCHEMA_VERSION
+		_read_integer(root.get("schema_version")) != expected_schema
 		or root.get("campaign_id")
 		!= CAMPAIGN_STORAGE.BUILTIN_CAMPAIGN_ID
 		or typeof(root.get("current_level_id")) != TYPE_STRING
 		or typeof(root.get("highest_unlocked_level_id"))
 		!= TYPE_STRING
-		or root.get("current_level_id")
-		!= root.get("highest_unlocked_level_id")
+		or (
+			expected_schema == 1
+			and root.get("current_level_id")
+			!= root.get("highest_unlocked_level_id")
+		)
 		or typeof(root.get("completed")) != TYPE_BOOL
 		or not bool(root.get("completed"))
 	):
@@ -546,11 +602,13 @@ func _migrate_completed_progress_for_expansion(
 	if not bool(ids_result.get("ok", false)):
 		return result
 	var level_ids: Array[String] = ids_result["ids"]
-	var completed_level_id := str(root["current_level_id"])
+	var completed_level_id := str(root["highest_unlocked_level_id"])
 	var completed_index := level_ids.find(completed_level_id)
 	if (
 		completed_index < 0
 		or completed_index + 1 >= level_ids.size()
+		or level_ids.find(str(root["current_level_id"])) < 0
+		or level_ids.find(str(root["current_level_id"])) > completed_index
 	):
 		return result
 

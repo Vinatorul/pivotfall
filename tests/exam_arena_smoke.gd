@@ -48,7 +48,7 @@ func _test_builtin_fixture() -> void:
 		and builtins[arena_08_index] == {
 			"id": "arena_08_data",
 			"path": "res://levels/arena_08.json",
-			"title": "Arena 08 / Экзамен",
+			"title": "Arena 14 / Экзамен",
 		},
 		"Built-in catalog does not expose Arena 08 after Arena 07."
 	)

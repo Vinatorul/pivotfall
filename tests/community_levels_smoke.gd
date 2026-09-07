@@ -14,7 +14,7 @@ const EXPECTED_LEVELS: Array[Dictionary] = [
 	{
 		"id": "jailbreak",
 		"path": "res://levels/jailbreak.json",
-		"catalog_title": "Arena 09 / Побег",
+		"catalog_title": "Arena 13 / Побег",
 		"title": "JAILBREAK",
 		"objective": "СТОЛКНИ ВРАГА В ЯМУ",
 		"enemy_count": 1,
@@ -40,7 +40,7 @@ const EXPECTED_LEVELS: Array[Dictionary] = [
 	{
 		"id": "sniper_party",
 		"path": "res://levels/sniper_party.json",
-		"catalog_title": "Arena 10 / Снайперы",
+		"catalog_title": "Arena 15 / Снайперы",
 		"title": "SNIPER PARTY",
 		"objective": "СТОЛКНИ ВРАГОВ В ЯМУ",
 		"enemy_count": 2,
@@ -74,7 +74,7 @@ const EXPECTED_LEVELS: Array[Dictionary] = [
 	{
 		"id": "tower_assault",
 		"path": "res://levels/tower_assault.json",
-		"catalog_title": "Arena 11 / Штурм",
+		"catalog_title": "Arena 16 / Штурм",
 		"title": "TOWER ASSAULT",
 		"objective": "СТОЛКНИ ВРАГОВ В ЯМУ",
 		"enemy_count": 5,

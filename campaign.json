@@ -15,14 +15,14 @@
 			"catalog_title": "Arena 02 / Опора"
 		},
 		{
-			"level_id": "arena_03_data",
-			"path": "res://levels/arena_03.json",
-			"catalog_title": "Arena 03 / Толкач"
-		},
-		{
 			"level_id": "arena_04_data",
 			"path": "res://levels/arena_04.json",
-			"catalog_title": "Arena 04 / Катапульта"
+			"catalog_title": "Arena 03 / Катапульта"
+		},
+		{
+			"level_id": "arena_03_data",
+			"path": "res://levels/arena_03.json",
+			"catalog_title": "Arena 04 / Толкач"
 		},
 		{
 			"level_id": "arena_05_data",
@@ -30,59 +30,59 @@
 			"catalog_title": "Arena 05 / Стрелок"
 		},
 		{
-			"level_id": "arena_06_data",
-			"path": "res://levels/arena_06.json",
-			"catalog_title": "Arena 06 / Чужая рука"
-		},
-		{
-			"level_id": "arena_07_data",
-			"path": "res://levels/arena_07.json",
-			"catalog_title": "Arena 07 / Лифт"
-		},
-		{
-			"level_id": "arena_08_data",
-			"path": "res://levels/arena_08.json",
-			"catalog_title": "Arena 08 / Экзамен"
-		},
-		{
-			"level_id": "jailbreak",
-			"path": "res://levels/jailbreak.json",
-			"catalog_title": "Arena 09 / Побег"
-		},
-		{
-			"level_id": "sniper_party",
-			"path": "res://levels/sniper_party.json",
-			"catalog_title": "Arena 10 / Снайперы"
-		},
-		{
-			"level_id": "tower_assault",
-			"path": "res://levels/tower_assault.json",
-			"catalog_title": "Arena 11 / Штурм"
-		},
-		{
-			"level_id": "arena_12_data",
-			"path": "res://levels/arena_12.json",
-			"catalog_title": "Arena 12 / Ворота"
-		},
-		{
 			"level_id": "arena_13_data",
 			"path": "res://levels/arena_13.json",
-			"catalog_title": "Arena 13 / Двойной прыжок"
+			"catalog_title": "Arena 06 / Двойной прыжок"
 		},
 		{
 			"level_id": "arena_14_data",
 			"path": "res://levels/arena_14.json",
-			"catalog_title": "Arena 14 / Шипы"
+			"catalog_title": "Arena 07 / Шипы"
 		},
 		{
-			"level_id": "arena_15_data",
-			"path": "res://levels/arena_15.json",
-			"catalog_title": "Arena 15 / Домино"
+			"level_id": "arena_07_data",
+			"path": "res://levels/arena_07.json",
+			"catalog_title": "Arena 08 / Лифт"
+		},
+		{
+			"level_id": "arena_12_data",
+			"path": "res://levels/arena_12.json",
+			"catalog_title": "Arena 09 / Ворота"
 		},
 		{
 			"level_id": "arena_16_data",
 			"path": "res://levels/arena_16.json",
-			"catalog_title": "Arena 16 / Противовес"
+			"catalog_title": "Arena 10 / Противовес"
+		},
+		{
+			"level_id": "arena_06_data",
+			"path": "res://levels/arena_06.json",
+			"catalog_title": "Arena 11 / Чужая рука"
+		},
+		{
+			"level_id": "arena_15_data",
+			"path": "res://levels/arena_15.json",
+			"catalog_title": "Arena 12 / Домино"
+		},
+		{
+			"level_id": "jailbreak",
+			"path": "res://levels/jailbreak.json",
+			"catalog_title": "Arena 13 / Побег"
+		},
+		{
+			"level_id": "arena_08_data",
+			"path": "res://levels/arena_08.json",
+			"catalog_title": "Arena 14 / Экзамен"
+		},
+		{
+			"level_id": "sniper_party",
+			"path": "res://levels/sniper_party.json",
+			"catalog_title": "Arena 15 / Снайперы"
+		},
+		{
+			"level_id": "tower_assault",
+			"path": "res://levels/tower_assault.json",
+			"catalog_title": "Arena 16 / Штурм"
 		}
 	]
 }

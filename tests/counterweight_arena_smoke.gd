@@ -68,7 +68,7 @@ func _load_arena() -> Dictionary:
 	var loaded: Dictionary = LEVEL_STORAGE.load_builtin_level(LEVEL_ID)
 	_expect(
 		catalog_entry.get("path") == "res://levels/arena_16.json"
-		and catalog_entry.get("title") == "Arena 16 / Противовес"
+		and catalog_entry.get("title") == "Arena 10 / Противовес"
 		and bool(loaded.get("ok", false))
 		and loaded.get("warnings", []).is_empty(),
 		"Arena 16 catalog or schema validation failed: %s / %s"
